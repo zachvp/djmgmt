@@ -12,7 +12,7 @@ MOCK_INPUT = '/mock/input'
 import sys
 sys.path.append(PROJECT_ROOT)
 
-from src import common
+from djmgmt import common
 
 class TestConfigureLog(unittest.TestCase):
     @patch('logging.basicConfig')
@@ -27,7 +27,7 @@ class TestConfigureLog(unittest.TestCase):
         common.configure_log()
         
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/src/logs/common.log"
+        LOG_PATH = f"{PROJECT_ROOT}/src/djmgmt/logs/common.log"
         self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
         self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.DEBUG)
         
@@ -43,7 +43,7 @@ class TestConfigureLog(unittest.TestCase):
         common.configure_log(level=logging.INFO, path=__file__)
         
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/test/logs/test_common.log"
+        LOG_PATH = f"{PROJECT_ROOT}/tests/logs/test_common.log"
         self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
         self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.INFO)
         

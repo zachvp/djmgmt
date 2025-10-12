@@ -3,11 +3,11 @@ import os
 from unittest.mock import patch, MagicMock
 from PIL import Image
 
-from src import constants
-from src.tags import Tags
+from djmgmt import constants
+from djmgmt.tags import Tags
 
 # Test targets
-from src import tags_sort
+from djmgmt import tags_sort
 
 # Constants
 MOCK_ARTIST        = 'mock_artist'
@@ -37,9 +37,9 @@ class TestSortHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('src.tags_sort.clean_dirname_simple')
-    @patch('src.tags.Tags.load')
-    @patch('src.music.prune')
+    @patch('djmgmt.tags_sort.clean_dirname_simple')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.music.prune')
     @patch('os.walk')
     def test_success_default_args(self,
                                   mock_walk: MagicMock,
@@ -70,10 +70,10 @@ class TestSortHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('src.tags_sort.date_path')
-    @patch('src.tags_sort.clean_dirname_simple')
-    @patch('src.tags.Tags.load')
-    @patch('src.music.prune')
+    @patch('djmgmt.tags_sort.date_path')
+    @patch('djmgmt.tags_sort.clean_dirname_simple')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.music.prune')
     @patch('os.walk')
     def test_success_date(self,
                           mock_walk: MagicMock,
@@ -107,9 +107,9 @@ class TestSortHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('src.tags_sort.clean_dirname_simple')
-    @patch('src.tags.Tags.load')
-    @patch('src.music.prune')
+    @patch('djmgmt.tags_sort.clean_dirname_simple')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.music.prune')
     @patch('os.walk')
     def test_success_skip_non_music(self,
                                     mock_walk: MagicMock,
@@ -141,9 +141,9 @@ class TestSortHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('os.makedirs')
     @patch('os.path.exists')
-    @patch('src.tags_sort.clean_dirname_simple')
-    @patch('src.tags.Tags.load')
-    @patch('src.music.prune')
+    @patch('djmgmt.tags_sort.clean_dirname_simple')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.music.prune')
     @patch('os.walk')
     def test_success_skip_tags_load_fail(self,
                                          mock_walk: MagicMock,

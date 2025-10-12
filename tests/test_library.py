@@ -2,8 +2,8 @@ import unittest
 import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock
 
-from src import library
-from src import constants
+from djmgmt import library
+from djmgmt import constants
 
 # Constants
 TRACK_XML = '''
@@ -26,11 +26,11 @@ COLLECTION_XML = f'''
 
 # Test classes
 class TestGenerateDatePaths(unittest.TestCase):
-    @patch('src.common.remove_subpath')
-    @patch('src.common.find_date_context')
-    @patch('src.library.full_path')
-    @patch('src.library.swap_root')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.common.remove_subpath')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.full_path')
+    @patch('djmgmt.library.swap_root')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_default_parameters(self,
                                         mock_collection_path_to_syspath: MagicMock,
                                         mock_swap_root: MagicMock,
@@ -65,11 +65,11 @@ class TestGenerateDatePaths(unittest.TestCase):
         mock_date_context.assert_called_once()
         mock_remove_subpath.assert_called_once()
     
-    @patch('src.common.remove_subpath')
-    @patch('src.common.find_date_context')
-    @patch('src.library.full_path')
-    @patch('src.library.swap_root')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.common.remove_subpath')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.full_path')
+    @patch('djmgmt.library.swap_root')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_metadata_path(self,
                                    mock_collection_path_to_syspath: MagicMock,
                                    mock_swap_root: MagicMock,
@@ -104,11 +104,11 @@ class TestGenerateDatePaths(unittest.TestCase):
         mock_date_context.assert_called_once()
         mock_remove_subpath.assert_called_once()
         
-    @patch('src.common.remove_subpath')
-    @patch('src.common.find_date_context')
-    @patch('src.library.full_path')
-    @patch('src.library.swap_root')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.common.remove_subpath')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.full_path')
+    @patch('djmgmt.library.swap_root')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_playlist_ids_include(self,
                                           mock_collection_path_to_syspath: MagicMock,
                                           mock_swap_root: MagicMock,
@@ -143,11 +143,11 @@ class TestGenerateDatePaths(unittest.TestCase):
         mock_date_context.assert_called_once()
         mock_remove_subpath.assert_called_once()
         
-    @patch('src.common.remove_subpath')
-    @patch('src.common.find_date_context')
-    @patch('src.library.full_path')
-    @patch('src.library.swap_root')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.common.remove_subpath')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.full_path')
+    @patch('djmgmt.library.swap_root')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_playlist_ids_exclude(self,
                                           mock_collection_path_to_syspath: MagicMock,
                                           mock_swap_root: MagicMock,
@@ -178,7 +178,7 @@ class TestGenerateDatePaths(unittest.TestCase):
         mock_remove_subpath.assert_not_called()
 
 class TestFullPath(unittest.TestCase):
-    @patch('src.library.date_path')
+    @patch('djmgmt.library.date_path')
     def test_success_default_parameters(self, mock_date_path: MagicMock) -> None:
         '''Tests for expected output with only required positional arguments provided.'''
         # Set up input
@@ -194,7 +194,7 @@ class TestFullPath(unittest.TestCase):
         expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_FILE.aiff'
         self.assertEqual(actual, expected)
         
-    @patch('src.library.date_path')
+    @patch('djmgmt.library.date_path')
     def test_success_include_metadata(self, mock_date_path: MagicMock) -> None:
         '''Tests for expected output with metadata included paramter.'''
         # Set up input
@@ -410,8 +410,8 @@ class TestFilterPathMappings(unittest.TestCase):
 class TestLibraryCollectIdentifiers(unittest.TestCase):
     '''Tests for library.collect_identifiers.'''
     
-    @patch('src.tags.Tags.load')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_no_filter(self,
                                mock_to_syspath: MagicMock,
                                mock_tags_load: MagicMock) -> None:
@@ -430,8 +430,8 @@ class TestLibraryCollectIdentifiers(unittest.TestCase):
         self.assertEqual(actual, [mock_identifier])
         mock_to_syspath.assert_called_once()
         
-    @patch('src.tags.Tags.load')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_filter_included(self,
                                      mock_to_syspath: MagicMock,
                                      mock_tags_load: MagicMock) -> None:
@@ -450,8 +450,8 @@ class TestLibraryCollectIdentifiers(unittest.TestCase):
         self.assertEqual(actual, [mock_identifier])
         mock_to_syspath.assert_called_once()
         
-    @patch('src.tags.Tags.load')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_success_filter_excluded(self,
                                      mock_to_syspath: MagicMock,
                                      mock_tags_load: MagicMock) -> None:
@@ -471,8 +471,8 @@ class TestLibraryCollectIdentifiers(unittest.TestCase):
         mock_to_syspath.assert_called_once()
     
     @patch('logging.error')
-    @patch('src.tags.Tags.load')
-    @patch('src.library.collection_path_to_syspath')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.library.collection_path_to_syspath')
     def test_error_tags_load(self,
                              mock_to_syspath: MagicMock,
                              mock_tags_load: MagicMock,

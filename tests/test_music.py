@@ -7,9 +7,9 @@ import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock, call
 from zipfile import ZipInfo
 
-from src import music
-from src import constants
-from src.tags import Tags
+from djmgmt import music
+from djmgmt import constants
+from djmgmt.tags import Tags
 
 # Generation functions
 def _create_track_xml(index: int) -> str:
@@ -134,7 +134,7 @@ class TestExtractAllNormalizedEncodings(unittest.TestCase):
         self.assertEqual(actual, (mock_archive_path, []))
 
 class TestCompressDir(unittest.TestCase):
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     @patch('zipfile.ZipFile')
     def test_success(self,
                      mock_zipfile: MagicMock,
@@ -158,8 +158,8 @@ class TestFlattenZip(unittest.TestCase):
     @patch('os.listdir')
     @patch('os.path.exists')
     @patch('shutil.move')
-    @patch('src.common.collect_paths')
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.common.collect_paths')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     def test_success(self,
                      mock_extract_all: MagicMock,
                      mock_collect_paths: MagicMock,
@@ -184,9 +184,9 @@ class TestFlattenZip(unittest.TestCase):
         mock_rmtree.assert_called_once_with(f"{MOCK_OUTPUT_DIR}/file")
 
 class TestStandardizeLossless(unittest.TestCase):
-    @patch('src.music.sweep')
+    @patch('djmgmt.music.sweep')
     @patch('os.remove')
-    @patch('src.encode.encode_lossless')
+    @patch('djmgmt.encode.encode_lossless')
     @patch('tempfile.TemporaryDirectory')
     def test_success(self,
                      mock_temp_dir: MagicMock,
@@ -305,7 +305,7 @@ class TestGetUnplayedTracks(unittest.TestCase):
         </DJ_PLAYLISTS>
         '''.strip()
     
-    @patch('src.music.get_played_tracks')
+    @patch('djmgmt.music.get_played_tracks')
     def test_success(self,
                      mock_get_played: MagicMock) -> None:
         '''Tests that the function returns all unplayed tracks.'''
@@ -327,9 +327,9 @@ class TestRecordCollection(unittest.TestCase):
     '''Tests for music.record_collection.'''
     
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_new_collection_file(self,
                               mock_path_exists: MagicMock,
@@ -462,9 +462,9 @@ class TestRecordCollection(unittest.TestCase):
         self.assertRegex(track.attrib[constants.ATTR_TRACK_KEY], r'\d+')
 
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_collection_file_exists(self,
                                  mock_path_exists: MagicMock,
@@ -615,9 +615,9 @@ class TestRecordCollection(unittest.TestCase):
             self.assertRegex(track.attrib[constants.ATTR_TRACK_KEY], r'\d+')
             
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_track_exists_same_metadata(self,
                                                 mock_path_exists: MagicMock,
@@ -672,9 +672,9 @@ class TestRecordCollection(unittest.TestCase):
                          ET.tostring(cast(ET.Element, mock_xml_parse.return_value.getroot()), encoding="UTF-8"))
             
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_track_exists_update_metadata(self,
                                                   mock_path_exists: MagicMock,
@@ -766,9 +766,9 @@ class TestRecordCollection(unittest.TestCase):
         self.assertEqual(track.get('Tonality'), f"{MOCK_TONALITY}_update")
         
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_missing_metadata(self,
                                       mock_path_exists: MagicMock,
@@ -847,9 +847,9 @@ class TestRecordCollection(unittest.TestCase):
         self.assertEqual(track.attrib['Tonality'], '')
 
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_no_music_files(self,
                                     mock_path_exists: MagicMock,
@@ -930,9 +930,9 @@ class TestRecordCollection(unittest.TestCase):
         self.assertEqual(len(pruned), 0)
         
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_success_unreadable_tags(self,
                                      mock_path_exists: MagicMock,
@@ -986,9 +986,9 @@ class TestRecordCollection(unittest.TestCase):
                          ET.tostring(mock_xml_parse.return_value, encoding="UTF-8"))
     
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_collection_exists_invalid_content(self,
                                                mock_path_exists: MagicMock,
@@ -1013,10 +1013,10 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_write.assert_not_called()
         
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
+    @patch('djmgmt.music.ET.parse')
     @patch('os.path.exists')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     def test_collection_exists_missing_collection_tag(self,
                                                       mock_collect_paths: MagicMock,
                                                       mock_tags_load: MagicMock,
@@ -1039,9 +1039,9 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_write.assert_not_called()
         
     @patch.object(ET.ElementTree, 'write')
-    @patch('src.music.ET.parse')
-    @patch('src.tags.Tags.load')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.music.ET.parse')
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
     @patch('os.path.exists')
     def test_template_file_invalid(self,
                                    mock_path_exists: MagicMock,
@@ -1066,9 +1066,9 @@ class TestRecordCollection(unittest.TestCase):
 class TestSweep(unittest.TestCase):
     @patch('shutil.move')
     @patch('zipfile.ZipFile')
-    @patch('src.music.is_prefix_match')
+    @patch('djmgmt.music.is_prefix_match')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_sweep_music_files(self,
                                mock_collect_paths: MagicMock,
                                mock_path_exists: MagicMock,
@@ -1112,9 +1112,9 @@ class TestSweep(unittest.TestCase):
     
     @patch('shutil.move')
     @patch('zipfile.ZipFile')
-    @patch('src.music.is_prefix_match')
+    @patch('djmgmt.music.is_prefix_match')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_no_sweep_non_music_files(self,
                                   mock_collect_paths: MagicMock,
                                   mock_path_exists: MagicMock,
@@ -1153,9 +1153,9 @@ class TestSweep(unittest.TestCase):
     
     @patch('shutil.move')
     @patch('zipfile.ZipFile')
-    @patch('src.music.is_prefix_match')
+    @patch('djmgmt.music.is_prefix_match')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_sweep_prefix_archive(self,
                                   mock_collect_paths: MagicMock,
                                   mock_path_exists: MagicMock,
@@ -1192,9 +1192,9 @@ class TestSweep(unittest.TestCase):
 
     @patch('shutil.move')
     @patch('zipfile.ZipFile')
-    @patch('src.music.is_prefix_match')
+    @patch('djmgmt.music.is_prefix_match')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_sweep_music_archive(self,
                                  mock_collect_paths: MagicMock,
                                  mock_path_exists: MagicMock,
@@ -1236,9 +1236,9 @@ class TestSweep(unittest.TestCase):
     
     @patch('shutil.move')
     @patch('zipfile.ZipFile')
-    @patch('src.music.is_prefix_match')
+    @patch('djmgmt.music.is_prefix_match')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_sweep_album_archive(self,
                                  mock_collect_paths: MagicMock,
                                  mock_path_exists: MagicMock,
@@ -1283,7 +1283,7 @@ class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('builtins.input')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_output_path_not_exists(self,
                                             mock_collect_paths: MagicMock,
                                             mock_path_exists: MagicMock,
@@ -1322,7 +1322,7 @@ class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('builtins.input')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_output_path_exists(self,
                                         mock_collect_paths: MagicMock,
                                         mock_path_exists: MagicMock,
@@ -1354,7 +1354,7 @@ class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('builtins.input')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_confirm(self,
                                          mock_collect_paths: MagicMock,
                                          mock_path_exists: MagicMock,
@@ -1385,7 +1385,7 @@ class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('builtins.input')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_decline(self,
                                          mock_collect_paths: MagicMock,
                                          mock_path_exists: MagicMock,
@@ -1414,7 +1414,7 @@ class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
     @patch('builtins.input')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_quit(self,
                                       mock_collect_paths: MagicMock,
                                       mock_path_exists: MagicMock,
@@ -1441,11 +1441,11 @@ class TestFlattenHierarchy(unittest.TestCase):
         self.assertEqual(actual, [])
 
 class TestExtract(unittest.TestCase):
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_false(self,
                                        mock_collect_paths: MagicMock,
                                        mock_path_exists: MagicMock,
@@ -1473,11 +1473,11 @@ class TestExtract(unittest.TestCase):
         # Check output
         self.assertEqual(actual, [mock_extract_all.return_value])
         
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_no_zip_present(self,
                                     mock_collect_paths: MagicMock,
                                     mock_path_exists: MagicMock,
@@ -1503,11 +1503,11 @@ class TestExtract(unittest.TestCase):
         ## Check output
         self.assertEqual(actual, [])
         
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_output_exists(self,
                                    mock_collect_paths: MagicMock,
                                    mock_path_exists: MagicMock,
@@ -1533,11 +1533,11 @@ class TestExtract(unittest.TestCase):
         ## Check output
         self.assertEqual(actual, [])
 
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_true_confirm(self,
                                               mock_collect_paths: MagicMock,
                                               mock_path_exists: MagicMock,
@@ -1566,11 +1566,11 @@ class TestExtract(unittest.TestCase):
         # Check output
         self.assertEqual(actual, [mock_extract_all.return_value])
         
-    @patch('src.music.extract_all_normalized_encodings')
+    @patch('djmgmt.music.extract_all_normalized_encodings')
     @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_zip_interactive_true_decline(self,
                                                   mock_collect_paths: MagicMock,
                                                   mock_path_exists: MagicMock,
@@ -1601,7 +1601,7 @@ class TestCompressAllCLI(unittest.TestCase):
     '''Even though this function calls os.walk, it's not a good use case for common.collect_paths,
     because that collects all absolute filepaths. The music.compress_all_cli function needs all directories, not file paths.'''
     
-    @patch('src.music.compress_dir')
+    @patch('djmgmt.music.compress_dir')
     @patch('os.walk')
     def test_success(self,
                      mock_walk: MagicMock,
@@ -1627,8 +1627,8 @@ class TestCompressAllCLI(unittest.TestCase):
 
 class TestPruneNonUserDirs(unittest.TestCase):
     @patch('shutil.rmtree')
-    @patch('src.music.has_no_user_files')
-    @patch('src.music.get_dirs')
+    @patch('djmgmt.music.has_no_user_files')
+    @patch('djmgmt.music.get_dirs')
     def test_success_remove_empty_dir(self,
                                       mock_get_dirs: MagicMock,
                                       mock_is_empty_dir: MagicMock,
@@ -1651,8 +1651,8 @@ class TestPruneNonUserDirs(unittest.TestCase):
         self.assertListEqual(actual, [expected_path])
         
     @patch('shutil.rmtree')
-    @patch('src.music.has_no_user_files')
-    @patch('src.music.get_dirs')
+    @patch('djmgmt.music.has_no_user_files')
+    @patch('djmgmt.music.get_dirs')
     def test_success_skip_non_empty_dir(self,
                                         mock_get_dirs: MagicMock,
                                         mock_is_empty_dir: MagicMock,
@@ -1674,7 +1674,7 @@ class TestPruneNonUserDirs(unittest.TestCase):
         ## Check output
         self.assertListEqual(actual, [])
         
-    @patch('src.music.prune_non_user_dirs')
+    @patch('djmgmt.music.prune_non_user_dirs')
     def test_success_cli(self, mock_prune_empty: MagicMock) -> None:
         '''Tests that the CLI wrapper calls the correct function.'''
         args = Namespace(input=MOCK_INPUT_DIR, interactive=False)
@@ -1685,7 +1685,7 @@ class TestPruneNonUserDirs(unittest.TestCase):
 class TestPruneNonMusicFiles(unittest.TestCase):
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_non_music(self,
                                       mock_collect_paths: MagicMock,
                                       mock_os_remove: MagicMock,
@@ -1705,7 +1705,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_skip_music(self,
                                 mock_collect_paths: MagicMock,
                                 mock_os_remove: MagicMock,
@@ -1725,7 +1725,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_skip_music_subdirectory(self,
                                              mock_collect_paths: MagicMock,
                                              mock_os_remove: MagicMock,
@@ -1745,7 +1745,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_non_music_subdirectory(self,
                                                    mock_collect_paths: MagicMock,
                                                    mock_os_remove: MagicMock,
@@ -1765,7 +1765,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_hidden_file(self,
                                         mock_collect_paths: MagicMock,
                                         mock_os_remove: MagicMock,
@@ -1785,7 +1785,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_zip_archive(self,
                                         mock_collect_paths: MagicMock,
                                         mock_os_remove: MagicMock,
@@ -1806,7 +1806,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     @patch('shutil.rmtree')
     @patch('os.remove')
     @patch('os.path.isdir')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_dir(self,
                                 mock_collect_paths: MagicMock,
                                 mock_isdir: MagicMock,
@@ -1828,7 +1828,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_skip_music_hidden_dir(self,
                                            mock_collect_paths: MagicMock,
                                            mock_os_remove: MagicMock,
@@ -1848,7 +1848,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     
     @patch('shutil.rmtree')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_remove_non_music_hidden_dir(self,
                                                  mock_collect_paths: MagicMock,
                                                  mock_os_remove: MagicMock,
@@ -1869,7 +1869,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     @patch('shutil.rmtree')
     @patch('builtins.input')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_skip(self,
                                       mock_collect_paths: MagicMock,
                                       mock_os_remove: MagicMock,
@@ -1893,7 +1893,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     @patch('shutil.rmtree')
     @patch('builtins.input')
     @patch('os.remove')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.common.collect_paths')
     def test_success_interactive_remove(self,
                                         mock_collect_paths: MagicMock,
                                         mock_os_remove: MagicMock,
@@ -1914,7 +1914,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         
         self.assertListEqual(actual, mock_collect_paths.return_value)
         
-    @patch('src.music.prune_non_music')
+    @patch('djmgmt.music.prune_non_music')
     def test_success_cli(self, mock_prune_non_music: MagicMock) -> None:
         '''Tests that the CLI wrapper function exists and is called properly.'''
         # Call target function and assert expectations
@@ -1923,14 +1923,14 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_prune_non_music.assert_called_once_with(mock_namespace.input, set(), mock_namespace.interactive)
 
 class TestProcess(unittest.TestCase):
-    @patch('src.common.write_paths')
-    @patch('src.encode.find_missing_art_os')
-    @patch('src.music.standardize_lossless')
-    @patch('src.music.prune_non_music')
-    @patch('src.music.prune_non_user_dirs')
-    @patch('src.music.flatten_hierarchy')
-    @patch('src.music.extract')
-    @patch('src.music.sweep')
+    @patch('djmgmt.common.write_paths')
+    @patch('djmgmt.encode.find_missing_art_os')
+    @patch('djmgmt.music.standardize_lossless')
+    @patch('djmgmt.music.prune_non_music')
+    @patch('djmgmt.music.prune_non_user_dirs')
+    @patch('djmgmt.music.flatten_hierarchy')
+    @patch('djmgmt.music.extract')
+    @patch('djmgmt.music.sweep')
     def test_success(self,
                      mock_sweep: MagicMock,
                      mock_extract: MagicMock,
@@ -1983,7 +1983,7 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(mock_call_container.find_missing_art_os(), mock_write_paths.call_args.args[0])
 
 class TestProcessCLI(unittest.TestCase):
-    @patch('src.music.process')
+    @patch('djmgmt.music.process')
     def test_success(self, mock_process: MagicMock) -> None:
         '''Tests that the process function is called with the expected arguments.'''
         # Call target function
@@ -2001,13 +2001,13 @@ class TestProcessCLI(unittest.TestCase):
                                              mock_prefix_hints)
 
 class TestUpdateLibrary(unittest.TestCase):
-    @patch('src.sync.run_sync_mappings')
-    @patch('src.library.filter_path_mappings')
-    @patch('src.sync.create_sync_mappings')
-    @patch('src.tags_info.compare_tags')
-    @patch('src.music.record_collection')
-    @patch('src.music.sweep')
-    @patch('src.music.process')
+    @patch('djmgmt.sync.run_sync_mappings')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.sync.create_sync_mappings')
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.music.record_collection')
+    @patch('djmgmt.music.sweep')
+    @patch('djmgmt.music.process')
     @patch('tempfile.TemporaryDirectory')
     def test_success(self,
                      mock_temp_dir: MagicMock,
@@ -2070,13 +2070,13 @@ class TestUpdateLibrary(unittest.TestCase):
         expected_mappings = mock_mappings_created + mock_mappings_filtered
         mock_run_sync_mappings.assert_called_once_with(expected_mappings)
         
-    @patch('src.sync.run_sync_mappings')
-    @patch('src.library.filter_path_mappings')
-    @patch('src.tags_info.compare_tags')
-    @patch('src.sync.create_sync_mappings')
-    @patch('src.music.record_collection')
-    @patch('src.music.sweep')
-    @patch('src.music.process')
+    @patch('djmgmt.sync.run_sync_mappings')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.sync.create_sync_mappings')
+    @patch('djmgmt.music.record_collection')
+    @patch('djmgmt.music.sweep')
+    @patch('djmgmt.music.process')
     def test_error_sync(self,
                         mock_process: MagicMock,
                         mock_sweep: MagicMock,

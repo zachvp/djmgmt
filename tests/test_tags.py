@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from typing import cast
 
 # Test targets
-from src.tags import Tags
+from djmgmt.tags import Tags
 
 # Constants
 ## Mock input arguments and values
@@ -168,7 +168,7 @@ class TestTags(unittest.TestCase):
         
         self.assertNotEqual(lhs, rhs)
         
-    @patch('src.tags.Tags._eq_cover_image')
+    @patch('djmgmt.tags.Tags._eq_cover_image')
     def test_success_not_eq_cover_image(self, mock_eq_cover: MagicMock) -> None:
         '''Tests that two Tags instances with different cover image attributes are considered unequal.'''
         lhs = create_full_mock_tags()
@@ -221,7 +221,7 @@ class TestTagsGetTrackKey(unittest.TestCase):
 class TestTagsExtractTagValue(unittest.TestCase):
     '''Tests for Tags.extract_tag_value'''
     
-    @patch('src.tags.Tags.get_track_key')
+    @patch('djmgmt.tags.Tags.get_track_key')
     def test_success_key_exists_string(self, mock_get_track_key: MagicMock) -> None:
         '''Tests that a tag string is extracted from a tag containing the corresponding entry.'''
         # Configure mocks
@@ -235,7 +235,7 @@ class TestTagsExtractTagValue(unittest.TestCase):
         # Assert expectations
         self.assertEqual(actual, MOCK_TITLE)
     
-    @patch('src.tags.Tags.get_track_key')
+    @patch('djmgmt.tags.Tags.get_track_key')
     def test_success_key_none(self, mock_get_track_key: MagicMock) -> None:
         '''Tests that None is returned if get_track_key returns None.'''
         # Configure mocks
@@ -376,8 +376,8 @@ class TestTagsExtractCoverImage(unittest.TestCase):
 class TestTagsLoad(unittest.TestCase):
     '''Tests for Tags.load.'''
     
-    @patch('src.tags.Tags.extract_cover_image')
-    @patch('src.tags.Tags.extract_tag_value')
+    @patch('djmgmt.tags.Tags.extract_cover_image')
+    @patch('djmgmt.tags.Tags.extract_tag_value')
     @patch('mutagen.File')
     def test_success(self,
                      mock_file_constructor: MagicMock,
@@ -409,7 +409,7 @@ class TestTagsLoad(unittest.TestCase):
         self.assertEqual(actual.key, MOCK_MUSIC_KEY_KEY)
         self.assertEqual(actual.cover_image, MOCK_IMAGE)
     
-    @patch('src.tags.Tags.get_track_key')
+    @patch('djmgmt.tags.Tags.get_track_key')
     @patch('mutagen.File')
     def test_success_no_artist_no_title(self,
                                         mock_file_constructor: MagicMock,
@@ -568,7 +568,7 @@ class TestTagsHashCoverImage(unittest.TestCase):
 class TestEQCoverImage(unittest.TestCase):
     '''Tests for the 'tags.Tags._eq_cover_image' function.'''
     
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_success_same_images(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison for images with the same hash returns True.'''
         # Set up mocks
@@ -583,7 +583,7 @@ class TestEQCoverImage(unittest.TestCase):
         self.assertTrue(actual)
         self.assertEqual(mock_cover_hash.call_count, 2)
         
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_success_different_images(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison for images with different hashes returns True.'''
         # Set up mocks: two different hash return values
@@ -599,7 +599,7 @@ class TestEQCoverImage(unittest.TestCase):
         self.assertFalse(actual)
         self.assertEqual(mock_cover_hash.call_count, 2)
     
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_success_exists_vs_none(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison between Tags containing an image and Tags missing an image returns False.'''
         # Set up mocks: lhs exists, rhs None.
@@ -614,7 +614,7 @@ class TestEQCoverImage(unittest.TestCase):
         # Assert expectations
         self.assertFalse(actual)
         
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_success_none_vs_exists(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison between Tags missing an image and Tags containing an image returns False.'''
         # Set up mocks: lhs None, rhs exists
@@ -629,7 +629,7 @@ class TestEQCoverImage(unittest.TestCase):
         # Assert expectations
         self.assertFalse(actual)
         
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_success_none_vs_none(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison between two Tags instances missing an image returns True.'''
         # Set up mocks: both hashes as None
@@ -643,7 +643,7 @@ class TestEQCoverImage(unittest.TestCase):
         # Assert expectations
         self.assertTrue(actual)
     
-    @patch('src.tags.Tags._hash_cover_image')
+    @patch('djmgmt.tags.Tags._hash_cover_image')
     def test_error_hash(self, mock_cover_hash: MagicMock) -> None:
         '''Tests that comparison resulting in a hash error raises a value error.'''
         # Set up mocks: hash exception

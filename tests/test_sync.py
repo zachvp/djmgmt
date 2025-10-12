@@ -6,7 +6,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock, call
 from typing import cast
 
-from src import sync, constants, subsonic_client
+from djmgmt import sync, constants, subsonic_client
 
 # Constants
 DATE_PROCESSED_PAST     = '2025/05 may/19'
@@ -41,7 +41,7 @@ COLLECTION_XML = f'''
 # Primary test clas
 class TestIsProcessed(unittest.TestCase):
     # Past dates
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_is_processed_past(self, mock_load: MagicMock) -> None:
         '''Tests that matching date contexts before the processed date are considered processed.'''
         mock_load.return_value = DATE_PROCESSED_CURRENT
@@ -52,7 +52,7 @@ class TestIsProcessed(unittest.TestCase):
         mock_load.assert_called_once()
     
     # Current dates
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_is_processed_current(self, mock_load: MagicMock) -> None:
         '''Tests that matching date contexts equal to the processed date are considered processed.'''
         mock_load.return_value = DATE_PROCESSED_CURRENT
@@ -62,7 +62,7 @@ class TestIsProcessed(unittest.TestCase):
         mock_load.assert_called_once()
     
     # Future dates
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_is_processed_future(self, mock_load: MagicMock) -> None:
         '''Tests that matching date contexts later than the processed date are NOT considered processed.'''
         mock_load.return_value = DATE_PROCESSED_CURRENT
@@ -72,11 +72,11 @@ class TestIsProcessed(unittest.TestCase):
         mock_load.assert_called_once()
 
 class TestSyncBatch(unittest.TestCase):
-    @patch('src.encode.encode_lossy')
-    @patch('src.sync.transform_implied_path')
-    @patch('src.sync.transfer_files')
-    @patch('src.subsonic_client.call_endpoint')
-    @patch('src.subsonic_client.handle_response')
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.subsonic_client.call_endpoint')
+    @patch('djmgmt.subsonic_client.handle_response')
     @patch('time.sleep')
     def test_success_full_scan(self,
                                mock_sleep: MagicMock,
@@ -121,11 +121,11 @@ class TestSyncBatch(unittest.TestCase):
         ])
         mock_sleep.assert_called()
 
-    @patch('src.encode.encode_lossy')
-    @patch('src.sync.transform_implied_path')
-    @patch('src.sync.transfer_files')
-    @patch('src.subsonic_client.call_endpoint')
-    @patch('src.subsonic_client.handle_response')
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.subsonic_client.call_endpoint')
+    @patch('djmgmt.subsonic_client.handle_response')
     def test_success_quick_scan(self,
                                 mock_handle_response: MagicMock,
                                 mock_call_endpoint: MagicMock,
@@ -167,8 +167,8 @@ class TestSyncBatch(unittest.TestCase):
             call(subsonic_client.API.GET_SCAN_STATUS),
         ])
 
-    @patch('src.encode.encode_lossy')
-    @patch('src.sync.transform_implied_path')
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
     def test_error_no_transfer_path(self,
                                     mock_transform: MagicMock,
                                     mock_encode: MagicMock) -> None:
@@ -190,11 +190,11 @@ class TestSyncBatch(unittest.TestCase):
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
         mock_transform.assert_called_once_with(dest)
         
-    @patch('src.encode.encode_lossy')
-    @patch('src.sync.transform_implied_path')
-    @patch('src.sync.transfer_files')
-    @patch('src.subsonic_client.call_endpoint')
-    @patch('src.subsonic_client.handle_response')
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.subsonic_client.call_endpoint')
+    @patch('djmgmt.subsonic_client.handle_response')
     def test_error_api(self,
                        mock_handle_response: MagicMock,
                        mock_call_endpoint: MagicMock,
@@ -289,9 +289,9 @@ class TestTransferFiles(unittest.TestCase):
         mock_log_error.assert_called_once()
     
 class TestSyncMappings(unittest.TestCase):
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_success_one_context(self,
                                  mock_load: MagicMock,
                                  mock_save: MagicMock,
@@ -316,9 +316,9 @@ class TestSyncMappings(unittest.TestCase):
         ## Expect file to be written with the date context
         mock_save.assert_called_once()
         
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_success_multiple_contexts(self,
                                        mock_load: MagicMock,
                                        mock_save: MagicMock,
@@ -347,9 +347,9 @@ class TestSyncMappings(unittest.TestCase):
         ## Expect file to be written for each date context
         self.assertEqual(mock_save.call_count, 2)
         
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_error_empty_mappings(self,
                                   mock_load: MagicMock,
                                   mock_save: MagicMock,
@@ -367,9 +367,9 @@ class TestSyncMappings(unittest.TestCase):
         mock_load.assert_not_called()
         mock_save.assert_not_called()
     
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_error_sync_batch(self,
                                   mock_load: MagicMock,
                                   mock_save: MagicMock,
@@ -397,9 +397,9 @@ class TestSyncMappings(unittest.TestCase):
         # Expect no calls to open sync state file, because no batches completed
         mock_save.assert_not_called()
     
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_success_outdated_context_single(self,
                                              mock_load: MagicMock,
                                              mock_save: MagicMock,
@@ -423,9 +423,9 @@ class TestSyncMappings(unittest.TestCase):
         ## Expect no save call
         mock_save.assert_not_called()
         
-    @patch('src.sync.sync_batch')
-    @patch('src.sync.SavedDateContext.save')
-    @patch('src.sync.SavedDateContext.load')
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
     def test_success_outdated_context_multiple(self,
                                                mock_load: MagicMock,
                                                mock_save: MagicMock,
@@ -451,8 +451,8 @@ class TestSyncMappings(unittest.TestCase):
         mock_save.assert_not_called()
 
 class TestRunSyncMappings(unittest.TestCase):
-    @patch('src.sync.rsync_healthcheck')
-    @patch('src.sync.sync_mappings')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
     def test_success(self,
                      mock_sync_from_mappings: MagicMock,
                      mock_rsync_healthcheck: MagicMock) -> None:
@@ -467,8 +467,8 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan)
         mock_rsync_healthcheck.assert_called_once()
     
-    @patch('src.sync.rsync_healthcheck')
-    @patch('src.sync.sync_mappings')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
     def test_exception_sync_from_mappings(self,
                                           mock_sync_from_mappings: MagicMock,
                                           mock_rsync_healthcheck: MagicMock) -> None:
@@ -487,8 +487,8 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan)
         mock_rsync_healthcheck.assert_called_once()
         
-    @patch('src.sync.rsync_healthcheck')
-    @patch('src.sync.sync_mappings')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
     def test_rsync_healthcheck_fail(self,
                                     mock_sync_from_mappings: MagicMock,
                                     mock_rsync_healthcheck: MagicMock) -> None:
@@ -508,10 +508,10 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_rsync_healthcheck.assert_called_once()
 
 class TestCreateSyncMappings(unittest.TestCase):
-    @patch('src.sync.SavedDateContext.is_processed')
-    @patch('src.common.find_date_context')
-    @patch('src.library.generate_date_paths')
-    @patch('src.library.find_node')
+    @patch('djmgmt.sync.SavedDateContext.is_processed')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.generate_date_paths')
+    @patch('djmgmt.library.find_node')
     def test_success_nothing_filtered(self,
                                       mock_find_node: MagicMock,
                                       mock_generate_date_paths: MagicMock,
@@ -538,10 +538,10 @@ class TestCreateSyncMappings(unittest.TestCase):
                                                          playlist_ids={'1'},
                                                          metadata_path=True)
         
-    @patch('src.sync.SavedDateContext.is_processed')
-    @patch('src.common.find_date_context')
-    @patch('src.library.generate_date_paths')
-    @patch('src.library.find_node')
+    @patch('djmgmt.sync.SavedDateContext.is_processed')
+    @patch('djmgmt.common.find_date_context')
+    @patch('djmgmt.library.generate_date_paths')
+    @patch('djmgmt.library.find_node')
     def test_success_everything_filtered(self,
                                          mock_find_node: MagicMock,
                                          mock_generate_date_paths: MagicMock,

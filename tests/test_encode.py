@@ -4,10 +4,10 @@ from unittest.mock import patch, MagicMock, call, AsyncMock
 from typing import cast
 from argparse import Namespace
 
-from src import constants
+from djmgmt import constants
 
 # Test targets
-from src import encode
+from djmgmt import encode
 
 # Constants
 MOCK_INPUT = '/mock/input'
@@ -18,13 +18,13 @@ MOCK_OUTPUT = '/mock/output'
 class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.getsize')
     @patch('builtins.open')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
-    @patch('src.encode.run_command_async')
+    @patch('djmgmt.encode.setup_storage')
+    @patch('djmgmt.encode.run_command_async')
     async def test_success_async_single_batch(self,
                                               mock_run_command_async: AsyncMock,
                                               mock_setup_storage: MagicMock,
@@ -74,13 +74,13 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         
     @patch('os.path.getsize')
     @patch('builtins.open')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
-    @patch('src.encode.run_command_async')
+    @patch('djmgmt.encode.setup_storage')
+    @patch('djmgmt.encode.run_command_async')
     async def test_success_async_multiple_batches(self,
                                                   mock_run_command_async: AsyncMock,
                                                   mock_setup_storage: MagicMock,
@@ -132,12 +132,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.getsize')
     @patch('builtins.open')
     @patch('subprocess.run')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
+    @patch('djmgmt.common.collect_paths')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
+    @patch('djmgmt.encode.setup_storage')
     async def test_success_no_extension(self,
                                         mock_setup_storage: MagicMock,
                                         mock_input: MagicMock,
@@ -167,12 +167,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
     
     @patch('os.path.getsize')
     @patch('builtins.open')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
+    @patch('djmgmt.encode.setup_storage')
     async def test_success_optional_store_path(self,
                                                mock_setup_storage: MagicMock,
                                                mock_input: MagicMock,
@@ -208,12 +208,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         
     @patch('os.path.getsize')
     @patch('builtins.open')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
+    @patch('djmgmt.encode.setup_storage')
     async def test_success_optional_store_skipped(self,
                                                   mock_setup_storage: MagicMock,
                                                   mock_input: MagicMock,
@@ -250,12 +250,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         
     @patch('os.path.getsize')
     @patch('builtins.open')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
+    @patch('djmgmt.encode.setup_storage')
     async def test_success_optional_interactive(self,
                                                 mock_setup_storage: MagicMock,
                                                 mock_input: MagicMock,
@@ -293,12 +293,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
     @patch('os.path.getsize')
     @patch('builtins.open')
     @patch('subprocess.run')
-    @patch('src.encode.ffmpeg_lossless')
-    @patch('src.encode.check_skip_bit_depth')
-    @patch('src.encode.check_skip_sample_rate')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
     @patch('os.walk')
     @patch('builtins.input')
-    @patch('src.encode.setup_storage')
+    @patch('djmgmt.encode.setup_storage')
     async def test_success_unsupported_files(self,
                                              mock_setup_storage: MagicMock,
                                              mock_input: MagicMock,
@@ -334,7 +334,7 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         # Assert the expected function output result -- should be empty for unsupported files
         self.assertListEqual(actual, [])
         
-    @patch('src.encode.encode_lossless')
+    @patch('djmgmt.encode.encode_lossless')
     def test_success_cli(self, mock_encode: MagicMock) -> None:
         '''Tests that the CLI wrapper function calls the expected core function with appropriate arguments.'''
         # Call target function
@@ -360,10 +360,10 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         self.assertDictEqual(mock_encode.call_args.kwargs, expected_kwargs)
 
 class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
-    @patch('src.encode.run_command_async')
-    @patch('src.encode.ffmpeg_lossy')
-    @patch('src.encode.guess_cover_stream_specifier')
-    @patch('src.encode.read_ffprobe_json')
+    @patch('djmgmt.encode.run_command_async')
+    @patch('djmgmt.encode.ffmpeg_lossy')
+    @patch('djmgmt.encode.guess_cover_stream_specifier')
+    @patch('djmgmt.encode.read_ffprobe_json')
     @patch('os.path.exists')
     @patch('os.makedirs')
     async def test_success_required_arguments(self,
@@ -392,9 +392,9 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         mock_ffmpeg_mp3.assert_called_once_with(SOURCE_FILE, f"{MOCK_OUTPUT}{os.sep}file_0.mp3", map_options=f"-map 0:0")
         mock_run_command_async.assert_called_once()
     
-    @patch('src.encode.encode_lossy')
-    @patch('src.common.add_output_path')
-    @patch('src.common.collect_paths')
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.common.add_output_path')
+    @patch('djmgmt.common.collect_paths')
     def test_success_cli(self,
                          mock_collect_paths: MagicMock,
                          mock_add_output_path: MagicMock,
@@ -412,8 +412,8 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         mock_encode_lossy.assert_called_once_with(mock_add_output_path.return_value, args.extension)
 
 class TestMissingArtCLI(unittest.TestCase):
-    @patch('src.common.write_paths')
-    @patch('src.encode.find_missing_art_xml')
+    @patch('djmgmt.common.write_paths')
+    @patch('djmgmt.encode.find_missing_art_xml')
     def test_success_xml(self,
                          mock_find_missing_art_xml: MagicMock,
                          mock_write_paths: MagicMock) -> None:
@@ -433,8 +433,8 @@ class TestMissingArtCLI(unittest.TestCase):
         mock_find_missing_art_xml.assert_called_once_with(args.input, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
         mock_write_paths.assert_called_once_with(mock_paths, args.output)
         
-    @patch('src.common.write_paths')
-    @patch('src.encode.find_missing_art_os')
+    @patch('djmgmt.common.write_paths')
+    @patch('djmgmt.encode.find_missing_art_os')
     def test_success_os(self,
                         mock_find_missing_art_os: MagicMock,
                         mock_write_paths: MagicMock) -> None:
