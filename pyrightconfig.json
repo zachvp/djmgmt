@@ -1,0 +1,10 @@
+{
+    "reportPrivateImportUsage": "none",
+    "reportMissingParameterType": "error",
+    "reportMissingTypeArgument": "error",
+    "reportUnusedImport": "error",
+    "reportUnusedVariable": "error",
+    "ignore": [
+        "src/audacity_script_sample.py"
+    ]
+}

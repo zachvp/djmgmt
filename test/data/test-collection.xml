@@ -1,0 +1,15 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DJ_PLAYLISTS Version="1.0.0">
+  <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+  <COLLECTION Entries="1">
+    <TRACK
+        TrackID="123456789"
+        Name="Test_Title"
+        Artist="Test_Artist"
+        Album="Test_Album"
+        DateAdded="2020-02-03"
+        Location="file://localhost/Users/user/Music/DJ/MOCK_FILE.aiff">
+    </TRACK>
+  </COLLECTION>
+</DJ_PLAYLISTS>

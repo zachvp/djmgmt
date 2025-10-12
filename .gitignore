@@ -1,0 +1,22 @@
+# files
+*.zip
+*.DS_Store
+*.swp
+sftp-config.json
+__sublime*
+.coverage
+
+# auto-generated directories
+.vscode/
+__pycache__/
+*.egg-info/
+
+# custom directories
+data/write/
+logs/
+fallout/input.txt
+copypasta
+
+djmgmt/SyncState.txt
+
+djmgmt/state/

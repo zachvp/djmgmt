@@ -1,0 +1,18 @@
+<?xml version="1.0" encoding="UTF-8"?>
+
+<DJ_PLAYLISTS Version="1.0.0">
+    <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+    <COLLECTION Entries="0">
+    
+    </COLLECTION>
+    <PLAYLISTS>
+        <NODE Type="0" Name="ROOT" Count="2">
+            <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
+            <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+            <NODE Name="dynamic" Type="0" KeyType="0" Entries="1">
+                <NODE Name="unplayed" Type="1" KeyType="0" Entries="0"/>
+                <NODE Name="played" Type="1" KeyType="0" Entries="0"/>
+            </NODE>
+        </NODE>
+    </PLAYLISTS>
+</DJ_PLAYLISTS>
