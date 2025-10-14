@@ -16,6 +16,7 @@ data/write/
 logs/
 fallout/input.txt
 copypasta
+claude/
 
 djmgmt/SyncState.txt
 
