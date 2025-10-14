@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## General Instructions
 
-**Investigation Notes**: Always store investigation findings, research notes, and session-specific documentation in the `claude/` directory (which is gitignored).
+**Persisted Investigation Notes**: If information needs to be persisted across sessions, always store investigation findings, research notes, and session-specific documentation in the `claude/` directory (which is gitignored).
 
 **Code Reuse**: Use existing utility functions from `common.py` and other modules before creating new ones. Check for functions like `find_date_context()`, `collect_paths()`, and `configure_log()` that may already provide the needed functionality.
 
