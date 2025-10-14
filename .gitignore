@@ -18,6 +18,4 @@ fallout/input.txt
 copypasta
 claude/
 
-djmgmt/SyncState.txt
-
-djmgmt/state/
+**/state/
