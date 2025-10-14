@@ -2,6 +2,12 @@
 
 This file provides guidance to Claude Code (claude.ai/code) when working with code in this repository.
 
+## General Instructions
+
+**Investigation Notes**: Always store investigation findings, research notes, and session-specific documentation in the `claude/` directory (which is gitignored).
+
+**Code Reuse**: Use existing utility functions from `common.py` and other modules before creating new ones. Check for functions like `find_date_context()`, `collect_paths()`, and `configure_log()` that may already provide the needed functionality.
+
 ## Project Overview
 
 This is a DJ management toolkit for organizing, encoding, tagging, and syncing music libraries. It processes music files (AIFF, WAV, MP3, FLAC), manages Rekordbox XML collections, and syncs tracks to a remote Navidrome media server via rsync.
