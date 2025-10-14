@@ -1,6 +1,6 @@
 # project data
 import os
-PROJECT_ROOT = os.path.abspath(f"{(os.path.dirname(__file__))}{os.sep}{os.path.pardir}")
+PROJECT_ROOT = os.path.abspath(f"{(os.path.dirname(__file__))}{os.sep}{os.path.pardir}{os.sep}{os.path.pardir}")
 
 # placeholders for missing file metadata
 UNKNOWN_ARTIST = 'UNKNOWN_ARTIST'

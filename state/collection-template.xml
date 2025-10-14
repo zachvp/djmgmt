@@ -6,10 +6,10 @@
     
     </COLLECTION>
     <PLAYLISTS>
-        <NODE Type="0" Name="ROOT" Count="2">
+        <NODE Type="0" Name="ROOT" Count="3">
             <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
             <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            <NODE Name="dynamic" Type="0" KeyType="0" Entries="1">
+            <NODE Name="dynamic" Type="0" KeyType="0" Entries="2">
                 <NODE Name="unplayed" Type="1" KeyType="0" Entries="0"/>
                 <NODE Name="played" Type="1" KeyType="0" Entries="0"/>
             </NODE>

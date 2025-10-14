@@ -222,7 +222,7 @@ class TestGetPlayedTracks(unittest.TestCase):
 
     <DJ_PLAYLISTS Version="1.0.0">
         <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="3">
+        <COLLECTION Entries="2">
             {_create_track_xml(0)}
             {_create_track_xml(1)}
         </COLLECTION>
@@ -318,10 +318,223 @@ class TestGetUnplayedTracks(unittest.TestCase):
         # Assert expectations
         self.assertEqual(actual, ['1'])
 
+class TestCollectionTemplate(unittest.TestCase):
+    '''Tests for the collection-template.xml file structure.'''
+
+    def test_template_file_exists(self) -> None:
+        '''Tests that the collection template file exists at the expected path.'''
+        self.assertTrue(os.path.exists(music.COLLECTION_TEMPLATE_PATH),
+                       f"Template file not found at {music.COLLECTION_TEMPLATE_PATH}")
+
+    def test_template_structure_valid(self) -> None:
+        '''Tests that the template file has the expected structure for dynamic playlists.'''
+        # Load the template file
+        tree = ET.parse(music.COLLECTION_TEMPLATE_PATH)
+        root = tree.getroot()
+
+        # Verify root structure
+        self.assertEqual(root.tag, 'DJ_PLAYLISTS')
+        self.assertEqual(root.get('Version'), '1.0.0')
+
+        # Verify COLLECTION exists and is empty
+        collection = root.find(constants.XPATH_COLLECTION)
+        self.assertIsNotNone(collection, "COLLECTION node not found")
+        self.assertEqual(collection.get('Entries'), '0')
+        collection_tracks = collection.findall('.//TRACK')
+        self.assertEqual(len(collection_tracks), 0, "COLLECTION should be empty")
+
+        # Verify PLAYLISTS structure
+        playlists_root = root.find(constants.XPATH_PLAYLISTS)
+        self.assertIsNotNone(playlists_root, "PLAYLISTS ROOT node not found")
+
+        # Count child nodes of ROOT
+        root_children = playlists_root.findall('./NODE')
+        self.assertEqual(len(root_children), 3, "ROOT should have 3 child nodes")
+        self.assertEqual(playlists_root.get('Count'), '3', "ROOT Count attribute should be 3")
+
+        # Verify _pruned playlist exists
+        pruned = root.find(constants.XPATH_PRUNED)
+        self.assertIsNotNone(pruned, "_pruned playlist not found")
+        self.assertEqual(pruned.get('Type'), '1')
+        self.assertEqual(pruned.get('Entries'), '0')
+
+        # Verify dynamic folder exists
+        dynamic = playlists_root.find(".//NODE[@Name='dynamic']")
+        self.assertIsNotNone(dynamic, "dynamic folder not found")
+        self.assertEqual(dynamic.get('Type'), '0', "dynamic should be a folder (Type=0)")
+
+        # Count child nodes of dynamic
+        dynamic_children = dynamic.findall('./NODE')
+        self.assertEqual(len(dynamic_children), 2, "dynamic should have 2 child nodes")
+        self.assertEqual(dynamic.get('Entries'), '2', "dynamic Entries attribute should be 2")
+
+        # Verify unplayed playlist exists
+        unplayed = root.find(constants.XPATH_UNPLAYED)
+        self.assertIsNotNone(unplayed, "unplayed playlist not found")
+        self.assertEqual(unplayed.get('Type'), '1', "unplayed should be a playlist (Type=1)")
+        self.assertEqual(unplayed.get('Entries'), '0', "unplayed should be empty")
+        unplayed_tracks = unplayed.findall('.//TRACK')
+        self.assertEqual(len(unplayed_tracks), 0, "unplayed should have no tracks")
+
+        # Verify played playlist exists
+        played = root.find(constants.XPATH_PLAYED)
+        self.assertIsNotNone(played, "played playlist not found")
+        self.assertEqual(played.get('Type'), '1', "played should be a playlist (Type=1)")
+        self.assertEqual(played.get('Entries'), '0', "played should be empty")
+        played_tracks = played.findall('.//TRACK')
+        self.assertEqual(len(played_tracks), 0, "played should have no tracks")
+
+class TestRecordTracks(unittest.TestCase):
+    '''Tests for music.record_tracks - the shared function for recording playlists.'''
+
+    XML_INPUT = f'''
+    <?xml version="1.0" encoding="UTF-8"?>
+
+    <DJ_PLAYLISTS Version="1.0.0">
+        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+        <COLLECTION Entries="3">
+            {_create_track_xml(0)}
+            {_create_track_xml(1)}
+            {_create_track_xml(2)}
+        </COLLECTION>
+        <PLAYLISTS>
+            <NODE Type="0" Name="ROOT" Count="2">
+                <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
+                <NODE Name="_pruned" Type="1" KeyType="0" Entries="3">
+                    <TRACK Key="0"/>
+                    <TRACK Key="1"/>
+                    <TRACK Key="2"/>
+                </NODE>
+            </NODE>
+        </PLAYLISTS>
+    </DJ_PLAYLISTS>
+    '''.strip()
+
+    @patch.object(ET.ElementTree, 'write')
+    @patch('djmgmt.library.load_collection')
+    def test_success_unplayed_playlist(self,
+                                       mock_load_collection: MagicMock,
+                                       mock_xml_write: MagicMock) -> None:
+        '''Tests that tracks are correctly written to the unplayed playlist.'''
+        # Set up mocks - use actual template file
+        input_root = ET.fromstring(TestRecordTracks.XML_INPUT)
+        template_tree = ET.parse(music.COLLECTION_TEMPLATE_PATH)
+        template_root = template_tree.getroot()
+        mock_load_collection.side_effect = [input_root, template_root]
+
+        # Call target function
+        track_ids = ['0', '2']
+        result = music.record_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, track_ids, constants.XPATH_UNPLAYED)
+
+        # Assert expectations
+        mock_load_collection.assert_any_call(MOCK_INPUT_DIR)
+        mock_load_collection.assert_any_call(music.COLLECTION_TEMPLATE_PATH)
+        mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
+
+        # Verify the collection was copied
+        collection = result.find(constants.XPATH_COLLECTION)
+        self.assertIsNotNone(collection)
+        self.assertEqual(collection.get('Entries'), '3')
+        collection_tracks = collection.findall('.//TRACK')
+        self.assertEqual(len(collection_tracks), 3)
+
+        # Verify the unplayed playlist was populated
+        unplayed_node = result.find(constants.XPATH_UNPLAYED)
+        self.assertIsNotNone(unplayed_node)
+        self.assertEqual(unplayed_node.get('Entries'), '2')
+        playlist_tracks = unplayed_node.findall('.//TRACK')
+        self.assertEqual(len(playlist_tracks), 2)
+        self.assertEqual(playlist_tracks[0].get('Key'), '0')
+        self.assertEqual(playlist_tracks[1].get('Key'), '2')
+
+    @patch.object(ET.ElementTree, 'write')
+    @patch('djmgmt.library.load_collection')
+    def test_success_played_playlist(self,
+                                     mock_load_collection: MagicMock,
+                                     mock_xml_write: MagicMock) -> None:
+        '''Tests that tracks are correctly written to the played playlist.'''
+        # Set up mocks - use actual template file
+        input_root = ET.fromstring(TestRecordTracks.XML_INPUT)
+        template_tree = ET.parse(music.COLLECTION_TEMPLATE_PATH)
+        template_root = template_tree.getroot()
+        mock_load_collection.side_effect = [input_root, template_root]
+
+        # Call target function
+        track_ids = ['1']
+        result = music.record_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, track_ids, constants.XPATH_PLAYED)
+
+        # Assert expectations
+        mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
+
+        # Verify the played playlist was populated
+        played_node = result.find(constants.XPATH_PLAYED)
+        self.assertIsNotNone(played_node)
+        self.assertEqual(played_node.get('Entries'), '1')
+        playlist_tracks = played_node.findall('.//TRACK')
+        self.assertEqual(len(playlist_tracks), 1)
+        self.assertEqual(playlist_tracks[0].get('Key'), '1')
+
 class TestRecordUnplayedTracks(unittest.TestCase):
-    def test_success(self) -> None:
-        # TODO: implement after refactor
-        pass
+    '''Tests for music.record_unplayed_tracks.'''
+
+    @patch('djmgmt.music.record_tracks')
+    @patch('djmgmt.music.get_unplayed_tracks')
+    @patch('djmgmt.library.load_collection')
+    def test_success(self,
+                     mock_load_collection: MagicMock,
+                     mock_get_unplayed: MagicMock,
+                     mock_record_tracks: MagicMock) -> None:
+        '''Tests that record_unplayed_tracks correctly delegates to record_tracks.'''
+        # Set up mocks
+        mock_root = MagicMock()
+        mock_load_collection.return_value = mock_root
+        mock_get_unplayed.return_value = ['1', '3', '5']
+        mock_record_tracks.return_value = MagicMock()
+
+        # Call target function
+        result = music.record_unplayed_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+
+        # Assert expectations
+        mock_load_collection.assert_called_once_with(MOCK_INPUT_DIR)
+        mock_get_unplayed.assert_called_once_with(mock_root)
+        mock_record_tracks.assert_called_once_with(
+            MOCK_INPUT_DIR,
+            MOCK_OUTPUT_DIR,
+            ['1', '3', '5'],
+            constants.XPATH_UNPLAYED
+        )
+        self.assertEqual(result, mock_record_tracks.return_value)
+
+class TestRecordPlayedTracks(unittest.TestCase):
+    '''Tests for music.record_played_tracks.'''
+
+    @patch('djmgmt.music.record_tracks')
+    @patch('djmgmt.music.get_played_tracks')
+    @patch('djmgmt.library.load_collection')
+    def test_success(self,
+                     mock_load_collection: MagicMock,
+                     mock_get_played: MagicMock,
+                     mock_record_tracks: MagicMock) -> None:
+        '''Tests that record_played_tracks correctly delegates to record_tracks.'''
+        # Set up mocks
+        mock_root = MagicMock()
+        mock_load_collection.return_value = mock_root
+        mock_get_played.return_value = ['2', '4', '6']
+        mock_record_tracks.return_value = MagicMock()
+
+        # Call target function
+        result = music.record_played_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+
+        # Assert expectations
+        mock_load_collection.assert_called_once_with(MOCK_INPUT_DIR)
+        mock_get_played.assert_called_once_with(mock_root)
+        mock_record_tracks.assert_called_once_with(
+            MOCK_INPUT_DIR,
+            MOCK_OUTPUT_DIR,
+            ['2', '4', '6'],
+            constants.XPATH_PLAYED
+        )
+        self.assertEqual(result, mock_record_tracks.return_value)
 
 class TestRecordCollection(unittest.TestCase):
     '''Tests for music.record_collection.'''

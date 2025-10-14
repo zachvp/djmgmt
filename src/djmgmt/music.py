@@ -248,9 +248,11 @@ def get_played_tracks(root: ET.Element) -> list[str]:
             existing.add(track_id)
     return played_tracks
 
-# TODO: write played tracks to XML
-def record_played_tracks() -> ET.Element:
-    pass
+def record_played_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
+    '''Updates the 'dynamic.played' playlist in the output XML collection.'''
+    input_root = library.load_collection(input_collection_path)
+    played = get_played_tracks(input_root)
+    return record_tracks(input_collection_path, output_collection_path, played, constants.XPATH_PLAYED)
 
 def get_unplayed_tracks(root: ET.Element) -> list[str]:
     '''Returns a list of TRACK.Key/ID strings for all pruned tracks NOT in the 'archive' folder.'''
@@ -271,32 +273,44 @@ def get_unplayed_tracks(root: ET.Element) -> list[str]:
 # TODO: add test coverage
 def record_unplayed_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
     '''Updates the 'dynamic.unplayed' playlist in the output XML collection.'''
+    input_root = library.load_collection(input_collection_path)
+    unplayed = get_unplayed_tracks(input_root)
+    return record_tracks(input_collection_path, output_collection_path, unplayed, constants.XPATH_UNPLAYED)
+
+def record_tracks(input_collection_path: str, output_collection_path: str, tracks: list[str], playlist_xpath: str) -> ET.Element:
+    '''Updates a playlist in the output XML collection with the specified tracks.
+
+    Args:
+        input_collection_path: Path to input collection XML
+        output_collection_path: Path to write output collection XML
+        tracks: List of track IDs (TRACK.Key values) to add to playlist
+        playlist_xpath: XPath expression to locate target playlist node
+
+    Returns:
+        The root element of the output collection XML tree
+    '''
     # load XML references
     input_root = library.load_collection(input_collection_path)
     input_collection = library.find_node(input_root, constants.XPATH_COLLECTION)
     template_root = library.load_collection(COLLECTION_TEMPLATE_PATH)
-    
+
     # replace template's collection with input's collection to resolve playlist track references
     template_collection = library.find_node(template_root, constants.XPATH_COLLECTION)
     template_collection.clear()
     template_collection.attrib = input_collection.attrib
     for track in input_collection:
         template_collection.append(track)
-    
-    # populate the unplayed playlist
-    unplayed = get_unplayed_tracks(input_root)
-    unplayed_node = library.find_node(template_root, constants.XPATH_UNPLAYED)
-    for track in unplayed:
-        ET.SubElement(unplayed_node, TAG_TRACK, {constants.ATTR_TRACK_KEY : track})
-    unplayed_node.set('Entries', str(len(unplayed)))
-    
-    # write the collection containing the unplayed tracks
+
+    # populate the target playlist
+    playlist_node = library.find_node(template_root, playlist_xpath)
+    for track_id in tracks:
+        ET.SubElement(playlist_node, TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
+    playlist_node.set('Entries', str(len(tracks)))
+
+    # write the collection containing the playlist tracks
     tree = ET.ElementTree(template_root)
     tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
     return template_root
-
-def record_tracks(input_collection_path: str, output_collection_path: str, tracks: list[str], playlist: str) -> ET.Element:
-    pass
 
 # TODO: move to library module
 # TODO: extend to save backup of previous X versions
