@@ -410,33 +410,15 @@ class TestRecordTracks(unittest.TestCase):
     </DJ_PLAYLISTS>
     '''.strip()
 
-    @patch.object(ET.ElementTree, 'write')
-    @patch('djmgmt.library.load_collection')
-    def test_success_unplayed_playlist(self,
-                                       mock_load_collection: MagicMock,
-                                       mock_xml_write: MagicMock) -> None:
+    def test_success_unplayed_playlist(self) -> None:
         '''Tests that tracks are correctly written to the unplayed playlist.'''
-        # Set up mocks - use actual template file
-        input_root = ET.fromstring(TestRecordTracks.XML_INPUT)
+        # Set up - use actual template file
         template_tree = ET.parse(music.COLLECTION_TEMPLATE_PATH)
-        template_root = template_tree.getroot()
-        mock_load_collection.side_effect = [input_root, template_root]
+        base_root = template_tree.getroot()
 
         # Call target function
         track_ids = ['0', '2']
-        result = music.record_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, track_ids, constants.XPATH_UNPLAYED)
-
-        # Assert expectations
-        mock_load_collection.assert_any_call(MOCK_INPUT_DIR)
-        mock_load_collection.assert_any_call(music.COLLECTION_TEMPLATE_PATH)
-        mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
-
-        # Verify the collection was copied
-        collection = result.find(constants.XPATH_COLLECTION)
-        self.assertIsNotNone(collection)
-        self.assertEqual(collection.get('Entries'), '3')
-        collection_tracks = collection.findall('.//TRACK')
-        self.assertEqual(len(collection_tracks), 3)
+        result = music.record_tracks(base_root, track_ids, constants.XPATH_UNPLAYED)
 
         # Verify the unplayed playlist was populated
         unplayed_node = result.find(constants.XPATH_UNPLAYED)
@@ -447,24 +429,15 @@ class TestRecordTracks(unittest.TestCase):
         self.assertEqual(playlist_tracks[0].get('Key'), '0')
         self.assertEqual(playlist_tracks[1].get('Key'), '2')
 
-    @patch.object(ET.ElementTree, 'write')
-    @patch('djmgmt.library.load_collection')
-    def test_success_played_playlist(self,
-                                     mock_load_collection: MagicMock,
-                                     mock_xml_write: MagicMock) -> None:
+    def test_success_played_playlist(self) -> None:
         '''Tests that tracks are correctly written to the played playlist.'''
-        # Set up mocks - use actual template file
-        input_root = ET.fromstring(TestRecordTracks.XML_INPUT)
+        # Set up - use actual template file
         template_tree = ET.parse(music.COLLECTION_TEMPLATE_PATH)
-        template_root = template_tree.getroot()
-        mock_load_collection.side_effect = [input_root, template_root]
+        base_root = template_tree.getroot()
 
         # Call target function
         track_ids = ['1']
-        result = music.record_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, track_ids, constants.XPATH_PLAYED)
-
-        # Assert expectations
-        mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
+        result = music.record_tracks(base_root, track_ids, constants.XPATH_PLAYED)
 
         # Verify the played playlist was populated
         played_node = result.find(constants.XPATH_PLAYED)
@@ -479,27 +452,23 @@ class TestRecordUnplayedTracks(unittest.TestCase):
 
     @patch('djmgmt.music.record_tracks')
     @patch('djmgmt.music.get_unplayed_tracks')
-    @patch('djmgmt.library.load_collection')
     def test_success(self,
-                     mock_load_collection: MagicMock,
                      mock_get_unplayed: MagicMock,
                      mock_record_tracks: MagicMock) -> None:
         '''Tests that record_unplayed_tracks correctly delegates to record_tracks.'''
         # Set up mocks
-        mock_root = MagicMock()
-        mock_load_collection.return_value = mock_root
+        mock_collection_root = MagicMock()
+        mock_base_root = MagicMock()
         mock_get_unplayed.return_value = ['1', '3', '5']
         mock_record_tracks.return_value = MagicMock()
 
         # Call target function
-        result = music.record_unplayed_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+        result = music.record_unplayed_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
-        mock_load_collection.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_get_unplayed.assert_called_once_with(mock_root)
+        mock_get_unplayed.assert_called_once_with(mock_collection_root)
         mock_record_tracks.assert_called_once_with(
-            MOCK_INPUT_DIR,
-            MOCK_OUTPUT_DIR,
+            mock_base_root,
             ['1', '3', '5'],
             constants.XPATH_UNPLAYED
         )
@@ -510,31 +479,68 @@ class TestRecordPlayedTracks(unittest.TestCase):
 
     @patch('djmgmt.music.record_tracks')
     @patch('djmgmt.music.get_played_tracks')
-    @patch('djmgmt.library.load_collection')
     def test_success(self,
-                     mock_load_collection: MagicMock,
                      mock_get_played: MagicMock,
                      mock_record_tracks: MagicMock) -> None:
         '''Tests that record_played_tracks correctly delegates to record_tracks.'''
         # Set up mocks
-        mock_root = MagicMock()
-        mock_load_collection.return_value = mock_root
+        mock_collection_root = MagicMock()
+        mock_base_root = MagicMock()
         mock_get_played.return_value = ['2', '4', '6']
         mock_record_tracks.return_value = MagicMock()
 
         # Call target function
-        result = music.record_played_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+        result = music.record_played_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
-        mock_load_collection.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_get_played.assert_called_once_with(mock_root)
+        mock_get_played.assert_called_once_with(mock_collection_root)
         mock_record_tracks.assert_called_once_with(
-            MOCK_INPUT_DIR,
-            MOCK_OUTPUT_DIR,
+            mock_base_root,
             ['2', '4', '6'],
             constants.XPATH_PLAYED
         )
         self.assertEqual(result, mock_record_tracks.return_value)
+
+class TestRecordDynamicTracks(unittest.TestCase):
+    '''Tests for music.record_dynamic_tracks.'''
+
+    @patch.object(ET.ElementTree, 'write')
+    @patch('djmgmt.music.record_unplayed_tracks')
+    @patch('djmgmt.music.record_played_tracks')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_success(self,
+                     mock_load_collection: MagicMock,
+                     mock_find_node: MagicMock,
+                     mock_record_played: MagicMock,
+                     mock_record_unplayed: MagicMock,
+                     mock_xml_write: MagicMock) -> None:
+        '''Tests that record_dynamic_tracks loads roots, copies collection, calls both functions, and writes output.'''
+        # Set up mocks
+        mock_collection_root = MagicMock()
+        mock_base_root = MagicMock()
+        mock_collection = MagicMock()
+        mock_base_collection = MagicMock()
+
+        mock_load_collection.side_effect = [mock_collection_root, mock_base_root]
+        mock_find_node.side_effect = [mock_base_collection, mock_collection]
+        mock_record_played.return_value = mock_base_root
+        mock_record_unplayed.return_value = mock_base_root
+
+        # Call target function
+        result = music.record_dynamic_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+
+        # Assert expectations
+        mock_load_collection.assert_any_call(MOCK_INPUT_DIR)
+        mock_load_collection.assert_any_call(music.COLLECTION_TEMPLATE_PATH)
+
+        # Verify collection was copied
+        mock_base_collection.clear.assert_called_once()
+
+        mock_record_played.assert_called_once_with(mock_collection_root, mock_base_root)
+        mock_record_unplayed.assert_called_once_with(mock_collection_root, mock_base_root)
+        mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
+        self.assertEqual(result, mock_base_root)
 
 class TestRecordCollection(unittest.TestCase):
     '''Tests for music.record_collection.'''
