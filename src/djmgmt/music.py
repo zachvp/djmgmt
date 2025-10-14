@@ -8,6 +8,7 @@ Functions to scan and manipulate a batch of music files.
     prune_non_music  Removes all non-music files from a directory.
     process:         Convenience function to run sweep, extract, flatten, and all prune functions in sequence for a directory.
     update_library   Processes a directory containing music files into a local library folder, then syncs the updated library.
+    record_unplayed  Updates the 'dynamic.unplayed' playlist in an XML collection based on pruned tracks not in the archive. 
 '''
 
 import argparse
