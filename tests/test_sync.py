@@ -527,16 +527,57 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_error = 'Mock error'
         mock_mappings = [('/mock/mapping/1', '/mock/mapping/2')]
         mock_rsync_healthcheck.return_value = False
-        
+
         # Call target function
         mock_full_scan = True
         with self.assertRaises(Exception) as e:
             sync.run_sync_mappings(mock_mappings, mock_full_scan)
             self.assertEqual(e.msg, mock_error)
-        
+
         # Assert expectations
         mock_sync_from_mappings.assert_not_called()
         mock_rsync_healthcheck.assert_called_once()
+
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
+    @patch('djmgmt.common.find_date_context')
+    def test_end_date_filter(self,
+                             mock_find_date_context: MagicMock,
+                             mock_sync_from_mappings: MagicMock,
+                             mock_rsync_healthcheck: MagicMock) -> None:
+        '''Tests that mappings are properly filtered based on the end_date parameter.'''
+        # Set up mocks
+        mock_mappings = [
+            ('/input/track1.aiff', '/output/2025/05 may/19/artist/album/track1.aiff'),
+            ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
+            ('/input/track3.aiff', '/output/2025/05 may/21/artist/album/track3.aiff'),
+        ]
+
+        # Mock date context extraction to return the date from each path
+        # Called during sorting (3 times) and filtering (3 times)
+        mock_find_date_context.side_effect = [
+            ('2025/05 may/19',),  # first mapping - sort
+            ('2025/05 may/20',),  # second mapping - sort
+            ('2025/05 may/21',),  # third mapping - sort
+            ('2025/05 may/19',),  # first mapping - filter
+            ('2025/05 may/20',),  # second mapping - filter
+            ('2025/05 may/21',),  # third mapping - filter (should be filtered out)
+        ]
+
+        # Call target function with end_date
+        mock_full_scan = True
+        end_date = '2025/05 may/20'
+        sync.run_sync_mappings(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, end_date)
+
+        # Assert expectations
+        # Should only sync the first two mappings (dates <= end_date)
+        expected_filtered_mappings = [
+            ('/input/track1.aiff', '/output/2025/05 may/19/artist/album/track1.aiff'),
+            ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
+        ]
+        mock_sync_from_mappings.assert_called_once_with(expected_filtered_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+        mock_rsync_healthcheck.assert_called_once()
+        self.assertEqual(mock_find_date_context.call_count, 6)
 
 class TestCreateSyncMappings(unittest.TestCase):
     @patch('djmgmt.sync.SavedDateContext.is_processed')

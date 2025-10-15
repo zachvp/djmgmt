@@ -37,6 +37,7 @@ class Namespace(argparse.Namespace):
     ## optional
     path_0: str
     sync_mode: str
+    end_date: str | None
 
     # functions
     FUNCTION_COPY = 'copy'
@@ -103,6 +104,8 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
     parser.add_argument('--path-0', '-p0', type=str, help="An optional path. Sync uses this as the music root.")
     parser.add_argument('--sync-mode', type=str, default=Namespace.SYNC_MODE_REMOTE,
                         help=f"Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'.")
+    parser.add_argument('--end-date', type=str, default=None,
+                        help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date.")
 
     args = parser.parse_args(namespace=Namespace)
     args.input = os.path.normpath(args.input)
@@ -410,7 +413,7 @@ def sync_from_path(args: type[Namespace]):
             os.makedirs(output_parent_path)
         action(input_path_full, output_path_full)
 
-def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE) -> None:
+def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE, end_date: str | None = None) -> None:
     # record initial run timestamp
     timestamp = time.time()
 
@@ -420,6 +423,19 @@ def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, s
 
     # sort the mappings so they are synced in chronological order
     mappings.sort(key=lambda m: key_date_context(m))
+
+    # filter mappings based on end_date if provided
+    if end_date:
+        filtered_mappings: list[tuple[str, str]] = []
+        for mapping in mappings:
+            date_context = common.find_date_context(mapping[1])
+            if date_context and date_context[0] <= end_date:
+                filtered_mappings.append(mapping)
+            elif date_context and date_context[0] > end_date:
+                logging.info(f"skipping mapping with date context '{date_context[0]}' (after end_date '{end_date}')")
+
+        logging.info(f"filtered mappings from {len(mappings)} to {len(filtered_mappings)} based on end_date '{end_date}'")
+        mappings = filtered_mappings
 
     # initialize timing and run the sync
     try:
@@ -445,4 +461,4 @@ if __name__ == '__main__':
         tree = library.load_collection(script_args.input)
         mappings = create_sync_mappings(tree, script_args.output)
         full_scan = script_args.scan_mode == Namespace.SCAN_FULL
-        run_sync_mappings(mappings, full_scan, script_args.sync_mode)
+        run_sync_mappings(mappings, full_scan, script_args.sync_mode, script_args.end_date)
