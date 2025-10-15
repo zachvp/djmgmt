@@ -630,28 +630,33 @@ class TestCollectionTemplate(unittest.TestCase):
         # Verify COLLECTION exists and is empty
         collection = root.find(constants.XPATH_COLLECTION)
         self.assertIsNotNone(collection, "COLLECTION node not found")
+        assert collection is not None
         self.assertEqual(collection.get('Entries'), '0')
         collection_tracks = collection.findall('.//TRACK')
         self.assertEqual(len(collection_tracks), 0, "COLLECTION should be empty")
 
         # Verify PLAYLISTS structure
         playlists_root = root.find(constants.XPATH_PLAYLISTS)
+        assert playlists_root is not None
         self.assertIsNotNone(playlists_root, "PLAYLISTS ROOT node not found")
 
         # Count child nodes of ROOT
         root_children = playlists_root.findall('./NODE')
+        assert root_children is not None
         self.assertEqual(len(root_children), 3, "ROOT should have 3 child nodes")
         self.assertEqual(playlists_root.get('Count'), '3', "ROOT Count attribute should be 3")
 
         # Verify _pruned playlist exists
         pruned = root.find(constants.XPATH_PRUNED)
         self.assertIsNotNone(pruned, "_pruned playlist not found")
+        assert pruned is not None
         self.assertEqual(pruned.get('Type'), '1')
         self.assertEqual(pruned.get('Entries'), '0')
 
         # Verify dynamic folder exists
         dynamic = playlists_root.find(".//NODE[@Name='dynamic']")
         self.assertIsNotNone(dynamic, "dynamic folder not found")
+        assert dynamic is not None
         self.assertEqual(dynamic.get('Type'), '0', "dynamic should be a folder (Type=0)")
 
         # Count child nodes of dynamic
@@ -662,6 +667,7 @@ class TestCollectionTemplate(unittest.TestCase):
         # Verify unplayed playlist exists
         unplayed = root.find(constants.XPATH_UNPLAYED)
         self.assertIsNotNone(unplayed, "unplayed playlist not found")
+        assert unplayed is not None
         self.assertEqual(unplayed.get('Type'), '1', "unplayed should be a playlist (Type=1)")
         self.assertEqual(unplayed.get('Entries'), '0', "unplayed should be empty")
         unplayed_tracks = unplayed.findall('.//TRACK')
@@ -670,6 +676,7 @@ class TestCollectionTemplate(unittest.TestCase):
         # Verify played playlist exists
         played = root.find(constants.XPATH_PLAYED)
         self.assertIsNotNone(played, "played playlist not found")
+        assert played is not None
         self.assertEqual(played.get('Type'), '1', "played should be a playlist (Type=1)")
         self.assertEqual(played.get('Entries'), '0', "played should be empty")
         played_tracks = played.findall('.//TRACK')
@@ -714,6 +721,7 @@ class TestRecordTracks(unittest.TestCase):
         # Verify the unplayed playlist was populated
         unplayed_node = result.find(constants.XPATH_UNPLAYED)
         self.assertIsNotNone(unplayed_node)
+        assert unplayed_node is not None
         self.assertEqual(unplayed_node.get('Entries'), '2')
         playlist_tracks = unplayed_node.findall('.//TRACK')
         self.assertEqual(len(playlist_tracks), 2)
@@ -733,6 +741,7 @@ class TestRecordTracks(unittest.TestCase):
         # Verify the played playlist was populated
         played_node = result.find(constants.XPATH_PLAYED)
         self.assertIsNotNone(played_node)
+        assert played_node is not None
         self.assertEqual(played_node.get('Entries'), '1')
         playlist_tracks = played_node.findall('.//TRACK')
         self.assertEqual(len(playlist_tracks), 1)
