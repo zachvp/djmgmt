@@ -31,15 +31,6 @@ from .tags import Tags
 # constants
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 
-COLLECTION_PATH          = os.path.join(constants.PROJECT_ROOT, 'state', 'processed-collection.xml')
-DYNAMIC_COLLECTION_PATH  = os.path.join(constants.PROJECT_ROOT, 'state', 'dynamic-collection.xml')
-COLLECTION_TEMPLATE_PATH = os.path.join(constants.PROJECT_ROOT, 'state', 'collection-template.xml')
-MISSING_ART_PATH         = os.path.join(constants.PROJECT_ROOT, 'state', 'missing-art.txt')
-
-## xml references
-TAG_TRACK = 'TRACK'
-TAG_NODE  = 'NODE'
-
 # classes
 class Namespace(argparse.Namespace):
     # arguments
@@ -62,10 +53,9 @@ class Namespace(argparse.Namespace):
     FUNCTION_PROCESS = 'process'
     FUNCTION_PRUNE_NON_MUSIC = 'prune_non_music'
     FUNCTION_UPDATE_LIBRARY = 'update_library'
-    FUNCTION_RECORD_DYNAMIC = 'record_dynamic'
 
     FUNCTIONS_SINGLE_ARG = {FUNCTION_COMPRESS, FUNCTION_FLATTEN, FUNCTION_PRUNE, FUNCTION_PRUNE_NON_MUSIC}
-    FUNCTIONS = {FUNCTION_SWEEP, FUNCTION_EXTRACT, FUNCTION_PROCESS, FUNCTION_UPDATE_LIBRARY, FUNCTION_RECORD_DYNAMIC}.union(FUNCTIONS_SINGLE_ARG)
+    FUNCTIONS = {FUNCTION_SWEEP, FUNCTION_EXTRACT, FUNCTION_PROCESS, FUNCTION_UPDATE_LIBRARY}.union(FUNCTIONS_SINGLE_ARG)
 
 # Helper functions
 # TODO: include function docstring in help summary (-h)
@@ -234,118 +224,6 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
         sweep(temp_dir, source, False, valid_extensions, prefix_hints)
         return result
 
-def get_played_tracks(root: ET.Element) -> list[str]:
-    '''Returns a list of TRACK.Key/ID strings for all playlist tracks in the 'mixtapes' folder.'''
-    # load XML references
-    mixtapes = library.find_node(root, constants.XPATH_MIXTAPES)
-    
-    # search for and collect tracks in archive
-    played_tracks = []
-    existing = set()
-    track_nodes = mixtapes.findall(f'.//{TAG_TRACK}')
-    for track in track_nodes:
-        track_id = track.get(constants.ATTR_TRACK_KEY)
-        if track_id not in existing:
-            played_tracks.append(track_id)
-            existing.add(track_id)
-    return played_tracks
-
-def get_unplayed_tracks(root: ET.Element) -> list[str]:
-    '''Returns a list of TRACK.Key/ID strings for all pruned tracks NOT in the 'mixtapes' folder.'''
-    # load XML references
-    pruned = library.find_node(root, constants.XPATH_PRUNED)
-    
-    # determine unplayed tracks depending on the played tracks
-    unplayed_tracks = []
-    played_tracks = set(get_played_tracks(root))
-    for track in pruned:
-        track_id = track.get(constants.ATTR_TRACK_KEY)
-        if not track_id:
-            raise ValueError(f"Malformed collection XML: no track ID found for track in '{pruned.tag}'")
-        if track_id not in played_tracks:
-            unplayed_tracks.append(track_id)
-    return unplayed_tracks
-
-def record_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
-    '''Updates the 'dynamic.played' playlist in the base XML root.
-
-    Args:
-        collection_root: The input XML root containing the source collection
-        base_root: The XML root element to modify
-
-    Returns:
-        The modified root element
-    '''
-    played = get_played_tracks(collection_root)
-    return record_tracks(base_root, played, constants.XPATH_PLAYED)
-
-def record_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
-    '''Updates the 'dynamic.unplayed' playlist in the base XML root.
-
-    Args:
-        collection_root: The input XML root containing the source collection
-        base_root: The XML root element to modify
-
-    Returns:
-        The modified root element
-    '''
-    unplayed = get_unplayed_tracks(collection_root)
-    return record_tracks(base_root, unplayed, constants.XPATH_UNPLAYED)
-
-def record_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath: str) -> ET.Element:
-    '''Updates a playlist in the given XML root with the specified tracks.
-
-    Args:
-        base_root: The XML root element to modify (can be called multiple times on same instance)
-        tracks: List of track IDs (TRACK.Key values) to add to playlist
-        playlist_xpath: XPath expression to locate target playlist node
-
-    Returns:
-        The modified root element
-    '''
-    # populate the target playlist
-    playlist_node = library.find_node(base_root, playlist_xpath)
-    for track_id in tracks:
-        ET.SubElement(playlist_node, TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
-    playlist_node.set('Entries', str(len(tracks)))
-
-    return base_root
-
-# TODO: update to use latest collection at known path if no input path provided
-# TODO: update to write to dynamic path defined as constant if output path not provided
-# TODO: ^ requires arg parsing refactor.
-def record_dynamic_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
-    '''Updates both the 'dynamic.played' and 'dynamic.unplayed' playlists in the output XML collection.
-
-    Args:
-        input_collection_path: Path to the input collection XML file
-        output_collection_path: Path where the output collection XML will be written
-
-    Returns:
-        The modified root element
-    '''
-    # load the collection and base roots
-    collection_root = library.load_collection(input_collection_path)
-    base_root = library.load_collection(COLLECTION_TEMPLATE_PATH)
-
-    # copy collection to base
-    base_collection = library.find_node(base_root, constants.XPATH_COLLECTION)
-    collection = library.find_node(collection_root, constants.XPATH_COLLECTION)
-    base_collection.clear()
-    base_collection.attrib = collection.attrib
-    for track in collection:
-        base_collection.append(track)
-
-    # update both playlists on the same base_root
-    record_played_tracks(collection_root, base_root)
-    record_unplayed_tracks(collection_root, base_root)
-
-    # write the result to file
-    tree = ET.ElementTree(base_root)
-    tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
-
-    return base_root
-
 # TODO: move to library module
 # TODO: extend to save backup of previous X versions
 def record_collection(source: str, collection_path: str) -> ET.Element:
@@ -353,14 +231,14 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     with all music files in the `source` directory.
     Returns the XML collection root.'''
     # load XML references
-    xml_path      = collection_path if os.path.exists(collection_path) else COLLECTION_TEMPLATE_PATH
+    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_TEMPLATE_PATH
     root          = library.load_collection(xml_path)
     collection    = library.find_node(root, constants.XPATH_COLLECTION)
     playlist_root = library.find_node(root, constants.XPATH_PLAYLISTS)
     pruned        = library.find_node(root, constants.XPATH_PRUNED)
     
     # count existing tracks
-    existing_tracks = len(collection.findall(TAG_TRACK))
+    existing_tracks = len(collection.findall(constants.TAG_TRACK))
     new_tracks = 0
     updated_tracks = 0
     
@@ -374,7 +252,7 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
             file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe='()/')}"
             
             # check if track already exists
-            existing_track = collection.find(f'./{TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
+            existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
             
             # load metadata Tags
             tags = Tags.load(file_path)
@@ -414,19 +292,19 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
                 track_attrs[constants.ATTR_TRACK_ID] = track_id
                 track_attrs[constants.ATTR_DATE_ADDED] = today
                 
-                ET.SubElement(collection, TAG_TRACK, track_attrs)
+                ET.SubElement(collection, constants.TAG_TRACK, track_attrs)
                 new_tracks += 1
                 logging.debug(f"Added new track: '{file_path}'")
                 
                 # add to pruned playlist
-                ET.SubElement(pruned, TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
+                ET.SubElement(pruned, constants.TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
     
     # update the 'Entries' attributes
     collection.set('Entries', str(existing_tracks + new_tracks))
-    pruned.set('Entries', str(len(pruned.findall(TAG_TRACK))))
+    pruned.set('Entries', str(len(pruned.findall(constants.TAG_TRACK))))
     
     # update ROOT node's Count based on its child nodes
-    root_node_children = len(playlist_root.findall(TAG_NODE))
+    root_node_children = len(playlist_root.findall(constants.TAG_NODE))
     playlist_root.set('Count', str(root_node_children))
     
     # write the tree to the XML file
@@ -674,7 +552,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     prune_non_user_dirs(output, interactive)
     
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
-    common.write_paths(missing, MISSING_ART_PATH)
+    common.write_paths(missing, constants.MISSING_ART_PATH)
 
 def process_cli(args: type[Namespace], valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core `process` function.'''
@@ -747,7 +625,7 @@ def update_library(source: str,
         sweep(processing_dir, library_path, interactive, valid_extensions, prefix_hints)
     
     # update the djmgmt collection record according to any new files
-    collection = record_collection(library_path, COLLECTION_PATH)
+    collection = record_collection(library_path, constants.COLLECTION_PATH)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
@@ -788,5 +666,4 @@ if __name__ == '__main__':
                        script_args.interactive,
                        constants.EXTENSIONS,
                        PREFIX_HINTS)
-    elif script_args.function == Namespace.FUNCTION_RECORD_DYNAMIC:
-        record_dynamic_tracks(script_args.input, script_args.output)
+

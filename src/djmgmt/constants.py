@@ -51,6 +51,10 @@ ATTR_TYPE       = 'Type'
 REKORDBOX_ROOT   = 'file://localhost'
 XPATH_COLLECTION = './/COLLECTION'
 
+## xml references
+TAG_TRACK = 'TRACK'
+TAG_NODE  = 'NODE'
+
 _playlist_node = lambda x: f'./PLAYLISTS//NODE[@Name="{x}"]'
 XPATH_PLAYLISTS  = _playlist_node('ROOT')
 XPATH_PRUNED     = _playlist_node('_pruned')
@@ -61,3 +65,9 @@ XPATH_PLAYED     = _playlist_node('played')
 
 # file information
 EXTENSIONS = {'.mp3', '.wav', '.aif', '.aiff', '.flac'}
+
+# state paths
+COLLECTION_PATH          = os.path.join(PROJECT_ROOT, 'state', 'processed-collection.xml')
+DYNAMIC_COLLECTION_PATH  = os.path.join(PROJECT_ROOT, 'state', 'dynamic-collection.xml')
+COLLECTION_TEMPLATE_PATH = os.path.join(PROJECT_ROOT, 'state', 'collection-template.xml')
+MISSING_ART_PATH         = os.path.join(PROJECT_ROOT, 'state', 'missing-art.txt')
