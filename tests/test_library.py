@@ -716,7 +716,7 @@ class TestRecordTracks(unittest.TestCase):
 
         # Call target function
         track_ids = ['0', '2']
-        result = library.record_tracks(base_root, track_ids, constants.XPATH_UNPLAYED)
+        result = library.add_playlist_tracks(base_root, track_ids, constants.XPATH_UNPLAYED)
 
         # Verify the unplayed playlist was populated
         unplayed_node = result.find(constants.XPATH_UNPLAYED)
@@ -736,7 +736,7 @@ class TestRecordTracks(unittest.TestCase):
 
         # Call target function
         track_ids = ['1']
-        result = library.record_tracks(base_root, track_ids, constants.XPATH_PLAYED)
+        result = library.add_playlist_tracks(base_root, track_ids, constants.XPATH_PLAYED)
 
         # Verify the played playlist was populated
         played_node = result.find(constants.XPATH_PLAYED)
@@ -750,70 +750,70 @@ class TestRecordTracks(unittest.TestCase):
 class TestRecordUnplayedTracks(unittest.TestCase):
     '''Tests for library.record_unplayed_tracks.'''
 
-    @patch('djmgmt.library.record_tracks')
+    @patch('djmgmt.library.add_playlist_tracks')
     @patch('djmgmt.library.get_unplayed_tracks')
     def test_success(self,
                      mock_get_unplayed: MagicMock,
-                     mock_record_tracks: MagicMock) -> None:
+                     mock_add_playlist_tracks: MagicMock) -> None:
         '''Tests that record_unplayed_tracks correctly delegates to record_tracks.'''
         # Set up mocks
         mock_collection_root = MagicMock()
         mock_base_root = MagicMock()
         mock_get_unplayed.return_value = ['1', '3', '5']
-        mock_record_tracks.return_value = MagicMock()
+        mock_add_playlist_tracks.return_value = MagicMock()
 
         # Call target function
-        result = library.record_unplayed_tracks(mock_collection_root, mock_base_root)
+        result = library.add_unplayed_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
         mock_get_unplayed.assert_called_once_with(mock_collection_root)
-        mock_record_tracks.assert_called_once_with(
+        mock_add_playlist_tracks.assert_called_once_with(
             mock_base_root,
             ['1', '3', '5'],
             constants.XPATH_UNPLAYED
         )
-        self.assertEqual(result, mock_record_tracks.return_value)
+        self.assertEqual(result, mock_add_playlist_tracks.return_value)
 
 class TestRecordPlayedTracks(unittest.TestCase):
     '''Tests for library.record_played_tracks.'''
 
-    @patch('djmgmt.library.record_tracks')
+    @patch('djmgmt.library.add_playlist_tracks')
     @patch('djmgmt.library.get_played_tracks')
     def test_success(self,
                      mock_get_played: MagicMock,
-                     mock_record_tracks: MagicMock) -> None:
+                     mock_add_playlist_tracks: MagicMock) -> None:
         '''Tests that record_played_tracks correctly delegates to record_tracks.'''
         # Set up mocks
         mock_collection_root = MagicMock()
         mock_base_root = MagicMock()
         mock_get_played.return_value = ['2', '4', '6']
-        mock_record_tracks.return_value = MagicMock()
+        mock_add_playlist_tracks.return_value = MagicMock()
 
         # Call target function
-        result = library.record_played_tracks(mock_collection_root, mock_base_root)
+        result = library.add_played_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
         mock_get_played.assert_called_once_with(mock_collection_root)
-        mock_record_tracks.assert_called_once_with(
+        mock_add_playlist_tracks.assert_called_once_with(
             mock_base_root,
             ['2', '4', '6'],
             constants.XPATH_PLAYED
         )
-        self.assertEqual(result, mock_record_tracks.return_value)
+        self.assertEqual(result, mock_add_playlist_tracks.return_value)
 
 class TestRecordDynamicTracks(unittest.TestCase):
     '''Tests for library.record_dynamic_tracks.'''
 
     @patch.object(ET.ElementTree, 'write')
-    @patch('djmgmt.library.record_unplayed_tracks')
-    @patch('djmgmt.library.record_played_tracks')
+    @patch('djmgmt.library.add_unplayed_tracks')
+    @patch('djmgmt.library.add_played_tracks')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
     def test_success(self,
                      mock_load_collection: MagicMock,
                      mock_find_node: MagicMock,
-                     mock_record_played: MagicMock,
-                     mock_record_unplayed: MagicMock,
+                     mock_add_played: MagicMock,
+                     mock_add_unplayed: MagicMock,
                      mock_xml_write: MagicMock) -> None:
         '''Tests that record_dynamic_tracks loads roots, copies collection, calls both functions, and writes output.'''
         # Set up mocks
@@ -824,8 +824,8 @@ class TestRecordDynamicTracks(unittest.TestCase):
 
         mock_load_collection.side_effect = [mock_collection_root, mock_base_root]
         mock_find_node.side_effect = [mock_base_collection, mock_collection]
-        mock_record_played.return_value = mock_base_root
-        mock_record_unplayed.return_value = mock_base_root
+        mock_add_played.return_value = mock_base_root
+        mock_add_unplayed.return_value = mock_base_root
 
         # Call target function
         result = library.record_dynamic_tracks(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
@@ -837,7 +837,7 @@ class TestRecordDynamicTracks(unittest.TestCase):
         # Verify collection was copied
         mock_base_collection.clear.assert_called_once()
 
-        mock_record_played.assert_called_once_with(mock_collection_root, mock_base_root)
-        mock_record_unplayed.assert_called_once_with(mock_collection_root, mock_base_root)
+        mock_add_played.assert_called_once_with(mock_collection_root, mock_base_root)
+        mock_add_unplayed.assert_called_once_with(mock_collection_root, mock_base_root)
         mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
         self.assertEqual(result, mock_base_root)

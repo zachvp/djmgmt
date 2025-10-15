@@ -22,10 +22,7 @@ from urllib.parse import unquote
 from . import constants
 from . import common
 
-# TODO: breakdown of tracks included in recorded sets
-# TODO: breakdown of tracks excluded from recorded sets
-
-# command support
+# CLI support
 class Namespace(argparse.Namespace):
     # required
     function: str
@@ -223,7 +220,7 @@ def get_unplayed_tracks(root: ET.Element) -> list[str]:
             unplayed_tracks.append(track_id)
     return unplayed_tracks
 
-def record_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+def add_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
     '''Updates the 'dynamic.played' playlist in the base XML root.
 
     Args:
@@ -234,9 +231,9 @@ def record_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> 
         The modified root element
     '''
     played = get_played_tracks(collection_root)
-    return record_tracks(base_root, played, constants.XPATH_PLAYED)
+    return add_playlist_tracks(base_root, played, constants.XPATH_PLAYED)
 
-def record_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+def add_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
     '''Updates the 'dynamic.unplayed' playlist in the base XML root.
 
     Args:
@@ -247,9 +244,9 @@ def record_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -
         The modified root element
     '''
     unplayed = get_unplayed_tracks(collection_root)
-    return record_tracks(base_root, unplayed, constants.XPATH_UNPLAYED)
+    return add_playlist_tracks(base_root, unplayed, constants.XPATH_UNPLAYED)
 
-def record_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath: str) -> ET.Element:
+def add_playlist_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath: str) -> ET.Element:
     '''Updates a playlist in the given XML root with the specified tracks.
 
     Args:
@@ -420,8 +417,8 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
         base_collection.append(track)
 
     # update both playlists on the same base_root
-    record_played_tracks(collection_root, base_root)
-    record_unplayed_tracks(collection_root, base_root)
+    add_played_tracks(collection_root, base_root)
+    add_unplayed_tracks(collection_root, base_root)
 
     # write the result to file
     tree = ET.ElementTree(base_root)
