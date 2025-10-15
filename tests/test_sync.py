@@ -105,14 +105,14 @@ class TestSyncBatch(unittest.TestCase):
         mock_handle_response.side_effect = [{'scanning': 'true'}, {'scanning': 'false'}]
         
         # Call the function
-        actual = sync.sync_batch(batch, date_context, dest, full_scan)
-        
+        actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+
         # Assert that the expected functions are called with expected parameters.
         self.assertEqual(actual, True, 'Expect call to succeed')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
         mock_transform.assert_called_once_with(dest)
         mock_transfer.assert_called_once_with(mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME)
-        
+
         # Expect call to start scan, then re-ping when scanning, then stop pinging.
         mock_call_endpoint.assert_has_calls([
             call(subsonic_client.API.START_SCAN, {'fullScan': 'true'}),
@@ -151,15 +151,15 @@ class TestSyncBatch(unittest.TestCase):
         mock_handle_response.return_value = {'scanning': 'false'}
         
         # Call the function
-        actual = sync.sync_batch(batch, date_context, dest, full_scan)
-        
+        actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+
         # Assertions
         self.assertEqual(actual, True, 'Expect call to succeed')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
         mock_transform.assert_called_once_with(dest)
         mock_transfer.assert_called_once()
         mock_call_endpoint.assert_called()
-        
+
         # Verify the scan parameter is 'false' for quick scan
         # Expect call to start scan, then re-ping when scanning, then stop pinging.
         mock_call_endpoint.assert_has_calls([
@@ -183,8 +183,8 @@ class TestSyncBatch(unittest.TestCase):
         mock_transform.return_value = None
         
         # Call the function
-        actual = sync.sync_batch(batch, date_context, dest, full_scan)
-        
+        actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+
         # Assertions
         self.assertEqual(actual, False, 'Expect call to fail')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
@@ -219,7 +219,7 @@ class TestSyncBatch(unittest.TestCase):
         
         # Call the function, expecting no exception
         try:
-            actual = sync.sync_batch(batch, date_context, dest, False)
+            actual = sync.sync_batch(batch, date_context, dest, False, sync.Namespace.SYNC_MODE_REMOTE)
             self.assertEqual(actual, False, 'Expect call to fail')
         except:
             self.fail('No exception expected')
@@ -234,7 +234,38 @@ class TestSyncBatch(unittest.TestCase):
         mock_transform.assert_called_once()
         mock_transfer.assert_called_once()
         mock_handle_response.assert_not_called()
-        
+
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.subsonic_client.call_endpoint')
+    @patch('djmgmt.subsonic_client.handle_response')
+    def test_local_mode(self,
+                        mock_handle_response: MagicMock,
+                        mock_call_endpoint: MagicMock,
+                        mock_transfer: MagicMock,
+                        mock_transform: MagicMock,
+                        mock_encode: MagicMock) -> None:
+        '''Tests that local mode only encodes and skips remote transfer and scan.'''
+        # Setup
+        batch = [('/source/path1.aiff', '/dest/2023/01 january/01/path1.aiff')]
+        date_context = '2023/01 january/01'
+        dest = '/dest/2023/01 january/01/path1.aiff'
+        full_scan = True
+
+        # Call the function with local mode
+        actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_LOCAL)
+
+        # Assertions
+        self.assertEqual(actual, True, 'Expect call to succeed')
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
+
+        # Verify that remote operations are NOT called in local mode
+        mock_transform.assert_not_called()
+        mock_transfer.assert_not_called()
+        mock_call_endpoint.assert_not_called()
+        mock_handle_response.assert_not_called()
+
 class TestTransferFiles(unittest.TestCase):
     @patch('subprocess.run')
     @patch('logging.debug')
@@ -307,7 +338,7 @@ class TestSyncMappings(unittest.TestCase):
         ]
         
         # Target function
-        sync.sync_mappings(mappings, False)
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         ## Expect that a single batch is synced with the given mappings
@@ -338,7 +369,7 @@ class TestSyncMappings(unittest.TestCase):
         ]
         
         # Target function
-        sync.sync_mappings(mappings, False)
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         # Expect that a single batch is synced with the given mappings
@@ -360,7 +391,7 @@ class TestSyncMappings(unittest.TestCase):
         
         # Target function
         with self.assertRaises(IndexError):
-            sync.sync_mappings(mappings, False)
+            sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         mock_sync_batch.assert_not_called()
@@ -388,8 +419,8 @@ class TestSyncMappings(unittest.TestCase):
         
         # Target function
         with self.assertRaises(Exception):
-            sync.sync_mappings(mappings, False)
-        
+            sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+
         # Assert expectations
         # Expect that a single batch is synced with the given mappings
         mock_sync_batch.assert_called_once()
@@ -414,7 +445,7 @@ class TestSyncMappings(unittest.TestCase):
         ]
         
         # Target function
-        sync.sync_mappings(mappings, False)
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         ## Expect that a single batch is synced with the given mappings
@@ -441,7 +472,7 @@ class TestSyncMappings(unittest.TestCase):
         ]
         
         # Target function
-        sync.sync_mappings(mappings, False)
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         ## Expect that a single batch is synced with the given mappings
@@ -464,7 +495,7 @@ class TestRunSyncMappings(unittest.TestCase):
         sync.run_sync_mappings(mock_mappings, mock_full_scan)
         
         # Assert expectations
-        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan)
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
         mock_rsync_healthcheck.assert_called_once()
     
     @patch('djmgmt.sync.rsync_healthcheck')
@@ -484,7 +515,7 @@ class TestRunSyncMappings(unittest.TestCase):
             self.assertEqual(e.msg, mock_error)
         
         # Assert expectations
-        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan)
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
         mock_rsync_healthcheck.assert_called_once()
         
     @patch('djmgmt.sync.rsync_healthcheck')

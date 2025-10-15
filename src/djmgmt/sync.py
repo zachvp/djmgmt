@@ -33,22 +33,29 @@ class Namespace(argparse.Namespace):
     input: str
     output: str
     scan_mode: str
-    
+
     ## optional
     path_0: str
-    
+    sync_mode: str
+
     # functions
     FUNCTION_COPY = 'copy'
     FUNCTION_MOVE = 'move'
     FUNCTION_SYNC = 'sync'
-    
+
     FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC}
-    
+
     # scan modes
     SCAN_QUICK = 'quick'
     SCAN_FULL = 'full'
-    
+
     SCAN_MODES = {SCAN_QUICK, SCAN_FULL}
+
+    # sync modes
+    SYNC_MODE_LOCAL = 'local'
+    SYNC_MODE_REMOTE = 'remote'
+
+    SYNC_MODES = {SYNC_MODE_LOCAL, SYNC_MODE_REMOTE}
     
 class SavedDateContext:
     FILE_SYNC =f"{constants.PROJECT_ROOT}{os.sep}state{os.sep}sync_state.txt"
@@ -79,11 +86,13 @@ class SavedDateContext:
         logging.info(f"date context is unprocessed: {date_context}")
         return False
 
-def parse_args(valid_functions: set[str], valid_scan_modes: set[str]) -> type[Namespace]:
+def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str]) -> type[Namespace]:
     ''' Returns the parsed command-line arguments.
 
     Function arguments:
-        valid_modes -- defines the supported script modes
+        valid_functions -- defines the supported script functions
+        valid_scan_modes -- defines the supported scan modes
+        valid_sync_modes -- defines the supported sync modes
     '''
     parser = argparse.ArgumentParser()
     parser.add_argument('function', type=str, help=f"The mode to apply for the function. One of '{valid_functions}'.")
@@ -92,6 +101,8 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str]) -> type[Na
     parser.add_argument('output', type=str, help="The output directory to populate.")
     parser.add_argument('scan_mode', type=str, help=f"The scan mode for the server. One of: '{valid_scan_modes}'.")
     parser.add_argument('--path-0', '-p0', type=str, help="An optional path. Sync uses this as the music root.")
+    parser.add_argument('--sync-mode', type=str, default=Namespace.SYNC_MODE_REMOTE,
+                        help=f"Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'.")
 
     args = parser.parse_args(namespace=Namespace)
     args.input = os.path.normpath(args.input)
@@ -101,6 +112,8 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str]) -> type[Na
         parser.error(f"Invalid function: '{args.function}'")
     if args.scan_mode not in valid_scan_modes:
         parser.error(f"Invalid scan mode: '{args.scan_mode}'")
+    if args.sync_mode not in valid_sync_modes:
+        parser.error(f"Invalid sync mode: '{args.sync_mode}'")
 
     return args
 
@@ -180,30 +193,35 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str) -> tu
         return (error.returncode, error.stderr)
 
 # TODO: add error handling for encoding
-def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, full_scan: bool) -> bool:
+def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, full_scan: bool, sync_mode: str) -> bool:
     '''Transfers all files in the batch to the given destination, then tells the music server to perform a scan.
-    
+
     Returns True if the batch sync was successful, False otherwise.
     '''
     import asyncio
     from . import subsonic_client, encode
-    
+
     # return flag
     success = True
-    
+
     # encode the current batch to MP3 format
     logging.info(f"encoding batch in date context {date_context}:\n{batch}")
     asyncio.run(encode.encode_lossy(batch, '.mp3', threads=28))
     logging.info(f"finished encoding batch in date context {date_context}")
-    
-    # transfer batch to the media server
+
+    # skip remote transfer if in local mode
+    if sync_mode == Namespace.SYNC_MODE_LOCAL:
+        logging.info('local sync mode: skipping remote transfer and scan')
+        return success
+
+    # transfer batch to the media server (remote mode only)
     transfer_path = transform_implied_path(source)
     success = bool(transfer_path)
     if transfer_path:
         logging.info(f"transferring files from {source}")
         returncode, _ = transfer_files(transfer_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME)
         success = returncode == 0
-        
+
         # check if file transfer succeeded
         if success:
             logging.info('file transfer succeeded, initiating remote scan')
@@ -221,7 +239,7 @@ def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, ful
                     content = subsonic_client.handle_response(response, subsonic_client.API.GET_SCAN_STATUS)
                     if not content:
                       success = False
-                      logging.error('unable to get scan status')  
+                      logging.error('unable to get scan status')
                     elif content['scanning'] == 'false':
                         logging.info('remote scan complete')
                         break
@@ -230,26 +248,26 @@ def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, ful
                     time.sleep(sleep_time)
     return success
 
-def sync_mappings(mappings:list[tuple[str, str]], full_scan: bool) -> None:
+def sync_mappings(mappings:list[tuple[str, str]], full_scan: bool, sync_mode: str) -> None:
     # core data
     batch: list[tuple[str, str]] = []
     dest_previous = mappings[0][1]
     date_context, dest = '', ''
     index = 0
-    
+
     # helper
     progressFormat: Callable[[int], str] = lambda i: f"{(i / len(mappings) * 100):.2f}%"
     logging.info(f"sync progress: {progressFormat(index)}")
-    
+
     # process the file mappings
     logging.debug(f"sync '{len(mappings)}' mappings:\n{mappings}")
-    
+
     for index, mapping in enumerate(mappings):
         dest = mapping[1]
         date_context_previous = common.find_date_context(dest_previous)
         date_context = common.find_date_context(dest)
-        
-        # validate date contexts        
+
+        # validate date contexts
         if date_context_previous:
             date_context_previous = date_context_previous[0]
         else:
@@ -262,19 +280,19 @@ def sync_mappings(mappings:list[tuple[str, str]], full_scan: bool) -> None:
             message = f"no current date context in path '{dest}'"
             logging.error(message)
             raise ValueError(message)
-        
+
         # collect each mapping in a given date context
         if date_context_previous == date_context:
             batch.append(mapping)
             logging.debug(f"add to batch: {mapping}")
         elif batch:
             logging.info(f"processing batch in date context '{date_context_previous}'")
-            if not sync_batch(batch, date_context_previous, os.path.dirname(dest_previous), full_scan):
+            if not sync_batch(batch, date_context_previous, os.path.dirname(dest_previous), full_scan, sync_mode):
                 raise RuntimeError(f"Batch sync failed for date context '{date_context_previous}'")
             batch.clear()
             batch.append(mapping) # add the first mapping of the new context
             logging.debug(f"add new context mapping: {mapping}")
-            
+
             # persist the latest processed context
             if not SavedDateContext.is_processed(date_context_previous):
                 SavedDateContext.save(date_context_previous)
@@ -285,15 +303,15 @@ def sync_mappings(mappings:list[tuple[str, str]], full_scan: bool) -> None:
             logging.debug(f"add new context mapping: {mapping}")
             logging.info(f"skip empty batch: {date_context_previous}")
         dest_previous = dest
-    
+
     # process the final batch
     if batch and date_context and dest:
         if isinstance(date_context, tuple):
             date_context = date_context[0]
         logging.info(f"processing batch in date context '{date_context}'")
-        if not sync_batch(batch, date_context, os.path.dirname(dest), full_scan):
+        if not sync_batch(batch, date_context, os.path.dirname(dest), full_scan, sync_mode):
             raise RuntimeError(f"Batch sync failed for date context '{date_context}'")
-        
+
         # persist the latest processed context
         if not SavedDateContext.is_processed(date_context):
             SavedDateContext.save(date_context)
@@ -392,20 +410,20 @@ def sync_from_path(args: type[Namespace]):
             os.makedirs(output_parent_path)
         action(input_path_full, output_path_full)
 
-def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True) -> None:
+def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE) -> None:
     # record initial run timestamp
     timestamp = time.time()
-    
-    # only attempt sync if remote is accessible
-    if not rsync_healthcheck():
+
+    # only attempt sync if remote is accessible (skip healthcheck for local mode)
+    if sync_mode == Namespace.SYNC_MODE_REMOTE and not rsync_healthcheck():
         raise RuntimeError("rsync unhealthy, abort sync")
-    
+
     # sort the mappings so they are synced in chronological order
     mappings.sort(key=lambda m: key_date_context(m))
-    
+
     # initialize timing and run the sync
     try:
-        sync_mappings(mappings, full_scan)
+        sync_mappings(mappings, full_scan, sync_mode)
     except Exception as e:
         logging.error(e)
         raise
@@ -416,8 +434,8 @@ def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True) -
 if __name__ == '__main__':
     # setup
     common.configure_log(level=logging.DEBUG, path=__file__)
-    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES)
-    
+    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES)
+
     # run the given command
     logging.info(f"running function '{script_args.function}'")
     if script_args.function in {Namespace.FUNCTION_COPY, Namespace.FUNCTION_MOVE}:
@@ -426,4 +444,5 @@ if __name__ == '__main__':
         from . import library
         tree = library.load_collection(script_args.input)
         mappings = create_sync_mappings(tree, script_args.output)
-        run_sync_mappings(mappings)
+        full_scan = script_args.scan_mode == Namespace.SCAN_FULL
+        run_sync_mappings(mappings, full_scan, script_args.sync_mode)
