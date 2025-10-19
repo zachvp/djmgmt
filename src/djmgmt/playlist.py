@@ -10,9 +10,20 @@ Format
 import argparse
 import os
 import csv
-import sys
+from typing import Callable
 
 from . import common
+
+# command support
+class Namespace(argparse.Namespace):
+    # required
+    input: str
+
+    # optional
+    number: bool
+    title: bool
+    artist: bool
+    genre: bool
 
 def extract_tsv(path: str, fields: list[int]) -> list[str]:
     output = []
@@ -43,29 +54,27 @@ def extract_csv(path: str, fields: list[int]) -> list[str]:
                 output.append(output_line)
     return output
 
-def parse_args() -> argparse.Namespace:
+def parse_args() -> type[Namespace]:
     parser = argparse.ArgumentParser(description="Output each track from a rekordbox-exported playlist.\
         If no options are provided, all fields will exist in the ouptut.")
-    parser.add_argument('input', type=str, help="The playlist path.")
-    parser.add_argument('--number', '-n', action='store_true', help="Include the track number in the output.")
-    parser.add_argument('--title', '-t', action='store_true', help="Include the title in the output.")
-    parser.add_argument('--artist', '-a', action='store_true', help="Include the artist in the output.")
-    parser.add_argument('--genre', '-g', action='store_true', help="Include the genre in the output.")
+    parser.add_argument('input', type=str, help='The playlist path.')
+    parser.add_argument('--number', '-n', action='store_true', help='Include the track number in the output.')
+    parser.add_argument('--title', '-t', action='store_true', help='Include the title in the output.')
+    parser.add_argument('--artist', '-a', action='store_true', help='Include the artist in the output.')
+    parser.add_argument('--genre', '-g', action='store_true', help='Include the genre in the output.')
 
-    args = parser.parse_args()
+    args = parser.parse_args(namespace=Namespace)
     args.input = os.path.normpath(args.input)
 
     return args
 
 def find_column(path: str, name: str) -> int:
     '''Locate the index of a column by name in a file's header row.
-    
+
     Args:
         path: Path to the file to read.
         name: Name of the column to find.
     '''
-    from typing import Callable
-    
     # Helper functionality and data
     normalize: Callable[[str], str] = lambda s: s.replace(' ', '_')
     headers = {
@@ -107,38 +116,52 @@ def find_column(path: str, name: str) -> int:
         print(f"error: unable to find name: '{name}' in path '{path}'")
     return -1
 
-def script(args: argparse.Namespace):
-    number = find_column(args.input, '#')
-    title  = find_column(args.input, 'Track Title')
-    artist = find_column(args.input, 'Artist')
-    genre  = find_column(args.input, 'Genre')
+def extract(input_path: str,
+            include_number: bool,
+            include_title: bool,
+            include_artist: bool,
+            include_genre: bool) -> list[str]:
+    '''Extract and format track information from a rekordbox playlist export file.
+
+    Args:
+        input_path: Path to the playlist file (TSV, TXT, or CSV format).
+        include_number: Include track number in output.
+        include_title: Include track title in output.
+        include_artist: Include artist in output.
+        include_genre: Include genre in output.
+    '''
+    number = find_column(input_path, '#')
+    title  = find_column(input_path, 'Track Title')
+    artist = find_column(input_path, 'Artist')
+    genre  = find_column(input_path, 'Genre')
 
     fields: list[int] = []
-    if args.number:
+    if include_number:
         fields.append(number)
-    if args.title:
+    if include_title:
         fields.append(title)
-    if args.artist:
+    if include_artist:
         fields.append(artist)
-    if args.genre:
+    if include_genre:
         fields.append(genre)
 
     # if no options are provided, assume all fields for output
     if len(fields) < 1:
         fields = [number, title, artist, genre]
 
-    extension = os.path.splitext(args.input)[1]
+    extension = os.path.splitext(input_path)[1]
 
     if extension in {'.tsv', '.txt'}:
-        extracted = extract_tsv(args.input, fields)
+        extracted = extract_tsv(input_path, fields)
     elif extension == '.csv':
-        extracted = extract_csv(args.input, fields)
+        extracted = extract_csv(input_path, fields)
     else:
-        print(f"error: unsupported extension: {extension}")
-        sys.exit(1)
+        raise ValueError(f"Unsupported extension: {extension}")
 
-    print('\n'.join(extracted))
+    return extracted
 
 # main
 if __name__ == '__main__':
-    script(parse_args())
+    args = parse_args()
+    result = extract(args.input, args.number, args.title, args.artist, args.genre)
+    print('\n'.join(result))

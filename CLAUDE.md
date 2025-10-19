@@ -10,6 +10,84 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 **Code Reuse**: Use existing utility functions from `common.py` and other modules before creating new ones. Check for functions like `find_date_context()`, `collect_paths()`, and `configure_log()` that may already provide the needed functionality.
 
+## Coding Style
+
+### String Quoting Conventions
+
+**Primary Rule**: Favor single quotes `'` for all strings unless the string is formatted (f-strings).
+
+**Examples**:
+```python
+# Regular strings - use single quotes
+path = 'src/djmgmt/library.py'
+error_msg = 'Unable to load XML collection'
+extension = '.aiff'
+
+# F-strings - use double quotes for the outer string
+logging.info(f"Error in FUNCTION_RECORD_DYNAMIC: {e}")
+output_path = f"{constants.REKORDBOX_ROOT}{file_path}"
+item = f"{tags.artist}{tags.title}".lower()
+
+# Nested quotes in f-strings - use double quotes outside, single quotes inside
+file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe='()/')}"
+```
+
+**Exceptions**:
+1. **XPath expressions**: Use double quotes for attribute values in XPath predicates to avoid escaping issues
+   ```python
+   existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
+   ```
+
+2. **Docstrings**: Use triple single quotes `'''` for module and function docstrings
+   ```python
+   '''
+   Module-level docstring describing the module purpose
+   '''
+
+   def function_name():
+       '''Function-level docstring describing the function.'''
+   ```
+
+3. **Multi-line strings with newlines**: Use double quotes when representing explicit newlines in messages
+   ```python
+   parser.error(f"invalid function '{args.function}'\nexpect one of '{'\n'.join(sorted(functions))}'")
+   ```
+
+### Additional Style Guidelines
+
+Reference `src/djmgmt/tags_info.py` for comprehensive style patterns:
+
+- **Type hints**: Always include type hints for function parameters and return values
+  ```python
+  def log_duplicates(root: str) -> list[str]:
+  ```
+
+- **Lambda functions**: Inline type annotations where clarity is needed
+  ```python
+  normalize_filename: Callable[[str], str] = lambda path: os.path.splitext(os.path.basename(path))[0]
+  ```
+
+- **Dictionary and set literals**: Favor compact single-line format when items are short
+  ```python
+  comparison_files = {}
+  valid_extensions = {'.mp3', '.wav', '.aiff'}
+  ```
+
+- **Comments**: Use inline comments to explain intent, placed on the line before the code
+  ```python
+  # check for duplicates based on set contents
+  count = len(file_set)
+  ```
+
+- **String concatenation**: Prefer f-strings over `+` or `.format()`
+  ```python
+  # Good
+  path = f"{root}/{name}"
+
+  # Avoid
+  path = root + '/' + name
+  ```
+
 ## Project Overview
 
 This is a DJ management toolkit for organizing, encoding, tagging, and syncing music libraries. It processes music files (AIFF, WAV, MP3, FLAC), manages Rekordbox XML collections, and syncs tracks to a remote Navidrome media server via rsync.
@@ -177,3 +255,5 @@ The `subsonic_client.py` module interacts with the Navidrome server:
 **Async Encoding**: Use `asyncio.run()` to execute batch encoding operations with configurable thread count
 
 **Interactive Mode**: Most functions support `--interactive` flag for confirmation prompts
+- In test assertions, always use appropriate "assert{DataType}Equal" assertions depending on the data type. For example use  "assertListEqual" to compare lists,  "assertDictEqual" to compare dicts, and so on.
+- Except in the context of annotations (e.g., `@patch`), reference `@staticmethod` methods via class name, NOT `self`. So favor `ClassName.static_method()` rather than `self.static_method()`

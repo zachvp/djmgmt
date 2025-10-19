@@ -28,7 +28,6 @@ FUNCTION_SORT = 'sort'
 EXPECTED_DEPTH = 6
 
 # Helper functions
-
 def date_path(date: datetime, months: dict[int, str]) -> str:
     '''Returns a directory path that corresponds to today's date. 'YYYY-MM-DD' returns 'YYYY/MM/DD'.
     Example: '2024-01-02' returns 2024/01/02

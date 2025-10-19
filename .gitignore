@@ -17,5 +17,5 @@ logs/
 fallout/input.txt
 copypasta
 claude/
-
 **/state/
+src/djmgmt/ui/config.json

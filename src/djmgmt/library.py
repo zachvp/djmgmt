@@ -6,7 +6,7 @@ For example, if the music library file 'TrackA.aiff' has a corresponding 'DateAd
 attribute of '01/02/23 (Jan 2, 2023)', the new path will be
     '/library_root/2023/01 january/02/Artist/Album/TrackA.aiff'
 
-## Assumptions
+# Assumptions
 * The music library source files are in a flat directory structure. Any tracks in subfolders will be ignored.
 * The XML collection file paths point to this flat music library.
 '''
@@ -140,11 +140,6 @@ def load_collection(path: str) -> ET.Element:
         raise
     assert collection is not None, message
     return collection.getroot()
-
-def find_collection_backup(backup_dir: str) -> str:
-    '''Finds the path for the most recently modified collection.xml file.'''
-    paths = common.collect_paths(backup_dir, filter={'.xml'})
-    return max(paths, key=os.path.getmtime) if paths else ''
     
 def find_node(root: ET.Element, xpath: str) -> ET.Element:
     '''Arguments:
@@ -326,10 +321,10 @@ def generate_date_paths(collection: ET.Element,
     return paths
 
 def get_pipe_output(structure: list[tuple[str, str]]) -> str:
-    output = ''
+    output = []
     for item in structure:
-        output += f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n"
-    return output.strip()
+        output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
+    return ''.join(output).strip()
 
 def move_files(args: type[Namespace], path_mappings: list[str]) -> None:
     '''Moves files according to the paths input mapping.'''
@@ -409,7 +404,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     '''
     # load the collection and base roots
     collection_root = load_collection(input_collection_path)
-    base_root = load_collection(constants.COLLECTION_TEMPLATE_PATH)
+    base_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
 
     # copy collection to base
     base_collection = find_node(base_root, constants.XPATH_COLLECTION)

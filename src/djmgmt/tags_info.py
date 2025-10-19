@@ -41,19 +41,25 @@ def parse_args(functions: set[str]) -> type[Namespace]:
     if args.comparison:
         args.comparison = os.path.normpath(args.comparison)
     
-    if args.function not in functions:
-        parser.error(f"invalid function '{args.function}'; expect one of '{functions}'")
-    if args.function == Namespace.FUNCTION_COMPARE and not args.comparison:
-        parser.error(f"missing required --comparison argument for '{Namespace.FUNCTION_COMPARE}'")
+    if args.function not in functions: # TODO: use common logic across all `parse_args` functions
+        parser.error(f"invalid function '{args.function}'\nexpect one of '{'\n'.join(sorted(functions))}'")
+    if not args.output and args.function in {Namespace.FUNCTION_WRITE_IDENTIFIERS, Namespace.FUNCTION_WRITE_PATHS, Namespace.FUNCTION_COMPARE}:
+        parser.error(f"missing required --output argument for '{args.function}'")
+    if not args.comparison and args.function == Namespace.FUNCTION_COMPARE:
+        parser.error(f"missing required --comparison argument for '{args.function}'")
     
     return args
 
 # primary functions
-def log_duplicates(root: str) -> None:
-    # script state
+# TODO: update tests to check return value
+# TODO: rename to 'find_duplicates'
+def log_duplicates(root: str) -> list[str]:
+    '''Searches recursively to find all duplicate audio files in the input path, according to artist and title.'''
+    # state: track existing IDs and duplicate files
     file_set: set[str] = set()
+    duplicate_paths: list[str] = []
 
-    # script process
+    # process: explore all paths
     paths = common.collect_paths(root)
     for path in paths:
         # load track tags, check for errors
@@ -70,7 +76,9 @@ def log_duplicates(root: str) -> None:
 
         file_set.add(item)
         if len(file_set) == count:
+            duplicate_paths.append(path)
             logging.info(path)
+    return duplicate_paths
 
 def collect_identifiers(root: str) -> list[str]:
     tracks: list[str] = []
@@ -97,6 +105,8 @@ def collect_filenames(root: str) -> list[str]:
         names.append(name)
     return names
 
+# TODO: enhance to report which tags don't match
+# TODO: enhance to report progress to caller
 def compare_tags(source: str, comparison: str) -> list[tuple[str, str]]:
     '''Compares tag metadata between files in source and comparison directories.
     Returns a list of (source, comparison) path mappings where tags have changed for matching filenames.'''
@@ -144,6 +154,7 @@ if __name__ == '__main__':
     
     logging.info(f"running function '{args.function}'")
     if args.function == Namespace.FUNCTION_LOG_DUPLICATES:
+        # TODO: write duplicates to file
         log_duplicates(args.input)
     elif args.function == Namespace.FUNCTION_WRITE_IDENTIFIERS:
         identifiers = sorted(collect_identifiers(args.input))

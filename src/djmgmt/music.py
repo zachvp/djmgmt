@@ -1,14 +1,16 @@
 '''
+# Summary
 Functions to scan and manipulate a batch of music files.
-    sweep:           Moves all music files and archives to another directory.
-    flatten:         Flattens all files in a given directory, including subdirectories.
-    extract:         Extract files from all archives.
-    compress:        Zips the contents of a given directory.
-    prune:           Removes all empty folders and non-music files from a directory.
-    prune_non_music  Removes all non-music files from a directory.
-    process:         Convenience function to run sweep, extract, flatten, and all prune functions in sequence for a directory.
-    update_library   Processes a directory containing music files into a local library folder, then syncs the updated library.
-    record_dynamic   Updates both 'dynamic.played' and 'dynamic.unplayed' playlists in an XML collection based on archive and pruned tracks.
+
+    - sweep:           Moves all music files and archives from source to target
+    - flatten:         Recusrively flattens all files in a given directory
+    - extract:         Extract files from all archives in a given directory.
+    - compress:        Zips the contents of a given directory.
+    - prune:           Removes all empty folders and non-music files from a directory.
+    - prune_non_music  Removes all non-music files from a directory.
+    - process:         Convenience function to run sweep, extract, flatten, standardize lossless encodings, and prune from source to target.
+    - update_library   Processes a directory containing music files into a local library folder, then syncs the updated library.
+    - record_dynamic   Updates both 'dynamic.played' and 'dynamic.unplayed' playlists in an XML collection based on archive and pruned tracks.
 '''
 
 import argparse
@@ -231,7 +233,7 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     with all music files in the `source` directory.
     Returns the XML collection root.'''
     # load XML references
-    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_TEMPLATE_PATH
+    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_PATH_TEMPLATE
     root          = library.load_collection(xml_path)
     collection    = library.find_node(root, constants.XPATH_COLLECTION)
     playlist_root = library.find_node(root, constants.XPATH_PLAYLISTS)
@@ -543,13 +545,18 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
         The source and output directories may be the same for effectively in-place processing.
     '''
     import asyncio
+    from tempfile import TemporaryDirectory
     
-    sweep(source, output, interactive, valid_extensions, prefix_hints)
-    extract(output, output, interactive)
-    flatten_hierarchy(output, output, interactive)
-    standardize_lossless(output, valid_extensions, prefix_hints, interactive)
-    prune_non_music(output, valid_extensions, interactive)
-    prune_non_user_dirs(output, interactive)
+    # process all files in a temporary directory, then move the processed files to the designated output directory
+    with TemporaryDirectory() as processing_dir:
+        sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
+        extract(processing_dir, processing_dir, interactive)
+        flatten_hierarchy(processing_dir, processing_dir, interactive)
+        standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
+        prune_non_music(processing_dir, valid_extensions, interactive)
+        prune_non_user_dirs(processing_dir, interactive)
+    
+        sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
     
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
     common.write_paths(missing, constants.MISSING_ART_PATH)
@@ -598,10 +605,10 @@ def process_cli(args: type[Namespace], valid_extensions: set[str], prefix_hints:
 def update_library(source: str,
                    library_path: str,
                    client_mirror_path: str,
-                   collection_backup_directory: str,
                    interactive: bool,
                    valid_extensions: set[str],
-                   prefix_hints: set[str]) -> None:
+                   prefix_hints: set[str],
+                   full_scan: bool = True) -> None:
     '''Performs the following, in sequence:
         1. Processes files from source dir -> temp dir
         2. Sweeps files from temp dir -> library
@@ -612,20 +619,14 @@ def update_library(source: str,
         
         The source, library, and client_mirror_path arguments should all be distinct directories.
     '''
-    from tempfile import TemporaryDirectory
     from . import sync
     from . import tags_info
     
-    # create a temporary directory to process the files from source
-    with TemporaryDirectory() as processing_dir:
-        # process all of the source files into the temp dir
-        process(source, processing_dir, interactive, valid_extensions, prefix_hints)
-        
-        # move the processed files to the library
-        sweep(processing_dir, library_path, interactive, valid_extensions, prefix_hints)
-    
-    # update the djmgmt collection record according to any new files
-    collection = record_collection(library_path, constants.COLLECTION_PATH)
+    # process all of the source files into the library dir
+    process(source, library_path, interactive, valid_extensions, prefix_hints)
+
+    # update the processed collection according to any new files
+    collection = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
@@ -635,7 +636,7 @@ def update_library(source: str,
         mappings += changed
     
     # run the sync
-    sync.run_sync_mappings(mappings)
+    sync.run_sync_mappings(mappings, full_scan=full_scan)
 
 if __name__ == '__main__':
     common.configure_log(path=__file__)
@@ -662,7 +663,6 @@ if __name__ == '__main__':
         update_library(script_args.input,
                        script_args.output,
                        script_args.client_mirror_path,
-                       script_args.collection_backup_directory,
                        script_args.interactive,
                        constants.EXTENSIONS,
                        PREFIX_HINTS)
