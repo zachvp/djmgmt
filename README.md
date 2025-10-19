@@ -1,12 +1,13 @@
 # Next steps
 ## Development
-* sync music to flash drive from beginning to "06/14/2025"
-* Retain order of 'mixtapes' playlists in dynamic.played
 * Watch RB export path folder to update dynamic.unplayed playlist
-* Re-sync outdated files: live test
-* Discover played _pruned tracks: read RB XML to determine played tracks in archive playlists
-* Check if existing playlist has any previously played tracks
+* Re-sync outdated files: live test (use "brian gibson - thumper - head intro.mp3" as test case)
+* install djmgmt as global command (so python -m isn't required)
+* Retain order of 'mixtapes' playlists in dynamic.played
 * Read Rekordbox DB for unassigned Tags in _pruned
+* Check if existing playlist has any previously played tracks
+
+## Backburner
 * Use GitHub for project management
 
 ## Codebase improvement
