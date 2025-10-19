@@ -172,7 +172,7 @@ class TestWritePaths(unittest.TestCase):
         '''Tests that the function sorts the paths and writes to the given file'''
         # Set up mocks
         paths = ['b', 'a']
-        
+
         # Call target function
         common.write_paths(paths, MOCK_INPUT)
 
@@ -180,3 +180,59 @@ class TestWritePaths(unittest.TestCase):
         mock_file_open.assert_called_once_with(MOCK_INPUT, 'w', encoding='utf-8')
         mock_file = mock_file_open.return_value
         mock_file.writelines.assert_called_once_with(['a\n', 'b\n'])
+
+class TestCleanDirname(unittest.TestCase):
+    def test_clean_dirname_basic(self) -> None:
+        '''Tests basic string replacement.'''
+        replacements = {'a': 'x', 'b': 'y'}
+        actual = common.clean_dirname('abc', replacements)
+        self.assertEqual(actual, 'xyc')
+
+    def test_clean_dirname_strips_whitespace(self) -> None:
+        '''Tests that leading and trailing whitespace is stripped.'''
+        replacements = {}
+        actual = common.clean_dirname('  test  ', replacements)
+        self.assertEqual(actual, 'test')
+
+    def test_clean_dirname_no_match(self) -> None:
+        '''Tests that strings without matches remain unchanged.'''
+        replacements = {'x': 'y'}
+        actual = common.clean_dirname('abc', replacements)
+        self.assertEqual(actual, 'abc')
+
+class TestCleanDirnameFat32(unittest.TestCase):
+    def test_colon_replacement(self) -> None:
+        '''Tests that colons are replaced with dashes.'''
+        actual = common.clean_dirname_fat32('Terence :Terry:')
+        self.assertEqual(actual, 'Terence -Terry-')
+
+    def test_forward_slash_replacement(self) -> None:
+        '''Tests that forward slashes are replaced with dashes.'''
+        actual = common.clean_dirname_fat32('a/jus/ted')
+        self.assertEqual(actual, 'a-jus-ted')
+
+    def test_multiple_illegal_chars(self) -> None:
+        '''Tests that multiple illegal characters are all replaced.'''
+        actual = common.clean_dirname_fat32('test<file>:name|with*illegal?chars')
+        self.assertEqual(actual, 'test(file)-name-with-illegal()chars')
+
+    def test_backslash_replacement(self) -> None:
+        '''Tests that backslashes are replaced with dashes.'''
+        actual = common.clean_dirname_fat32('path\\to\\file')
+        self.assertEqual(actual, 'path-to-file')
+
+class TestCleanDirnameSimple(unittest.TestCase):
+    def test_forward_slash_replacement(self) -> None:
+        '''Tests that forward slashes are replaced with ampersands.'''
+        actual = common.clean_dirname_simple('a/jus/ted')
+        self.assertEqual(actual, 'a&jus&ted')
+
+    def test_colon_replacement(self) -> None:
+        '''Tests that colons are replaced with dashes.'''
+        actual = common.clean_dirname_simple('Terence :Terry:')
+        self.assertEqual(actual, 'Terence -Terry-')
+
+    def test_combined_replacement(self) -> None:
+        '''Tests that both slashes and colons are replaced.'''
+        actual = common.clean_dirname_simple('artist/name:with:chars')
+        self.assertEqual(actual, 'artist&name-with-chars')

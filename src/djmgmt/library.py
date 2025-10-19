@@ -88,7 +88,7 @@ def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], incl
     date = node.attrib[constants.ATTR_DATE_ADDED]
     path_components = os.path.split(node.attrib[constants.ATTR_PATH].lstrip(library_root))
     subpath_date = date_path(date, mapping)
-    
+
     # construct the path
     path = os.path.join('/', path_components[0], subpath_date)
     if include_metadata:
@@ -98,6 +98,9 @@ def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], incl
             artist = constants.UNKNOWN_ARTIST
         if not album:
             album = constants.UNKNOWN_ALBUM
+        # sanitize artist and album for filesystem compatibility
+        artist = common.clean_dirname_fat32(artist)
+        album = common.clean_dirname_fat32(album)
         path = os.path.join(path, artist, album)   # append metadata
     path = os.path.join(path, path_components[-1]) # append file name
     return path

@@ -20,6 +20,7 @@ import logging
 from .tags import Tags
 from . import music
 from . import constants
+from . import common
 
 # Constants
 FUNCTION_VALIDATE = 'validate'
@@ -27,47 +28,6 @@ FUNCTION_SORT = 'sort'
 EXPECTED_DEPTH = 6
 
 # Helper functions
-def clean_dirname(dirname: str, replacements: dict[str, str]) -> str:
-    '''Cleans any dirty substrings in `dirname`.
-
-    Arguments
-    dirname -- the directory string to clean
-    replacements -- key: dirty string, value: clean string
-    '''
-    output = dirname
-
-    for key, value in replacements.items():
-        if key in output:
-            output = output.replace(key, value)
-
-    return output.strip()
-
-def clean_dirname_fat32(dirname: str) -> str:
-    '''cleans according to Fat32 specs
-    source: https://stackoverflow.com/questions/4814040/allowed-characters-in-filename
-    '''
-    replacements: dict[str,str] = {
-        '\\' : '()',
-        '/'  : '&',
-        ':'  : '-',
-        '*'  : '()',
-        '?'  : '()',
-        '"'  : '()',
-        '<'  : '(',
-        '>'  : ')',
-        '|'  : '()',
-    }
-
-    return clean_dirname(dirname, replacements)
-
-def clean_dirname_simple(dirname: str) -> str:
-    '''Cleans reserved directory characters'''
-    replacements: dict[str,str] = {
-        '/'  : '&',
-        ':'  : '-',
-    }
-
-    return clean_dirname(dirname, replacements)
 
 def date_path(date: datetime, months: dict[int, str]) -> str:
     '''Returns a directory path that corresponds to today's date. 'YYYY-MM-DD' returns 'YYYY/MM/DD'.
@@ -104,18 +64,18 @@ def sort_hierarchy(source: str, compatibility: bool, date: bool, interactive: bo
                     # extract and clean up the artist string
                     artist = tags.artist if tags.artist else constants.UNKNOWN_ARTIST
                     artist_raw = artist
-                    artist = clean_dirname_simple(artist)
+                    artist = common.clean_dirname_simple(artist)
                     if compatibility:
-                        artist = clean_dirname_fat32(artist)
+                        artist = common.clean_dirname_fat32(artist)
                     if artist != artist_raw:
                         logging.info(f"artist '{artist_raw}' contains at least one illegal character, replacing with '{artist}'")
 
                     # extract and clean up the album string
                     album = tags.album if tags.album else constants.UNKNOWN_ALBUM
                     album_raw = album
-                    album = clean_dirname_simple(album)
+                    album = common.clean_dirname_simple(album)
                     if compatibility:
-                        album = clean_dirname_fat32(album)
+                        album = common.clean_dirname_fat32(album)
                     if album != album_raw:
                         logging.info(f"album '{album_raw}' contains at least one illegal character, replacing with '{album}'")
 

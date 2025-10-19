@@ -129,3 +129,46 @@ def write_paths(paths: list[str], output_path: str) -> None:
     sorted_paths = sorted([f"{p}\n" for p in paths])
     with open(output_path, 'w', encoding='utf-8') as file:
         file.writelines(sorted_paths)
+
+def clean_dirname(dirname: str, replacements: dict[str, str]) -> str:
+    '''Cleans any dirty substrings in `dirname`.
+
+    Arguments
+    dirname -- the directory string to clean
+    replacements -- key: dirty string, value: clean string
+    '''
+    output = dirname
+
+    for key, value in replacements.items():
+        if key in output:
+            output = output.replace(key, value)
+
+    return output.strip()
+
+def clean_dirname_fat32(dirname: str) -> str:
+    '''Cleans according to Fat32 specs.
+
+    source: https://stackoverflow.com/questions/4814040/allowed-characters-in-filename
+    '''
+    replacements: dict[str,str] = {
+        '\\' : '-',
+        '/'  : '-',
+        ':'  : '-',
+        '*'  : '-',
+        '?'  : '()',
+        '"'  : '-',
+        '<'  : '(',
+        '>'  : ')',
+        '|'  : '-',
+    }
+
+    return clean_dirname(dirname, replacements)
+
+def clean_dirname_simple(dirname: str) -> str:
+    '''Cleans reserved directory characters.'''
+    replacements: dict[str,str] = {
+        '/'  : '&',
+        ':'  : '-',
+    }
+
+    return clean_dirname(dirname, replacements)
