@@ -1,6 +1,6 @@
 """Reusable component for rendering module functionality tabs."""
 import streamlit as st
-from typing import Any, Callable
+from typing import Callable
 
 
 def render_module_tab(

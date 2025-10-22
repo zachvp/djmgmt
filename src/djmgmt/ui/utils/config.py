@@ -1,6 +1,5 @@
 """Configuration management for UI state and environment."""
 import json
-import os
 from pathlib import Path
 from typing import Any
 
