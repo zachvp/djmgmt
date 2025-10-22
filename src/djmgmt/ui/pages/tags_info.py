@@ -15,7 +15,7 @@ function = st.selectbox('Function', [
         'compare'
     ])
 
-input_path = st.text_input('Input Path', value=os.path.expanduser('~/Music'))
+input_path = st.text_input('Input Path', value=os.path.expanduser('~/Music/DJ'))
 
 comparison = None
 if function == 'compare':
@@ -29,8 +29,9 @@ if st.button('Run'):
         # Configure logging before running function
         log_path = utils.create_log_path(MODULE)
         common.configure_log(level=logging.DEBUG, path=str(log_path))
-        log_duplicates(input_path)
-        st.success(f"Done - check {log_path}")
+        duplicates = log_duplicates(input_path)
+        st.write("### Results:")
+        st.dataframe(sorted(duplicates))
     elif function == 'compare' and comparison:
         results = compare_tags(input_path, comparison)
         st.write(f"Found {len(results)} changes")

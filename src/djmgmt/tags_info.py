@@ -49,10 +49,11 @@ def parse_args(functions: set[str]) -> type[Namespace]:
     return args
 
 # primary functions
-# TODO: update tests
-def log_duplicates(root: str) -> set[str]:
+# TODO: update tests to check return value
+def log_duplicates(root: str) -> list[str]:
     # script state
     file_set: set[str] = set()
+    duplicate_paths: list[str] = []
 
     # script process
     paths = common.collect_paths(root)
@@ -71,8 +72,9 @@ def log_duplicates(root: str) -> set[str]:
 
         file_set.add(item)
         if len(file_set) == count:
+            duplicate_paths.append(path)
             logging.info(path)
-    return file_set
+    return duplicate_paths
 
 def collect_identifiers(root: str) -> list[str]:
     tracks: list[str] = []
