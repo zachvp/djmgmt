@@ -53,6 +53,7 @@ def parse_args(functions: set[str]) -> type[Namespace]:
 # primary functions
 # TODO: update tests to check return value
 def log_duplicates(root: str) -> list[str]:
+    '''Logs all duplicate audio files in the input path. Searches recursively.'''
     # script state
     file_set: set[str] = set()
     duplicate_paths: list[str] = []

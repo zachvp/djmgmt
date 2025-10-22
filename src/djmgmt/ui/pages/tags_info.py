@@ -9,18 +9,32 @@ from djmgmt.ui.utils import config
 
 # Constants
 MODULE = 'tags_info'
+FUNCTIONS = [
+    tags_info.Namespace.FUNCTION_LOG_DUPLICATES,
+    tags_info.Namespace.FUNCTION_WRITE_PATHS,
+    tags_info.Namespace.FUNCTION_COMPARE
+]
+
+# Helpers
+def get_function_description(function_name: str) -> str:
+    '''Return description based on selected function.'''
+    if function_name == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
+        return f"> {tags_info.log_duplicates.__doc__}"
+    else:
+        return 'Description missing'
 
 # Initialization
 log_path = utils.create_log_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Main UI
+st.header(f"{MODULE}")
+with st.expander("Summary", expanded=True):
+    st.write(tags_info.__doc__)
+
 ## Functions
-function = st.selectbox('Function', [
-        tags_info.Namespace.FUNCTION_LOG_DUPLICATES,
-        tags_info.Namespace.FUNCTION_WRITE_PATHS,
-        tags_info.Namespace.FUNCTION_COMPARE
-    ])
+function = st.selectbox('Function', FUNCTIONS)
+st.write(get_function_description(function))
 
 # Required arguments
 app_config = config.load()
@@ -36,6 +50,7 @@ comparison = None
 if function == tags_info.Namespace.FUNCTION_COMPARE:
     comparison = st.text_input('Comparison Path')
 
+# Handle Run
 if st.button('Run'):
     if function == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
         duplicates = tags_info.log_duplicates(input_path)
