@@ -36,9 +36,19 @@ common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Main UI
 st.header(f"{MODULE}")
-with st.expander("Summary", expanded=True):
+with st.expander("Overview", expanded=False):
     st.write(library.__doc__)
 
 ## Functions
 function = st.selectbox('Function', FUNCTIONS)
 st.write(get_function_description(function))
+
+# Required arguments
+app_config = config.load()
+default_collection_path = app_config.collection_path
+if default_collection_path is None:
+    default_collection_path = ''
+
+st.write('---')
+xml_collection_path = st.text_input('XML Collection Path', value=default_collection_path)
+assert xml_collection_path is not None, "Unable to load XML collection path"

@@ -29,7 +29,7 @@ common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Main UI
 st.header(f"{MODULE}")
-with st.expander("Summary", expanded=True):
+with st.expander("Overview", expanded=False):
     st.write(tags_info.__doc__)
 
 ## Functions
