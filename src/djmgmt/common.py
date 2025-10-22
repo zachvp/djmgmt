@@ -7,7 +7,8 @@ from . import constants
 # TODO: use project path as root for logs, they shouldn't be in src/
 DEFAULT_PATH = os.path.abspath(__file__)
 
-def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> None:
+# TODO: add tests
+def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> str:
     '''Standard log configuration.'''
     if path == DEFAULT_PATH:
         logs_path = os.path.join(os.path.dirname(DEFAULT_PATH), 'logs')
@@ -23,11 +24,14 @@ def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> None:
     if len(split) > 1:
         filename = split[0]
     
-    logging.basicConfig(filename=f"{logs_path}/{filename}.log",
+    # Configure the log
+    log_path = f"{logs_path}/{filename}.log"
+    logging.basicConfig(filename=log_path,
                         level=level,
                         format="%(asctime)s [%(levelname)s] %(message)s",
                         datefmt="%D %H:%M:%S",
                         filemode='w')
+    return log_path
 
 # TODO: refactor calling functions to use filter
 def collect_paths(root: str, filter: set[str] = set()) -> list[str]:

@@ -72,5 +72,3 @@ COLLECTION_PATH          = os.path.join(PROJECT_ROOT, 'state', 'processed-collec
 DYNAMIC_COLLECTION_PATH  = os.path.join(PROJECT_ROOT, 'state', 'dynamic-collection.xml')
 COLLECTION_TEMPLATE_PATH = os.path.join(PROJECT_ROOT, 'state', 'collection-template.xml')
 MISSING_ART_PATH         = os.path.join(PROJECT_ROOT, 'state', 'missing-art.txt')
-
-print(PROJECT_ROOT)
