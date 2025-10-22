@@ -1,6 +1,5 @@
 # Next steps
 ## Development
-* Watch RB export path folder to update dynamic.unplayed playlist
 * Re-sync outdated files: live test (use "brian gibson - thumper - head intro.mp3" as test case)
 * install djmgmt as global command (so python -m isn't required)
 * Retain order of 'mixtapes' playlists in dynamic.played
