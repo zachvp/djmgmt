@@ -326,10 +326,10 @@ def generate_date_paths(collection: ET.Element,
     return paths
 
 def get_pipe_output(structure: list[tuple[str, str]]) -> str:
-    output = ''
+    output = []
     for item in structure:
-        output += f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n"
-    return output.strip()
+        output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
+    return ''.join(output).strip()
 
 def move_files(args: type[Namespace], path_mappings: list[str]) -> None:
     '''Moves files according to the paths input mapping.'''
