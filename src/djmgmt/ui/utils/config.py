@@ -6,19 +6,23 @@ from typing import Any, Optional
 # Constants
 CONFIG_PATH = Path(__file__).parent.parent / 'config.json'
 
-KEY_COLLECTION_PATH     = 'collection_path'
-KEY_DOWNLOAD_DIRECTORY  = 'download_directory'
-KEY_LIBRARY_PATH        = 'library_path'
+KEY_COLLECTION_DIRECTORY = 'collection_directory'
+KEY_COLLECTION_PATH      = 'collection_path'
+KEY_DOWNLOAD_DIRECTORY   = 'download_directory'
+KEY_LIBRARY_PATH         = 'library_path'
+
 CONFIG_TEMPLATE = {
-    KEY_COLLECTION_PATH    : None,
-    KEY_DOWNLOAD_DIRECTORY : None,
-    KEY_LIBRARY_PATH       : None
+    KEY_COLLECTION_DIRECTORY : None,
+    KEY_COLLECTION_PATH      : None,
+    KEY_DOWNLOAD_DIRECTORY   : None,
+    KEY_LIBRARY_PATH         : None
 }
 class Config:
     def __init__(self, data: dict[str, Any]) -> None:
-        self.collection_path    : Optional[str] = data['collection_path']
-        self.download_directory : Optional[str] = data['download_directory']
-        self.library_path       : Optional[str] = data['library_path']
+        self.collection_directory : Optional[str] = data[KEY_COLLECTION_DIRECTORY]
+        self.collection_path      : Optional[str] = data[KEY_COLLECTION_PATH]
+        self.download_directory   : Optional[str] = data[KEY_DOWNLOAD_DIRECTORY]
+        self.library_path         : Optional[str] = data[KEY_LIBRARY_PATH]
     
     def to_dict(self) -> dict[str, Any]:
         return {

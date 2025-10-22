@@ -27,14 +27,15 @@ def get_function_description(function_name: str) -> str:
 log_path = utils.create_log_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
-# Main UI
+# Module overview
 st.header(f"{MODULE}")
 with st.expander("Overview", expanded=False):
     st.write(tags_info.__doc__)
 
-## Functions
+# Functions
 function = st.selectbox('Function', FUNCTIONS)
 st.write(get_function_description(function))
+st.write('---')
 
 # Required arguments
 app_config = config.load()

@@ -34,21 +34,37 @@ def get_function_description(function_name: str) -> str:
 log_path = utils.create_log_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
-# Main UI
+# Module Overiew
 st.header(f"{MODULE}")
 with st.expander("Overview", expanded=False):
     st.write(library.__doc__)
 
-## Functions
+# Functions
 function = st.selectbox('Function', FUNCTIONS)
 st.write(get_function_description(function))
+st.write('---')
 
 # Required arguments
 app_config = config.load()
-default_collection_path = app_config.collection_path
-if default_collection_path is None:
-    default_collection_path = ''
 
-st.write('---')
-xml_collection_path = st.text_input('XML Collection Path', value=default_collection_path)
+# Initialize session state for collection path if not exists
+if 'xml_collection_path' not in st.session_state:
+    default_collection_path = app_config.collection_path
+    if default_collection_path is None:
+        default_collection_path = ''
+    st.session_state.xml_collection_path = default_collection_path
+
+xml_collection_path = st.text_input('XML Collection Path', value=st.session_state.xml_collection_path)
 assert xml_collection_path is not None, "Unable to load XML collection path"
+
+# Button to find latest collection backup
+if st.button('Find Latest Collection Backup'):
+    if app_config.collection_directory:
+        latest_collection = library.find_collection_backup(app_config.collection_directory)
+        if latest_collection:
+            st.session_state.xml_collection_path = latest_collection
+            st.rerun()
+        else:
+            st.warning(f"No collection backups found in {app_config.collection_directory}")
+    else:
+        st.warning("Collection directory not configured in app settings")
