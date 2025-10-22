@@ -41,15 +41,16 @@ def parse_args(functions: set[str]) -> type[Namespace]:
     if args.comparison:
         args.comparison = os.path.normpath(args.comparison)
     
-    if args.function not in functions:
-        parser.error(f"invalid function '{args.function}'; expect one of '{functions}'")
+    if args.function not in functions: # TODO: use common logic across all `parse_args` functions
+        parser.error(f"invalid function '{args.function}'\nexpect one of '{'\n'.join(sorted(functions))}'")
     if args.function == Namespace.FUNCTION_COMPARE and not args.comparison:
         parser.error(f"missing required --comparison argument for '{Namespace.FUNCTION_COMPARE}'")
     
     return args
 
 # primary functions
-def log_duplicates(root: str) -> None:
+# TODO: update tests
+def log_duplicates(root: str) -> set[str]:
     # script state
     file_set: set[str] = set()
 
@@ -71,6 +72,7 @@ def log_duplicates(root: str) -> None:
         file_set.add(item)
         if len(file_set) == count:
             logging.info(path)
+    return file_set
 
 def collect_identifiers(root: str) -> list[str]:
     tracks: list[str] = []
@@ -144,6 +146,7 @@ if __name__ == '__main__':
     
     logging.info(f"running function '{args.function}'")
     if args.function == Namespace.FUNCTION_LOG_DUPLICATES:
+        # TODO: write duplicates to file
         log_duplicates(args.input)
     elif args.function == Namespace.FUNCTION_WRITE_IDENTIFIERS:
         identifiers = sorted(collect_identifiers(args.input))
