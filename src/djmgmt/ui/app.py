@@ -1,6 +1,8 @@
 """Main Streamlit application for djmgmt toolkit."""
 import streamlit as st
+import logging
 from djmgmt.tags_info import log_duplicates, compare_tags
+from djmgmt import common
 import os
 
 st.title("djmgmt Tools")
@@ -31,8 +33,10 @@ if module == "tags_info":
 
     if st.button("Run"):
         if function == "log_duplicates":
+            # Configure logging before running function
+            common.configure_log(level=logging.DEBUG, path='/Users/zachvp/developer/djmgmt/src/djmgmt/tags_info.py')
             log_duplicates(input_path)
-            st.success("Done - check logs")
+            st.success("Done - check src/djmgmt/logs/tags_info.log")
         elif function == "compare" and comparison:
             results = compare_tags(input_path, comparison)
             st.write(f"Found {len(results)} changes")
