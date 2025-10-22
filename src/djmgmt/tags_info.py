@@ -43,8 +43,10 @@ def parse_args(functions: set[str]) -> type[Namespace]:
     
     if args.function not in functions: # TODO: use common logic across all `parse_args` functions
         parser.error(f"invalid function '{args.function}'\nexpect one of '{'\n'.join(sorted(functions))}'")
-    if args.function == Namespace.FUNCTION_COMPARE and not args.comparison:
-        parser.error(f"missing required --comparison argument for '{Namespace.FUNCTION_COMPARE}'")
+    if not args.output and args.function in {Namespace.FUNCTION_WRITE_IDENTIFIERS, Namespace.FUNCTION_WRITE_PATHS, Namespace.FUNCTION_COMPARE}:
+        parser.error(f"missing required --output argument for '{args.function}'")
+    if not args.comparison and args.function == Namespace.FUNCTION_COMPARE:
+        parser.error(f"missing required --comparison argument for '{args.function}'")
     
     return args
 
