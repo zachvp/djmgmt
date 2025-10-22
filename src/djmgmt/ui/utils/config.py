@@ -4,7 +4,7 @@ from pathlib import Path
 from typing import Any
 
 # Store config in project state directory
-CONFIG_PATH = Path(__file__).parent.parent.parent.parent.parent / "state" / "ui_config.json"
+CONFIG_PATH = Path(__file__).parent.parent
 
 
 def load_config() -> dict[str, Any]:
@@ -42,3 +42,5 @@ def add_recent_command(module: str, function: str, params: dict[str, Any]) -> No
     # Keep last 10 commands
     config["recent_commands"] = recent[:10]
     save_config(config)
+
+print(CONFIG_PATH)
