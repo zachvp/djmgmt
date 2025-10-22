@@ -6,7 +6,7 @@ For example, if the music library file 'TrackA.aiff' has a corresponding 'DateAd
 attribute of '01/02/23 (Jan 2, 2023)', the new path will be
     '/library_root/2023/01 january/02/Artist/Album/TrackA.aiff'
 
-## Assumptions
+# Assumptions
 * The music library source files are in a flat directory structure. Any tracks in subfolders will be ignored.
 * The XML collection file paths point to this flat music library.
 '''

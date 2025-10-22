@@ -19,7 +19,7 @@ FUNCTIONS = [
 def get_function_description(function_name: str) -> str:
     '''Return description based on selected function.'''
     if function_name == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
-        return f"> {tags_info.log_duplicates.__doc__}"
+        return f"{tags_info.log_duplicates.__doc__}"
     else:
         return 'Description missing'
 
