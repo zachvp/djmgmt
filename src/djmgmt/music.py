@@ -598,7 +598,6 @@ def process_cli(args: type[Namespace], valid_extensions: set[str], prefix_hints:
 def update_library(source: str,
                    library_path: str,
                    client_mirror_path: str,
-                   collection_backup_directory: str,
                    interactive: bool,
                    valid_extensions: set[str],
                    prefix_hints: set[str]) -> None:
@@ -662,7 +661,6 @@ if __name__ == '__main__':
         update_library(script_args.input,
                        script_args.output,
                        script_args.client_mirror_path,
-                       script_args.collection_backup_directory,
                        script_args.interactive,
                        constants.EXTENSIONS,
                        PREFIX_HINTS)

@@ -1915,14 +1915,12 @@ class TestUpdateLibrary(unittest.TestCase):
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
-        mock_collection_backup_dir = 'mock/collection/backup'
         mock_interactive = False
         mock_extensions = {'.mock_ext'}
         mock_hints = {'mock_hint'}
         music.update_library(MOCK_INPUT_DIR,
                              mock_library,
                              mock_client_mirror,
-                             mock_collection_backup_dir,
                              mock_interactive,
                              mock_extensions,
                              mock_hints)
@@ -1973,7 +1971,6 @@ class TestUpdateLibrary(unittest.TestCase):
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
-        mock_collection_backup = 'mock/collection/backup'
         mock_interactive = False
         mock_extensions = {'.mock_ext'}
         mock_hints = {'mock_hint'}
@@ -1983,7 +1980,6 @@ class TestUpdateLibrary(unittest.TestCase):
             music.update_library(MOCK_INPUT_DIR,
                                  mock_library,
                                  mock_client_mirror,
-                                 mock_collection_backup,
                                  mock_interactive,
                                  mock_extensions,
                                  mock_hints)
