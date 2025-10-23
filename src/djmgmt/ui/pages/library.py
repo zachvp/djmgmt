@@ -1,9 +1,9 @@
 import streamlit as st
 import logging
 
-from djmgmt import library, common, constants
-from djmgmt.ui.utils import utils
+from djmgmt import library, constants
 from djmgmt.ui.utils.config import AppConfig
+from djmgmt.ui.utils.page_base import PageBuilder
 
 # Constants
 MODULE = 'library'
@@ -19,26 +19,16 @@ def get_function_description(function_name: str) -> str:
     else:
         return 'Description missing'
 
-# Initialization
-log_path = utils.create_file_path(MODULE)
-common.configure_log(level=logging.DEBUG, path=str(log_path))
-
-# Module Overiew
-st.header(f"{MODULE} module")
-with st.expander("Overview", expanded=False):
-    st.write(library.__doc__)
-
-# Functions
-st.write('#### Function')
-function = st.selectbox('Functions', FUNCTIONS, label_visibility='collapsed')
-with st.expander("Description", expanded=False):
-    st.write(get_function_description(function))
-st.write('---')
+# Page initialization
+page = PageBuilder(module_name=MODULE, module_ref=library)
+page.initialize_logging()
+page.render_header_and_overview()
+function = page.render_function_selector(FUNCTIONS, get_function_description)
 
 # Function arguments
-st.write('##### Arguments')
+page.render_arguments_header()
 
-# Required
+# Load the app config
 app_config = AppConfig.load()
 
 # Initialize session state for collection path if not present
@@ -57,6 +47,7 @@ xml_collection_path = st.text_input('XML Collection Path', value=st.session_stat
 assert xml_collection_path is not None, "Unable to load XML collection path"
 
 # Button to find latest collection backup
+# TODO: fix bug: if user clears text_input via UI, then presses the button, the value of `xml_collection_path` = '', even though `st.session_state.xml_collection_path` is the correct path
 if st.button('Find Latest Collection Backup'):
     if app_config.collection_directory:
         latest_collection = library.find_collection_backup(app_config.collection_directory)
@@ -73,7 +64,7 @@ output_path = None
 if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
     output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
 
-st.write('---')
+page.render_section_separator()
 
 # Handle Run
 if st.button('Run'):
