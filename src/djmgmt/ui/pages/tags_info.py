@@ -28,39 +28,44 @@ function = page.render_function_selector(FUNCTIONS, function_mapper.get_descript
 # Function arguments
 page.render_arguments_header()
 
-# Input path argument: load config.library_path as default value
+# Render required arguments
+## Load library path from config if it exists
 app_config = AppConfig.load()
 default_library_path = app_config.library_path or ''
-
 input_path = st.text_input('Input Path', value=default_library_path)
 assert input_path is not None, "Unable to load input path"
 
-# Optional arguments
+# Render optional arguments
 comparison = None
 if function == tags_info.Namespace.FUNCTION_COMPARE:
     comparison = st.text_input('Comparison Path', value=app_config.client_mirror_path)
 
+# Separator between Arguments and Run sections
 page.render_section_separator()
     
 # Handle Run button
 run_clicked = page.render_run_button()
 if run_clicked:
     if function == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
+        # Run the function
         duplicates = tags_info.log_duplicates(input_path)
         
-        # Update config so it stores the most recent working library path
-        app_config.library_path = input_path
-        AppConfig.save(app_config)
-        
+        # Render results
         page.render_results_header()
         st.dataframe(sorted(duplicates),
                         width='stretch',
                         column_config={
-                        'value' : 'Duplicate Track Paths'
+                            'value' : 'Duplicate Track Paths'
                         })
+        
+        # Update config to store the most recent working library path
+        app_config.library_path = input_path
+        AppConfig.save(app_config)
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
+        # Run the function
         results = tags_info.compare_tags(input_path, comparison)
         
+        # Render results
         page.render_results_header()
         st.write(f"Found {len(results)} changes")
         st.dataframe(results,

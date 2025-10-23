@@ -70,6 +70,7 @@ output_path = None
 if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
     output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
 
+# Separator between Arguments and Run sections
 page.render_section_separator()
 
 # Handle Run button
@@ -85,20 +86,18 @@ if run_clicked:
                 played_tracks = library.get_played_tracks(input_collection)
                 unplayed_tracks = library.get_unplayed_tracks(input_collection)
 
-                # Record dynamic tracks
+                # Run the function
                 library.record_dynamic_tracks(collection_path, output_path)
 
-                # Save the collection path to config
-                app_config.collection_path = collection_path
-                AppConfig.save(app_config)
-
-                # Show stats
+                # Display results
                 page.render_results_header()
                 st.write(f"- Played tracks: {len(played_tracks)}")
                 st.write(f"- Unplayed tracks: {len(unplayed_tracks)}")
-                
-                # Display success
                 st.success(f"Successfully recorded dynamic tracks to `{output_path}`")
+                
+                # Update config to store the most recent collection path
+                app_config.collection_path = collection_path
+                AppConfig.save(app_config)
             except Exception as e:
                 st.error(f"Error recording dynamic tracks:\n{e}")
                 logging.error(f"Error in FUNCTION_RECORD_DYNAMIC: {e}", exc_info=True)
