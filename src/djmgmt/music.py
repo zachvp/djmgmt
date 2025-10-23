@@ -545,6 +545,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     import asyncio
     from tempfile import TemporaryDirectory
     
+    # process all files in a temporary directory, then move the processed files to the designated output directory
     with TemporaryDirectory() as processing_dir:
         sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
         extract(processing_dir, processing_dir, interactive)

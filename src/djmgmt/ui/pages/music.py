@@ -59,7 +59,7 @@ if run_clicked:
             try:
                 # Run the process function
                 st.info(f"Processing files from `{source_path}` to `{output_path}`")
-                with st.spinner('Processing music files...'):
+                with st.spinner('...'):
                     music.process(
                         source=source_path,
                         output=output_path,
@@ -70,8 +70,10 @@ if run_clicked:
 
                 # Display results
                 page.render_results_header()
-                st.success(f"Successfully processed files to `{output_path}`")
-                st.write(f"- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`")
+                message = ['**Success!**',
+                           f"- Processed files to `{output_path}`",
+                           f"- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`"]
+                st.success('\n'.join(message))
 
                 # Update config to store the most recent working paths
                 app_config.download_directory = source_path
@@ -79,6 +81,6 @@ if run_clicked:
                 AppConfig.save(app_config)
             except Exception as e:
                 st.error(f"Error processing files:\n{e}")
-                logging.error(f"Error in FUNCTION_PROCESS: {e}", exc_info=True)
+                logging.error(f"Error in {music.Namespace.FUNCTION_PROCESS}:\n{e}", exc_info=True)
     else:
         st.info('Function execution not yet implemented')
