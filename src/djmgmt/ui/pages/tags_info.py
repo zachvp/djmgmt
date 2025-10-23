@@ -1,11 +1,8 @@
 import streamlit as st
-import os
-import logging
 
 from djmgmt import tags_info
-from djmgmt import common
-from djmgmt.ui.utils import utils
 from djmgmt.ui.utils.config import AppConfig
+from djmgmt.ui.utils.page_base import PageBuilder
 
 # Constants
 MODULE = 'tags_info'
@@ -24,30 +21,18 @@ def get_function_description(function_name: str) -> str:
     else:
         return 'Description missing'
 
-# Initialization
-log_path = utils.create_file_path(MODULE)
-common.configure_log(level=logging.DEBUG, path=str(log_path))
-
-# Module overview
-st.header(f"{MODULE} module")
-with st.expander("Overview", expanded=False):
-    st.write(tags_info.__doc__)
-
-# Functions
-st.write('#### Function')
-function = st.selectbox('Functions', FUNCTIONS, label_visibility='collapsed')
-with st.expander("Description", expanded=False):
-    st.write(get_function_description(function))
-st.write('---')
+# Page initialization
+page = PageBuilder(module_name=MODULE, module_ref=tags_info)
+page.initialize_logging()
+page.render_header_and_overview()
+function = page.render_function_selector(FUNCTIONS, get_function_description)
 
 # Function arguments
-st.write('##### Arguments')
+page.render_arguments_header()
 
 # Required
 app_config = AppConfig.load()
-default_library_path = app_config.library_path
-if default_library_path is None:
-    default_library_path = os.path.expanduser('~/Music/DJ')
+default_library_path = app_config.library_path or ''
 
 input_path = st.text_input('Input Path', value=default_library_path)
 assert input_path is not None, "Unable to load input path"
