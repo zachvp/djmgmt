@@ -1,11 +1,8 @@
 import streamlit as st
-import os
 import logging
 
-from djmgmt import library
-from djmgmt import common
-from djmgmt.ui.utils import utils
-from djmgmt.ui.utils import config
+from djmgmt import library, common, constants
+from djmgmt.ui.utils import utils, config
 
 # Constants
 MODULE = 'library'
@@ -47,11 +44,14 @@ st.write('---')
 # Required arguments
 app_config = config.load()
 
-# Initialize session state for collection path if not exists
+# Initialize session state for collection path if not present
 if 'xml_collection_path' not in st.session_state:
     default_collection_path = app_config.collection_path
     if default_collection_path is None:
         default_collection_path = ''
+        if app_config.collection_directory:
+            default_collection_path = library.find_collection_backup(app_config.collection_directory)
+            
     st.session_state.xml_collection_path = default_collection_path
 
 xml_collection_path = st.text_input('XML Collection Path', value=st.session_state.xml_collection_path)
@@ -68,3 +68,10 @@ if st.button('Find Latest Collection Backup'):
             st.warning(f"No collection backups found in {app_config.collection_directory}")
     else:
         st.warning("Collection directory not configured in app settings")
+
+# Optional arguments
+output_path = None
+if function in {library.Namespace.FUNCTION_IDENTIFIERS,
+                library.Namespace.FUNCTION_FILENAMES,
+                library.Namespace.FUNCTION_RECORD_DYNAMIC}:
+    output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)

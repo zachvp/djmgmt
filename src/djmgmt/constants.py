@@ -1,5 +1,4 @@
 # project data
-import os
 from pathlib import Path
 PROJECT_ROOT = Path(__file__).parent.parent.parent
 
@@ -68,7 +67,7 @@ XPATH_PLAYED     = _playlist_node('played')
 EXTENSIONS = {'.mp3', '.wav', '.aif', '.aiff', '.flac'}
 
 # state paths
-COLLECTION_PATH          = os.path.join(PROJECT_ROOT, 'state', 'processed-collection.xml')
-DYNAMIC_COLLECTION_PATH  = os.path.join(PROJECT_ROOT, 'state', 'dynamic-collection.xml')
-COLLECTION_TEMPLATE_PATH = os.path.join(PROJECT_ROOT, 'state', 'collection-template.xml')
-MISSING_ART_PATH         = os.path.join(PROJECT_ROOT, 'state', 'missing-art.txt')
+COLLECTION_TEMPLATE_PATH = str(PROJECT_ROOT / 'state' / 'collection-template.xml')
+COLLECTION_PATH          = str(PROJECT_ROOT / 'state' / 'output' / 'processed-collection.xml')
+DYNAMIC_COLLECTION_PATH  = str(PROJECT_ROOT / 'state' / 'output' / 'dynamic-collection.xml')
+MISSING_ART_PATH         = str(PROJECT_ROOT / 'state' / 'output' / 'missing-art.txt')
