@@ -5,7 +5,6 @@ from djmgmt import music, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
-from djmgmt.ui.utils.utils import render_path_input, render_checkbox_input
 
 # Constants
 MODULE = 'music'
@@ -40,13 +39,13 @@ client_mirror_path = None
 full_scan = True
 
 if function == music.Namespace.FUNCTION_PROCESS:
-    source_path = render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
-    output_path = render_path_input('Output Path', app_config.library_path, 'Unable to load output path')
+    source_path = page.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
+    output_path = page.render_path_input('Output Path', app_config.library_path, 'Unable to load output path')
 elif function == music.Namespace.FUNCTION_UPDATE_LIBRARY:
-    source_path = render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
-    output_path = render_path_input('Library Path', app_config.library_path, 'Unable to load library path')
-    client_mirror_path = render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
-    full_scan = render_checkbox_input('Full Scan', default_value=True)
+    source_path = page.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
+    output_path = page.render_path_input('Library Path', app_config.library_path, 'Unable to load library path')
+    client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
+    full_scan = page.render_checkbox_input('Full Scan', default_value=True)
 
 # Render separator between Arguments and Run sections
 page.render_section_separator()

@@ -2,7 +2,7 @@
 
 import streamlit as st
 import logging
-from typing import Callable
+from typing import Callable, Optional
 from types import ModuleType
 
 from djmgmt import common
@@ -87,6 +87,36 @@ class PageBuilder:
     def render_arguments_header() -> None:
         '''Render the standard 'Arguments' section header.'''
         st.write('##### Arguments')
+    
+    @staticmethod
+    def render_path_input(label: str, config_value: Optional[str], error_msg: str) -> str:
+        '''Renders a text input for a path with a default value from config.
+
+        Args:
+            label: The label to display for the input field
+            config_value: The value from app config (or None)
+            error_msg: The error message to use in assertion
+
+        Returns:
+            The path value entered by the user
+        '''
+        default_value = config_value or ''
+        value = st.text_input(label, value=default_value)
+        assert value is not None, error_msg
+        return value
+
+    @staticmethod
+    def render_checkbox_input(label: str, default_value: bool = True) -> bool:
+        '''Renders a checkbox input with a default value.
+
+        Args:
+            label: The label to display for the checkbox
+            default_value: The default checked state
+
+        Returns:
+            The checkbox state
+        '''
+        return st.checkbox(label, value=default_value)
 
     @staticmethod
     def render_run_button() -> bool:
