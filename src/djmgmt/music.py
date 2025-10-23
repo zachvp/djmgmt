@@ -1,14 +1,16 @@
 '''
+# Summary
 Functions to scan and manipulate a batch of music files.
-    sweep:           Moves all music files and archives to another directory.
-    flatten:         Flattens all files in a given directory, including subdirectories.
-    extract:         Extract files from all archives.
-    compress:        Zips the contents of a given directory.
-    prune:           Removes all empty folders and non-music files from a directory.
-    prune_non_music  Removes all non-music files from a directory.
-    process:         Convenience function to run sweep, extract, flatten, and all prune functions in sequence for a directory.
-    update_library   Processes a directory containing music files into a local library folder, then syncs the updated library.
-    record_dynamic   Updates both 'dynamic.played' and 'dynamic.unplayed' playlists in an XML collection based on archive and pruned tracks.
+
+    - sweep:           Moves all music files and archives from source to target
+    - flatten:         Recusrively flattens all files in a given directory
+    - extract:         Extract files from all archives in a given directory.
+    - compress:        Zips the contents of a given directory.
+    - prune:           Removes all empty folders and non-music files from a directory.
+    - prune_non_music  Removes all non-music files from a directory.
+    - process:         Convenience function to run sweep, extract, flatten, standardize lossless encodings, and prune from source to target.
+    - update_library   Processes a directory containing music files into a local library folder, then syncs the updated library.
+    - record_dynamic   Updates both 'dynamic.played' and 'dynamic.unplayed' playlists in an XML collection based on archive and pruned tracks.
 '''
 
 import argparse

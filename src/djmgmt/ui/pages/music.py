@@ -5,6 +5,7 @@ from djmgmt import music, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
+from djmgmt.ui.utils.utils import render_path_input, render_checkbox_input
 
 # Constants
 MODULE = 'music'
@@ -39,33 +40,13 @@ client_mirror_path = None
 full_scan = True
 
 if function == music.Namespace.FUNCTION_PROCESS:
-    # Source path: load from config.download_directory as default
-    default_source_path = app_config.download_directory or ''
-    source_path = st.text_input('Source Path', value=default_source_path)
-    assert source_path is not None, 'Unable to load source path'
-
-    # Output path
-    default_output_path = app_config.library_path or ''
-    output_path = st.text_input('Output Path', value=default_output_path)
-    assert output_path is not None, 'Unable to load output path'
+    source_path = render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
+    output_path = render_path_input('Output Path', app_config.library_path, 'Unable to load output path')
 elif function == music.Namespace.FUNCTION_UPDATE_LIBRARY:
-    # Source path: load from config.download_directory as default
-    default_source_path = app_config.download_directory or ''
-    source_path = st.text_input('Source Path', value=default_source_path)
-    assert source_path is not None, 'Unable to load source path'
-
-    # Library path (output)
-    default_library_path = app_config.library_path or ''
-    output_path = st.text_input('Library Path', value=default_library_path)
-    assert output_path is not None, 'Unable to load library path'
-
-    # Client mirror path
-    default_client_mirror_path = app_config.client_mirror_path or ''
-    client_mirror_path = st.text_input('Client Mirror Path', value=default_client_mirror_path)
-    assert client_mirror_path is not None, 'Unable to load client mirror path'
-
-    # Full scan option
-    full_scan = st.checkbox('Full Scan', value=True)
+    source_path = render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
+    output_path = render_path_input('Library Path', app_config.library_path, 'Unable to load library path')
+    client_mirror_path = render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
+    full_scan = render_checkbox_input('Full Scan', default_value=True)
 
 # Render separator between Arguments and Run sections
 page.render_section_separator()
