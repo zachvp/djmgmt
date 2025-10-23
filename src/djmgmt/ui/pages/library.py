@@ -7,22 +7,13 @@ from djmgmt.ui.utils import utils, config
 # Constants
 MODULE = 'library'
 FUNCTIONS = [
-    library.Namespace.FUNCTION_DATE_PATHS,
-    library.Namespace.FUNCTION_IDENTIFIERS,
-    library.Namespace.FUNCTION_FILENAMES,
     library.Namespace.FUNCTION_RECORD_DYNAMIC
 ]
 
 # Helpers
 def get_function_description(function_name: str) -> str:
     '''Return description based on selected function.'''
-    if function_name == library.Namespace.FUNCTION_DATE_PATHS:
-        return f"{library.generate_date_paths.__doc__}"
-    elif function_name == library.Namespace.FUNCTION_IDENTIFIERS:
-        return f"{library.collect_identifiers.__doc__}"
-    elif function_name == library.Namespace.FUNCTION_FILENAMES:
-        return f"{library.collect_filenames.__doc__}"
-    elif function_name == library.Namespace.FUNCTION_RECORD_DYNAMIC:
+    if function_name == library.Namespace.FUNCTION_RECORD_DYNAMIC:
         return f"{library.record_dynamic_tracks.__doc__}"
     else:
         return 'Description missing'
@@ -78,9 +69,7 @@ if st.button('Find Latest Collection Backup'):
 
 # Optional arguments
 output_path = None
-if function in {library.Namespace.FUNCTION_IDENTIFIERS,
-                library.Namespace.FUNCTION_FILENAMES,
-                library.Namespace.FUNCTION_RECORD_DYNAMIC}:
+if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
     output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
 
 st.write('---')
