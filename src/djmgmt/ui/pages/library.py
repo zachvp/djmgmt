@@ -32,21 +32,28 @@ log_path = utils.create_log_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Module Overiew
-st.header(f"{MODULE}")
+st.header(f"{MODULE} module")
 with st.expander("Overview", expanded=False):
     st.write(library.__doc__)
 
 # Functions
-function = st.selectbox('Function', FUNCTIONS)
-st.write(get_function_description(function))
+st.write('#### Function')
+function = st.selectbox('Functions', FUNCTIONS, label_visibility='collapsed')
+with st.expander("Description", expanded=False):
+    st.write(get_function_description(function))
 st.write('---')
 
-# Required arguments
+# Function arguments
+st.write('##### Arguments')
+
+# Required
 app_config = config.load()
 
 # Initialize session state for collection path if not present
 if 'xml_collection_path' not in st.session_state:
     default_collection_path = app_config.collection_path
+    
+    # Set the default collection path to the designated file in the collection directory
     if default_collection_path is None:
         default_collection_path = ''
         if app_config.collection_directory:
@@ -75,3 +82,35 @@ if function in {library.Namespace.FUNCTION_IDENTIFIERS,
                 library.Namespace.FUNCTION_FILENAMES,
                 library.Namespace.FUNCTION_RECORD_DYNAMIC}:
     output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
+
+st.write('---')
+
+# Handle Run
+if st.button('Run'):
+    if function == library.Namespace.FUNCTION_RECORD_DYNAMIC:
+        if not output_path:
+            st.error("Output path is required for this function")
+        else:
+            try:
+                # Load input collection to get stats
+                input_collection = library.load_collection(xml_collection_path)
+                played_tracks = library.get_played_tracks(input_collection)
+                unplayed_tracks = library.get_unplayed_tracks(input_collection)
+
+                # Record dynamic tracks
+                library.record_dynamic_tracks(xml_collection_path, output_path)
+
+                # Save the collection path to config
+                app_config.collection_path = xml_collection_path
+                config.save(app_config)
+
+                # Show stats
+                st.write("### Results:")
+                st.write(f"- Played tracks: {len(played_tracks)}")
+                st.write(f"- Unplayed tracks: {len(unplayed_tracks)}")
+                
+                # Display success
+                st.success(f"Successfully recorded dynamic tracks to `{output_path}`")
+            except Exception as e:
+                st.error(f"Error recording dynamic tracks: {e}")
+                logging.error(f"Error in FUNCTION_RECORD_DYNAMIC: {e}", exc_info=True)

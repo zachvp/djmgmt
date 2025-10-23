@@ -19,16 +19,17 @@ CONFIG_TEMPLATE = {
 }
 class Config:
     def __init__(self, data: dict[str, Any]) -> None:
-        self.collection_directory : Optional[str] = data[KEY_COLLECTION_DIRECTORY]
-        self.collection_path      : Optional[str] = data[KEY_COLLECTION_PATH]
-        self.download_directory   : Optional[str] = data[KEY_DOWNLOAD_DIRECTORY]
-        self.library_path         : Optional[str] = data[KEY_LIBRARY_PATH]
-    
+        self.collection_directory : Optional[str] = data.get(KEY_COLLECTION_DIRECTORY)
+        self.collection_path      : Optional[str] = data.get(KEY_COLLECTION_PATH)
+        self.download_directory   : Optional[str] = data.get(KEY_DOWNLOAD_DIRECTORY)
+        self.library_path         : Optional[str] = data.get(KEY_LIBRARY_PATH)
+
     def to_dict(self) -> dict[str, Any]:
         return {
-            KEY_COLLECTION_PATH    : self.collection_path,
-            KEY_DOWNLOAD_DIRECTORY : self.download_directory,
-            KEY_LIBRARY_PATH       : self.library_path
+            KEY_COLLECTION_DIRECTORY : self.collection_directory,
+            KEY_COLLECTION_PATH      : self.collection_path,
+            KEY_DOWNLOAD_DIRECTORY   : self.download_directory,
+            KEY_LIBRARY_PATH         : self.library_path
         }
 
 # Primary functions
