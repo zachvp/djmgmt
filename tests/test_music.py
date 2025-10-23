@@ -1851,14 +1851,14 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(mock_call_container.mock_calls[3], call.standardize_lossless())
         self.assertEqual(mock_call_container.mock_calls[4], call.prune_non_music())
         self.assertEqual(mock_call_container.mock_calls[5], call.prune_non_user_dirs())
-        self.assertEqual(mock_call_container.mock_calls[6], call.find_missing_art_os())
-        self.assertEqual(mock_call_container.mock_calls[7], call.write_paths())
-        
+        self.assertEqual(mock_call_container.mock_calls[6], call.sweep())
+        self.assertEqual(mock_call_container.mock_calls[7], call.find_missing_art_os())
+        self.assertEqual(mock_call_container.mock_calls[8], call.write_paths())
+
         # Assert call counts and parameters
-        mock_sweep.assert_called_once()
+        self.assertEqual(mock_sweep.call_count, 2)
         mock_extract.assert_called_once()
         mock_flatten.assert_called_once()
-        mock_standardize_lossless.assert_called_once_with(MOCK_OUTPUT_DIR, mock_valid_extensions, mock_prefix_hints, mock_interactive)
         self.assertEqual(MOCK_OUTPUT_DIR, mock_find_missing_art_os.call_args.args[0])
         self.assertEqual(mock_call_container.find_missing_art_os(), mock_write_paths.call_args.args[0])
 
@@ -1886,13 +1886,9 @@ class TestUpdateLibrary(unittest.TestCase):
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.music.record_collection')
-    @patch('djmgmt.music.sweep')
     @patch('djmgmt.music.process')
-    @patch('tempfile.TemporaryDirectory')
     def test_success(self,
-                     mock_temp_dir: MagicMock,
                      mock_process: MagicMock,
-                     mock_sweep: MagicMock,
                      mock_record_collection: MagicMock,
                      mock_compare_tags: MagicMock,
                      mock_create_sync_mappings: MagicMock,
@@ -1900,18 +1896,16 @@ class TestUpdateLibrary(unittest.TestCase):
                      mock_run_sync_mappings: MagicMock) -> None:
         '''Tests that dependent functions are called with expected parameters.'''
         # Set up mocks
-        mock_temp_dir_path = '/mock/temp/dir'
         mock_collection = MagicMock()
         mock_mappings_changed = [self.create_mock_file_mapping(0), self.create_mock_file_mapping(1)]
         mock_mappings_created = [self.create_mock_file_mapping(2)]
         mock_mappings_filtered = [self.create_mock_file_mapping(0)]
-        
-        mock_temp_dir.return_value.__enter__.return_value = mock_temp_dir_path
+
         mock_record_collection.return_value = mock_collection
         mock_compare_tags.return_value = mock_mappings_changed.copy()
         mock_create_sync_mappings.return_value = mock_mappings_created.copy()
         mock_filter_mappings.return_value = mock_mappings_filtered.copy()
-        
+
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
@@ -1924,40 +1918,35 @@ class TestUpdateLibrary(unittest.TestCase):
                              mock_interactive,
                              mock_extensions,
                              mock_hints)
-        
+
         # Assert expectations
         ## Call parameters: process
-        mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_temp_dir_path, mock_interactive, mock_extensions, mock_hints)
-        
-        ## Call parameters: sweep
-        mock_sweep.assert_called_once_with(mock_temp_dir_path, mock_library, mock_interactive, mock_extensions, mock_hints)
-        
+        mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_interactive, mock_extensions, mock_hints)
+
         ## Call parameters: record_collection
         mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED)
-        
+
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
-        
+
         ## Call parameters: create_sync_mappings
         mock_create_sync_mappings.assert_called_once_with(mock_collection, mock_client_mirror)
-        
+
         ## Call: filter_path_mappings
         mock_filter_mappings.assert_called_once_with(mock_mappings_changed, mock_collection, constants.XPATH_PRUNED)
-        
+
         ## Call parameters: run_sync_mappings
         expected_mappings = mock_mappings_created + mock_mappings_filtered
-        mock_run_sync_mappings.assert_called_once_with(expected_mappings)
+        mock_run_sync_mappings.assert_called_once_with(expected_mappings, full_scan=True)
         
     @patch('djmgmt.sync.run_sync_mappings')
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.music.record_collection')
-    @patch('djmgmt.music.sweep')
     @patch('djmgmt.music.process')
     def test_error_sync(self,
                         mock_process: MagicMock,
-                        mock_sweep: MagicMock,
                         mock_record_collection: MagicMock,
                         mock_create_sync_mappings: MagicMock,
                         mock_compare_tags: MagicMock,
@@ -1967,14 +1956,14 @@ class TestUpdateLibrary(unittest.TestCase):
         # Set up mocks
         mock_error = 'Mock error'
         mock_run_sync_mappings.side_effect = Exception(mock_error)
-        
+
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
         mock_interactive = False
         mock_extensions = {'.mock_ext'}
         mock_hints = {'mock_hint'}
-        
+
         # Assert expectations
         with self.assertRaisesRegex(Exception, mock_error):
             music.update_library(MOCK_INPUT_DIR,
@@ -1983,10 +1972,9 @@ class TestUpdateLibrary(unittest.TestCase):
                                  mock_interactive,
                                  mock_extensions,
                                  mock_hints)
-        
+
         # Functions should be called before exception
         mock_process.assert_called_once()
-        mock_sweep.assert_called_once()
         mock_record_collection.assert_called_once()
         mock_create_sync_mappings.assert_called_once()
         mock_compare_tags.assert_called_once()
