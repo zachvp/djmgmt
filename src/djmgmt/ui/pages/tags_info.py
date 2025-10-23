@@ -29,11 +29,8 @@ function = page.render_function_selector(FUNCTIONS, function_mapper.get_descript
 page.render_arguments_header()
 
 # Render required arguments
-## Load library path from config if it exists
 app_config = AppConfig.load()
-default_library_path = app_config.library_path or ''
-input_path = st.text_input('Input Path', value=default_library_path)
-assert input_path is not None, "Unable to load input path"
+input_path = page.render_path_input('Input Path', app_config.library_path, 'Unable to load input path')
 
 # Render optional arguments
 comparison = None
