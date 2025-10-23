@@ -65,8 +65,9 @@ if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
 
 page.render_section_separator()
 
-# Handle Run
-if st.button('Run'):
+# Handle Run button
+run_clicked = page.render_run_button()
+if run_clicked:
     if function == library.Namespace.FUNCTION_RECORD_DYNAMIC:
         if not output_path:
             st.error("Output path is required for this function")

@@ -41,11 +41,9 @@ if function == tags_info.Namespace.FUNCTION_COMPARE:
     comparison = st.text_input('Comparison Path', value=app_config.client_mirror_path)
 
 page.render_section_separator()
-
-# Render button
-run_clicked = page.render_run_button()
     
-# Handle Run
+# Handle Run button
+run_clicked = page.render_run_button()
 if run_clicked:
     if function == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
         duplicates = tags_info.log_duplicates(input_path)
