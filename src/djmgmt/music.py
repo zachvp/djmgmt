@@ -600,7 +600,8 @@ def update_library(source: str,
                    client_mirror_path: str,
                    interactive: bool,
                    valid_extensions: set[str],
-                   prefix_hints: set[str]) -> None:
+                   prefix_hints: set[str],
+                   full_scan: bool = True) -> None:
     '''Performs the following, in sequence:
         1. Processes files from source dir -> temp dir
         2. Sweeps files from temp dir -> library
@@ -634,7 +635,7 @@ def update_library(source: str,
         mappings += changed
     
     # run the sync
-    sync.run_sync_mappings(mappings)
+    sync.run_sync_mappings(mappings, full_scan=full_scan)
 
 if __name__ == '__main__':
     common.configure_log(path=__file__)
