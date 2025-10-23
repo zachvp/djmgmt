@@ -1,48 +1,51 @@
 '''Configuration management for UI state and environment.'''
 import json
+from enum import StrEnum
 from pathlib import Path
 from typing import Any, Optional
 
-# Constants
-CONFIG_PATH = Path(__file__).parent.parent / 'config.json'
+# Classes
+class Key(StrEnum):
+    COLLECTION_DIRECTORY = 'collection_directory'
+    COLLECTION_PATH      = 'collection_path'
+    DOWNLOAD_DIRECTORY   = 'download_directory'
+    LIBRARY_PATH         = 'library_path'
 
-KEY_COLLECTION_DIRECTORY = 'collection_directory'
-KEY_COLLECTION_PATH      = 'collection_path'
-KEY_DOWNLOAD_DIRECTORY   = 'download_directory'
-KEY_LIBRARY_PATH         = 'library_path'
-
-CONFIG_TEMPLATE = {
-    KEY_COLLECTION_DIRECTORY : None,
-    KEY_COLLECTION_PATH      : None,
-    KEY_DOWNLOAD_DIRECTORY   : None,
-    KEY_LIBRARY_PATH         : None
-}
 class Config:
-    def __init__(self, data: dict[str, Any]) -> None:
-        self.collection_directory : Optional[str] = data.get(KEY_COLLECTION_DIRECTORY)
-        self.collection_path      : Optional[str] = data.get(KEY_COLLECTION_PATH)
-        self.download_directory   : Optional[str] = data.get(KEY_DOWNLOAD_DIRECTORY)
-        self.library_path         : Optional[str] = data.get(KEY_LIBRARY_PATH)
+    # Constants
+    PATH = Path(__file__).parent.parent / 'config.json'
+    TEMPLATE = {
+        Key.COLLECTION_DIRECTORY : None,
+        Key.COLLECTION_PATH      : None,
+        Key.DOWNLOAD_DIRECTORY   : None,
+        Key.LIBRARY_PATH         : None
+    }
+    
+    def __init__(self, data: dict[Key, Any]) -> None:
+        self.collection_directory : Optional[str] = data.get(Key.COLLECTION_DIRECTORY)
+        self.collection_path      : Optional[str] = data.get(Key.COLLECTION_PATH)
+        self.download_directory   : Optional[str] = data.get(Key.DOWNLOAD_DIRECTORY)
+        self.library_path         : Optional[str] = data.get(Key.LIBRARY_PATH)
 
     def to_dict(self) -> dict[str, Any]:
         return {
-            KEY_COLLECTION_DIRECTORY : self.collection_directory,
-            KEY_COLLECTION_PATH      : self.collection_path,
-            KEY_DOWNLOAD_DIRECTORY   : self.download_directory,
-            KEY_LIBRARY_PATH         : self.library_path
+            Key.COLLECTION_DIRECTORY : self.collection_directory,
+            Key.COLLECTION_PATH      : self.collection_path,
+            Key.DOWNLOAD_DIRECTORY   : self.download_directory,
+            Key.LIBRARY_PATH         : self.library_path
         }
 
 # Primary functions
 def load() -> Config:
     '''Load UI configuration from disk.'''
-    if not CONFIG_PATH.exists():
-        save(Config(CONFIG_TEMPLATE))
+    if not Config.PATH.exists():
+        save(Config(Config.TEMPLATE))
 
-    with open(CONFIG_PATH) as f:
+    with open(Config.PATH) as f:
         return Config(json.load(f))
 
 def save(config: Config) -> None:
     '''Save UI configuration to disk.'''
-    CONFIG_PATH.parent.mkdir(parents=True, exist_ok=True)
-    with open(CONFIG_PATH, 'w') as file:
+    Config.PATH.parent.mkdir(parents=True, exist_ok=True)
+    with open(Config.PATH, 'w') as file:
         json.dump(config, file, indent=2, default=lambda obj: obj.to_dict())
