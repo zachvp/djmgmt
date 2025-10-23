@@ -29,11 +29,31 @@ function = page.render_function_selector(FUNCTIONS, function_mapper.get_descript
 # Function arguments
 page.render_arguments_header()
 
-# TODO: Add argument inputs based on selected function
+# Load app config
+app_config = AppConfig.load()
 
+# Required arguments
+source_path = None
+output_path = None
+if function == music.Namespace.FUNCTION_PROCESS:
+    # Source/input path: load from config.download_directory as default
+    default_source_path = app_config.download_directory or ''
+    source_path = st.text_input('Source Path', value=default_source_path)
+    assert source_path is not None, 'Unable to load source path'
+
+    # Output path
+    default_output_path = app_config.library_path or ''
+    output_path = st.text_input('Output Path', value=default_output_path)
+    assert output_path is not None, 'Unable to load output path'
+
+# Render separator between Arguments and Run sections
 page.render_section_separator()
 
 # Handle Run button
 run_clicked = page.render_run_button()
 if run_clicked:
-    st.info('Function execution not yet implemented')
+    if function == music.Namespace.FUNCTION_PROCESS:
+        st.info(f"Processing files from `{source_path}` to `{output_path}`")
+        st.info('Function execution not yet implemented')
+    else:
+        st.info('Function execution not yet implemented')
