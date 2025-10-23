@@ -19,11 +19,13 @@ def get_function_description(function_name: str) -> str:
     '''Return description based on selected function.'''
     if function_name == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
         return f"{tags_info.log_duplicates.__doc__}"
+    elif function_name == tags_info.Namespace.FUNCTION_COMPARE:
+        return f"{tags_info.compare_tags.__doc__}"
     else:
         return 'Description missing'
 
 # Initialization
-log_path = utils.create_log_path(MODULE)
+log_path = utils.create_file_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Module overview
@@ -70,4 +72,9 @@ if st.button('Run'):
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
         results = tags_info.compare_tags(input_path, comparison)
         st.write(f"Found {len(results)} changes")
-        st.dataframe(results)
+        st.dataframe(results,
+                     hide_index=True,
+                     column_config={
+                         '0' : 'Input Path',
+                         '1' : 'Comparison Path'
+                     })

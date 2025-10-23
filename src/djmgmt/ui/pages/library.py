@@ -19,7 +19,7 @@ def get_function_description(function_name: str) -> str:
         return 'Description missing'
 
 # Initialization
-log_path = utils.create_log_path(MODULE)
+log_path = utils.create_file_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Module Overiew

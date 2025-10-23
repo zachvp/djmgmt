@@ -11,11 +11,11 @@ DEFAULT_PATH = os.path.abspath(__file__)
 def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> str:
     '''Standard log configuration.'''
     if path == DEFAULT_PATH:
-        logs_path = os.path.join(os.path.dirname(DEFAULT_PATH), 'logs')
+        logs_directory = os.path.join(os.path.dirname(DEFAULT_PATH), 'logs')
     else:
-        logs_path = os.path.join(os.path.dirname(os.path.abspath(path)), 'logs')
-    if not os.path.exists(logs_path):
-        os.makedirs(logs_path)
+        logs_directory = os.path.join(os.path.dirname(os.path.abspath(path)), 'logs')
+    if not os.path.exists(logs_directory):
+        os.makedirs(logs_directory)
 
     # Determine filename
     filename = os.path.abspath(path)
@@ -25,13 +25,13 @@ def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> str:
         filename = split[0]
     
     # Configure the log
-    log_path = f"{logs_path}/{filename}.log"
-    logging.basicConfig(filename=log_path,
+    log_file_path = f"{logs_directory}/{filename}.log"
+    logging.basicConfig(filename=log_file_path,
                         level=level,
                         format="%(asctime)s [%(levelname)s] %(message)s",
                         datefmt="%D %H:%M:%S",
                         filemode='w')
-    return log_path
+    return log_file_path
 
 # TODO: refactor calling functions to use filter
 def collect_paths(root: str, filter: set[str] = set()) -> list[str]:

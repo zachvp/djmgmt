@@ -104,6 +104,8 @@ def collect_filenames(root: str) -> list[str]:
         names.append(name)
     return names
 
+# TODO: enhance to report which tags don't match
+# TODO: enhance to report progress to caller
 def compare_tags(source: str, comparison: str) -> list[tuple[str, str]]:
     '''Compares tag metadata between files in source and comparison directories.
     Returns a list of (source, comparison) path mappings where tags have changed for matching filenames.'''

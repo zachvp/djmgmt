@@ -20,7 +20,7 @@ current_config = config.load()
 # Convert to list of dicts to define column headings
 config_data = [{CONFIG_KEY_LABEL : k, CONFIG_VALUE_LAEBL : v} for k, v in current_config.to_dict().items()]
 
-# Create editable dataframe with custom column config
+# Create editable dataframe for config values with custom column headings
 edited_data = st.data_editor(
     config_data,
     column_config={
