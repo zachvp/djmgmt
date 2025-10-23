@@ -11,7 +11,6 @@ from djmgmt.ui.utils import config
 MODULE = 'tags_info'
 FUNCTIONS = [
     tags_info.Namespace.FUNCTION_LOG_DUPLICATES,
-    tags_info.Namespace.FUNCTION_WRITE_PATHS,
     tags_info.Namespace.FUNCTION_COMPARE
 ]
 
