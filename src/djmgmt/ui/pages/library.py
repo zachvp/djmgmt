@@ -4,6 +4,7 @@ import logging
 from djmgmt import library, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
+from djmgmt.ui.components.function_selector import FunctionMapper
 
 # Constants
 MODULE = 'library'
@@ -11,19 +12,17 @@ FUNCTIONS = [
     library.Namespace.FUNCTION_RECORD_DYNAMIC
 ]
 
-# Helpers
-def get_function_description(function_name: str) -> str:
-    '''Return description based on selected function.'''
-    if function_name == library.Namespace.FUNCTION_RECORD_DYNAMIC:
-        return f"{library.record_dynamic_tracks.__doc__}"
-    else:
-        return 'Description missing'
+# Function mapping
+function_mapper = FunctionMapper(module=library)
+function_mapper.add_all({
+    library.Namespace.FUNCTION_RECORD_DYNAMIC : library.record_dynamic_tracks
+})
 
 # Page initialization
 page = PageBuilder(module_name=MODULE, module_ref=library)
 page.initialize_logging()
 page.render_header_and_overview()
-function = page.render_function_selector(FUNCTIONS, get_function_description)
+function = page.render_function_selector(FUNCTIONS, function_mapper.get_description)
 
 # Function arguments
 page.render_arguments_header()
