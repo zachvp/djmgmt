@@ -229,7 +229,7 @@ class TestRecordCollection(unittest.TestCase):
         dj_playlists = music.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
         
         # Assert call expectations
-        mock_xml_parse.assert_called_once_with(constants.COLLECTION_TEMPLATE_PATH)
+        mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
         
@@ -668,7 +668,7 @@ class TestRecordCollection(unittest.TestCase):
         
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_xml_parse.assert_called_once_with(constants.COLLECTION_TEMPLATE_PATH)
+        mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
         mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
         
         # Assert that the function reads the file tags
@@ -1933,7 +1933,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_sweep.assert_called_once_with(mock_temp_dir_path, mock_library, mock_interactive, mock_extensions, mock_hints)
         
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH)
+        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED)
         
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)

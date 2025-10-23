@@ -614,13 +614,13 @@ class TestCollectionTemplate(unittest.TestCase):
 
     def test_template_file_exists(self) -> None:
         '''Tests that the collection template file exists at the expected path.'''
-        self.assertTrue(os.path.exists(constants.COLLECTION_TEMPLATE_PATH),
-                       f"Template file not found at {constants.COLLECTION_TEMPLATE_PATH}")
+        self.assertTrue(os.path.exists(constants.COLLECTION_PATH_TEMPLATE),
+                       f"Template file not found at {constants.COLLECTION_PATH_TEMPLATE}")
 
     def test_template_structure_valid(self) -> None:
         '''Tests that the template file has the expected structure for dynamic playlists.'''
         # Load the template file
-        tree = ET.parse(constants.COLLECTION_TEMPLATE_PATH)
+        tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
         root = tree.getroot()
 
         # Verify root structure
@@ -711,7 +711,7 @@ class TestRecordTracks(unittest.TestCase):
     def test_success_unplayed_playlist(self) -> None:
         '''Tests that tracks are correctly written to the unplayed playlist.'''
         # Set up - use actual template file
-        template_tree = ET.parse(constants.COLLECTION_TEMPLATE_PATH)
+        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
         # Call target function
@@ -731,7 +731,7 @@ class TestRecordTracks(unittest.TestCase):
     def test_success_played_playlist(self) -> None:
         '''Tests that tracks are correctly written to the played playlist.'''
         # Set up - use actual template file
-        template_tree = ET.parse(constants.COLLECTION_TEMPLATE_PATH)
+        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
         # Call target function
@@ -832,7 +832,7 @@ class TestRecordDynamicTracks(unittest.TestCase):
 
         # Assert expectations
         mock_load_collection.assert_any_call(MOCK_INPUT_DIR)
-        mock_load_collection.assert_any_call(constants.COLLECTION_TEMPLATE_PATH)
+        mock_load_collection.assert_any_call(constants.COLLECTION_PATH_TEMPLATE)
 
         # Verify collection was copied
         mock_base_collection.clear.assert_called_once()

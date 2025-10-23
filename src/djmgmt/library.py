@@ -409,7 +409,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     '''
     # load the collection and base roots
     collection_root = load_collection(input_collection_path)
-    base_root = load_collection(constants.COLLECTION_TEMPLATE_PATH)
+    base_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
 
     # copy collection to base
     base_collection = find_node(base_root, constants.XPATH_COLLECTION)

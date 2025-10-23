@@ -68,7 +68,7 @@ if st.button('Find Latest Collection Backup'):
 # Render optional arguments
 output_path = None
 if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
-    output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
+    output_path = st.text_input('Output Path', value=constants.COLLECTION_PATH_DYNAMIC)
 
 # Render separator between Arguments and Run sections
 page.render_section_separator()

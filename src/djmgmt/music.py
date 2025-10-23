@@ -231,7 +231,7 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     with all music files in the `source` directory.
     Returns the XML collection root.'''
     # load XML references
-    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_TEMPLATE_PATH
+    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_PATH_TEMPLATE
     root          = library.load_collection(xml_path)
     collection    = library.find_node(root, constants.XPATH_COLLECTION)
     playlist_root = library.find_node(root, constants.XPATH_PLAYLISTS)
@@ -543,13 +543,17 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
         The source and output directories may be the same for effectively in-place processing.
     '''
     import asyncio
+    from tempfile import TemporaryDirectory
     
-    sweep(source, output, interactive, valid_extensions, prefix_hints)
-    extract(output, output, interactive)
-    flatten_hierarchy(output, output, interactive)
-    standardize_lossless(output, valid_extensions, prefix_hints, interactive)
-    prune_non_music(output, valid_extensions, interactive)
-    prune_non_user_dirs(output, interactive)
+    with TemporaryDirectory() as processing_dir:
+        sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
+        extract(processing_dir, processing_dir, interactive)
+        flatten_hierarchy(processing_dir, processing_dir, interactive)
+        standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
+        prune_non_music(processing_dir, valid_extensions, interactive)
+        prune_non_user_dirs(processing_dir, interactive)
+    
+        sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
     
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
     common.write_paths(missing, constants.MISSING_ART_PATH)
@@ -612,20 +616,14 @@ def update_library(source: str,
         
         The source, library, and client_mirror_path arguments should all be distinct directories.
     '''
-    from tempfile import TemporaryDirectory
     from . import sync
     from . import tags_info
     
-    # create a temporary directory to process the files from source
-    with TemporaryDirectory() as processing_dir:
-        # process all of the source files into the temp dir
-        process(source, processing_dir, interactive, valid_extensions, prefix_hints)
-        
-        # move the processed files to the library
-        sweep(processing_dir, library_path, interactive, valid_extensions, prefix_hints)
-    
-    # update the djmgmt collection record according to any new files
-    collection = record_collection(library_path, constants.COLLECTION_PATH)
+    # process all of the source files into the library dir
+    process(source, library_path, interactive, valid_extensions, prefix_hints)
+
+    # update the processed collection according to any new files
+    collection = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
