@@ -1,7 +1,7 @@
 import streamlit as st
 import logging
 
-from djmgmt import music
+from djmgmt import music, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -53,7 +53,32 @@ page.render_section_separator()
 run_clicked = page.render_run_button()
 if run_clicked:
     if function == music.Namespace.FUNCTION_PROCESS:
-        st.info(f"Processing files from `{source_path}` to `{output_path}`")
-        st.info('Function execution not yet implemented')
+        if not source_path or not output_path:
+            st.error('Source and output paths are required')
+        else:
+            try:
+                # Run the process function
+                st.info(f"Processing files from `{source_path}` to `{output_path}`")
+                with st.spinner('Processing music files...'):
+                    music.process(
+                        source=source_path,
+                        output=output_path,
+                        interactive=False,
+                        valid_extensions=constants.EXTENSIONS,
+                        prefix_hints=music.PREFIX_HINTS
+                    )
+
+                # Display results
+                page.render_results_header()
+                st.success(f"Successfully processed files to `{output_path}`")
+                st.write(f"- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`")
+
+                # Update config to store the most recent working paths
+                app_config.download_directory = source_path
+                app_config.library_path = output_path
+                AppConfig.save(app_config)
+            except Exception as e:
+                st.error(f"Error processing files:\n{e}")
+                logging.error(f"Error in FUNCTION_PROCESS: {e}", exc_info=True)
     else:
         st.info('Function execution not yet implemented')

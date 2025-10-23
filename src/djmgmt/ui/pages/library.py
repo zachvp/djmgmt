@@ -70,7 +70,7 @@ output_path = None
 if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
     output_path = st.text_input('Output Path', value=constants.DYNAMIC_COLLECTION_PATH)
 
-# Separator between Arguments and Run sections
+# Render separator between Arguments and Run sections
 page.render_section_separator()
 
 # Handle Run button
