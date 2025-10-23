@@ -87,3 +87,15 @@ class PageBuilder:
     def render_arguments_header() -> None:
         '''Render the standard 'Arguments' section header.'''
         st.write('##### Arguments')
+
+    @staticmethod
+    def render_run_button() -> bool:
+        '''Render the standard 'Run' button prominently centered.'''
+        _, center, _ = st.columns([1, 1, 1])
+        with center:
+            return st.button('Run', width='stretch')
+
+    @staticmethod
+    def render_results_header() -> None:
+        '''Render the standard 'Results' section header.'''
+        st.write('### Results')

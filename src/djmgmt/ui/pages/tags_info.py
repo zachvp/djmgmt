@@ -28,7 +28,7 @@ function = page.render_function_selector(FUNCTIONS, function_mapper.get_descript
 # Function arguments
 page.render_arguments_header()
 
-# Required
+# Input path argument: load config.library_path as default value
 app_config = AppConfig.load()
 default_library_path = app_config.library_path or ''
 
@@ -42,25 +42,32 @@ if function == tags_info.Namespace.FUNCTION_COMPARE:
 
 page.render_section_separator()
 
+# Render button
+run_clicked = page.render_run_button()
+    
 # Handle Run
-if st.button('Run'):
+if run_clicked:
     if function == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
         duplicates = tags_info.log_duplicates(input_path)
         
+        # Update config so it stores the most recent working library path
         app_config.library_path = input_path
         AppConfig.save(app_config)
         
-        st.write("### Results:")
+        page.render_results_header()
         st.dataframe(sorted(duplicates),
-                     column_config={
-                         'value' : 'Duplicate Track Paths'
-                     })
+                        width='stretch',
+                        column_config={
+                        'value' : 'Duplicate Track Paths'
+                        })
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
         results = tags_info.compare_tags(input_path, comparison)
+        
+        page.render_results_header()
         st.write(f"Found {len(results)} changes")
         st.dataframe(results,
-                     hide_index=True,
-                     column_config={
-                         '0' : 'Input Path',
-                         '1' : 'Comparison Path'
-                     })
+                    hide_index=True,
+                    column_config={
+                        '0' : 'Input Path',
+                        '1' : 'Comparison Path'
+                    })
