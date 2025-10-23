@@ -2,6 +2,13 @@
 import streamlit as st
 from djmgmt.ui.utils import config
 
+# Constants
+CONFIG_KEY_LABEL   = 'Setting'
+CONFIG_VALUE_LAEBL = 'Value'
+
+# Streamlit view setup
+st.set_page_config(layout="wide")
+
 # Main UI
 st.title("djmgmt Tools")
 
@@ -10,19 +17,28 @@ st.write('### Config')
 
 current_config = config.load()
 
-# Create editable dataframe
+# Convert to list of dicts to define column headings
+config_data = [{CONFIG_KEY_LABEL : k, CONFIG_VALUE_LAEBL : v} for k, v in current_config.to_dict().items()]
+
+# Create editable dataframe with custom column config
 edited_data = st.data_editor(
-    current_config.to_dict(),
-    width='stretch',
-    hide_index=False,
+    config_data,
+    column_config={
+        CONFIG_KEY_LABEL   : st.column_config.TextColumn(CONFIG_KEY_LABEL, disabled=True),
+        CONFIG_VALUE_LAEBL : st.column_config.TextColumn(CONFIG_VALUE_LAEBL)
+    },
+    hide_index=True,
     num_rows='fixed',
 )
 
 # Save button
 if st.button('Save Config', type='primary'):
     try:
+        # Convert back to dict
+        edited_config = {row[CONFIG_KEY_LABEL]: row[CONFIG_VALUE_LAEBL] for row in edited_data}
+
         # Create new config with edited values
-        new_config = config.Config(edited_data)
+        new_config = config.Config(edited_config)
 
         # Save to disk
         config.save(new_config)
@@ -34,6 +50,4 @@ if st.button('Save Config', type='primary'):
 st.write('---')
 
 # Call to action
-st.write('''
-         #### 👈  Choose a module from the left sidebar.
-''')
+st.write('#### 👈  Choose a module from the left sidebar.')
