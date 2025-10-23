@@ -17,8 +17,8 @@ st.write('### Config')
 
 current_config = AppConfig.load()
 
-# Convert to list of dicts to define column headings
-config_data = [{CONFIG_KEY_LABEL : k, CONFIG_VALUE_LAEBL : v} for k, v in current_config.to_dict().items()]
+# Convert to list of dicts to define column headings (sorted alphabetically by key)
+config_data = [{CONFIG_KEY_LABEL : k, CONFIG_VALUE_LAEBL : v} for k, v in sorted(current_config.to_dict().items())]
 
 # Create editable dataframe for config values with custom column headings
 edited_data = st.data_editor(
