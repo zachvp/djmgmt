@@ -55,7 +55,7 @@ assert input_path is not None, "Unable to load input path"
 # Optional arguments
 comparison = None
 if function == tags_info.Namespace.FUNCTION_COMPARE:
-    comparison = st.text_input('Comparison Path')
+    comparison = st.text_input('Comparison Path', value=app_config.client_mirror_path)
 
 st.write('---')
 

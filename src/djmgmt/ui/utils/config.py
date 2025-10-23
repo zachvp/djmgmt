@@ -25,9 +25,24 @@ class BaseConfig:
         '''Load configuration from disk.'''
         if not cls.PATH.exists():
             cls.save(cls(cls.TEMPLATE))
-        
+
         with open(cls.PATH) as f:
-            return cls(json.load(f))
+            data = json.load(f)
+
+        # Merge missing keys from TEMPLATE
+        needs_update = False
+        for key, value in cls.TEMPLATE.items():
+            if key not in data:
+                data[key] = value
+                needs_update = True
+
+        config = cls(data)
+
+        # Save if we added missing keys
+        if needs_update:
+            cls.save(config)
+
+        return config
     
     @classmethod
     def save(cls, config: BaseConfig) -> None:
@@ -41,6 +56,7 @@ class AppKey(StrEnum):
     COLLECTION_PATH      = 'collection_path'
     DOWNLOAD_DIRECTORY   = 'download_directory'
     LIBRARY_PATH         = 'library_path'
+    CLIENT_MIRROR_PATH   = 'client_mirror_path'
 
 class AppConfig(BaseConfig):
     PATH     = Path(__file__).parent.parent / 'config.json'
@@ -51,3 +67,4 @@ class AppConfig(BaseConfig):
     collection_path      : Optional[str]
     download_directory   : Optional[str]
     library_path         : Optional[str]
+    client_mirror_path   : Optional[str]
