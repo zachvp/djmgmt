@@ -21,7 +21,7 @@ class Config:
         Key.LIBRARY_PATH         : None
     }
     
-    def __init__(self, data: dict[Key, Any]) -> None:
+    def __init__(self, data: dict[Key, Any] | dict[str, Any]) -> None:
         self.collection_directory : Optional[str] = data.get(Key.COLLECTION_DIRECTORY)
         self.collection_path      : Optional[str] = data.get(Key.COLLECTION_PATH)
         self.download_directory   : Optional[str] = data.get(Key.DOWNLOAD_DIRECTORY)
