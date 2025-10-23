@@ -28,16 +28,21 @@ log_path = utils.create_log_path(MODULE)
 common.configure_log(level=logging.DEBUG, path=str(log_path))
 
 # Module overview
-st.header(f"{MODULE}")
+st.header(f"{MODULE} module")
 with st.expander("Overview", expanded=False):
     st.write(tags_info.__doc__)
 
 # Functions
-function = st.selectbox('Function', FUNCTIONS)
-st.write(get_function_description(function))
+st.write('#### Function')
+function = st.selectbox('Functions', FUNCTIONS, label_visibility='collapsed')
+with st.expander("Description", expanded=False):
+    st.write(get_function_description(function))
 st.write('---')
 
-# Required arguments
+# Function arguments
+st.write('##### Arguments')
+
+# Required
 app_config = config.load()
 default_library_path = app_config.library_path
 if default_library_path is None:
@@ -46,10 +51,12 @@ if default_library_path is None:
 input_path = st.text_input('Input Path', value=default_library_path)
 assert input_path is not None, "Unable to load input path"
 
-## Optional arguments
+# Optional arguments
 comparison = None
 if function == tags_info.Namespace.FUNCTION_COMPARE:
     comparison = st.text_input('Comparison Path')
+
+st.write('---')
 
 # Handle Run
 if st.button('Run'):
