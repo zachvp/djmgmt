@@ -5,7 +5,7 @@ import logging
 from djmgmt import tags_info
 from djmgmt import common
 from djmgmt.ui.utils import utils
-from djmgmt.ui.utils import config
+from djmgmt.ui.utils.config import AppConfig
 
 # Constants
 MODULE = 'tags_info'
@@ -44,7 +44,7 @@ st.write('---')
 st.write('##### Arguments')
 
 # Required
-app_config = config.load()
+app_config = AppConfig.load()
 default_library_path = app_config.library_path
 if default_library_path is None:
     default_library_path = os.path.expanduser('~/Music/DJ')
@@ -65,7 +65,7 @@ if st.button('Run'):
         duplicates = tags_info.log_duplicates(input_path)
         
         app_config.library_path = input_path
-        config.save(app_config)
+        AppConfig.save(app_config)
         
         st.write("### Results:")
         st.dataframe(sorted(duplicates))

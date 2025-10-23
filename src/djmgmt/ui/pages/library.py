@@ -2,7 +2,8 @@ import streamlit as st
 import logging
 
 from djmgmt import library, common, constants
-from djmgmt.ui.utils import utils, config
+from djmgmt.ui.utils import utils
+from djmgmt.ui.utils.config import AppConfig
 
 # Constants
 MODULE = 'library'
@@ -38,7 +39,7 @@ st.write('---')
 st.write('##### Arguments')
 
 # Required
-app_config = config.load()
+app_config = AppConfig.load()
 
 # Initialize session state for collection path if not present
 if 'xml_collection_path' not in st.session_state:
@@ -91,7 +92,7 @@ if st.button('Run'):
 
                 # Save the collection path to config
                 app_config.collection_path = xml_collection_path
-                config.save(app_config)
+                AppConfig.save(app_config)
 
                 # Show stats
                 st.write("### Results:")

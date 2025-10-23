@@ -1,6 +1,6 @@
 """Main Streamlit application for djmgmt toolkit."""
 import streamlit as st
-from djmgmt.ui.utils import config
+from djmgmt.ui.utils.config import AppConfig
 
 # Constants
 CONFIG_KEY_LABEL   = 'Setting'
@@ -15,7 +15,7 @@ st.title("djmgmt Tools")
 # Display and Edit Config
 st.write('### Config')
 
-current_config = config.load()
+current_config = AppConfig.load()
 
 # Convert to list of dicts to define column headings
 config_data = [{CONFIG_KEY_LABEL : k, CONFIG_VALUE_LAEBL : v} for k, v in current_config.to_dict().items()]
@@ -38,10 +38,10 @@ if st.button('Save Config', type='primary'):
         edited_config = {row[CONFIG_KEY_LABEL]: row[CONFIG_VALUE_LAEBL] for row in edited_data}
 
         # Create new config with edited values
-        new_config = config.Config(edited_config)
+        new_config = AppConfig(edited_config)
 
         # Save to disk
-        config.save(new_config)
+        AppConfig.save(new_config)
         st.success('Configuration saved successfully!')
         st.rerun()
     except Exception as e:
