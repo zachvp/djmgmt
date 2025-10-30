@@ -1,6 +1,7 @@
 """Main Streamlit application for djmgmt toolkit."""
 import streamlit as st
 from djmgmt.ui.utils.config import AppConfig
+from djmgmt.ui.utils.page_base import PageBuilder
 
 # Constants
 CONFIG_KEY_LABEL   = 'Setting'
@@ -32,22 +33,24 @@ edited_data = st.data_editor(
 )
 
 # Save button
-if st.button('Save Config', type='primary'):
-    try:
-        # Convert back to dict
-        edited_config = {row[CONFIG_KEY_LABEL]: row[CONFIG_VALUE_LAEBL] for row in edited_data}
+center = PageBuilder.create_center_context()
+with center:
+    if st.button('Save Config', type='primary', width='stretch'):
+        try:
+            # Convert back to dict
+            edited_config = {row[CONFIG_KEY_LABEL]: row[CONFIG_VALUE_LAEBL] for row in edited_data}
 
-        # Create new config with edited values
-        new_config = AppConfig(edited_config)
+            # Create new config with edited values
+            new_config = AppConfig(edited_config)
 
-        # Save to disk
-        AppConfig.save(new_config)
-        st.success('Configuration saved successfully!')
-        st.rerun()
-    except Exception as e:
-        st.error(f'Failed to save configuration: {e}')
+            # Save to disk
+            AppConfig.save(new_config)
+            st.success('Configuration saved successfully!')
+            st.rerun()
+        except Exception as e:
+            st.error(f'Failed to save configuration: {e}')
 
-st.write('---')
+PageBuilder.render_section_separator()
 
 # Call to action
 st.write('#### 👈  Choose a module from the left sidebar.')

@@ -2,6 +2,7 @@
 
 import streamlit as st
 import logging
+from streamlit.delta_generator import DeltaGenerator
 from typing import Callable, Optional
 from types import ModuleType
 
@@ -34,7 +35,6 @@ class PageBuilder:
         '''
         self.module_name = module_name
         self.module_ref = module_ref
-        self.log_path = utils.create_file_path(module_name)
 
     def initialize_logging(self, level: int = logging.DEBUG) -> None:
         '''Configure logging for the page.
@@ -42,7 +42,8 @@ class PageBuilder:
         Args:
             level: Logging level (default: logging.DEBUG)
         '''
-        common.configure_log(level=level, path=str(self.log_path))
+        log_path = utils.create_file_path(self.module_name)
+        common.configure_log(level=level, path=str(log_path))
 
     def render_header_and_overview(self, expanded: bool = False) -> None:
         '''Render the module header and overview expander.
@@ -54,8 +55,8 @@ class PageBuilder:
         with st.expander('Overview', expanded=expanded):
             st.write(self.module_ref.__doc__)
 
+    @staticmethod
     def render_function_selector(
-        self,
         functions: list[str],
         get_description_fn: Callable[[str], str]
     ) -> str:
@@ -75,7 +76,7 @@ class PageBuilder:
         with st.expander('Description', expanded=False):
             st.write(get_description_fn(function))
 
-        self.render_section_separator()
+        PageBuilder.render_section_separator()
         return function
 
     @staticmethod
@@ -121,7 +122,7 @@ class PageBuilder:
     @staticmethod
     def render_run_button() -> bool:
         '''Render the standard 'Run' button prominently centered.'''
-        _, center, _ = st.columns([1, 1, 1])
+        center = PageBuilder.create_center_context()
         with center:
             return st.button('Run', width='stretch')
 
@@ -129,3 +130,9 @@ class PageBuilder:
     def render_results_header() -> None:
         '''Render the standard 'Results' section header.'''
         st.write('### Results')
+
+
+    @staticmethod
+    def create_center_context() -> DeltaGenerator:
+        _, center, _ = st.columns([1, 1, 1])
+        return center
