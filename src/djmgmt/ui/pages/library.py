@@ -5,6 +5,7 @@ from djmgmt import library, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
+from djmgmt.ui.components.recent_file_input import RecentFileInput
 
 # Constants
 MODULE = 'library'
@@ -30,40 +31,15 @@ page.render_arguments_header()
 # Load the app config
 app_config = AppConfig.load()
 
-# Initialize session state for collection path if not present
-if 'widget_key_collection_path' not in st.session_state:
-    # Set default collection path to app config value
-    default_collection_path = app_config.collection_path
-
-    # Override the default collection path to the designated file in the collection directory if it does not exist in the config
-    if default_collection_path is None:
-        default_collection_path = ''
-        if app_config.collection_directory:
-            default_collection_path = library.find_collection_backup(app_config.collection_directory)
-
-    st.session_state.widget_key_collection_path = default_collection_path
-
-# Check if we need to update the path from a previous button click
-if 'pending_collection_path' in st.session_state:
-    st.session_state.widget_key_collection_path = st.session_state.pending_collection_path
-    del st.session_state.pending_collection_path
-
-# Render the collection path to be the session state reference
-st.text_input('Collection Path', key='widget_key_collection_path')
-collection_path = st.session_state.widget_key_collection_path
-assert collection_path is not None, "Unable to load XML collection path"
-
-# Button to find latest collection backup
-if st.button('Find Latest Collection Backup'):
-    if app_config.collection_directory:
-        latest_collection = library.find_collection_backup(app_config.collection_directory)
-        if latest_collection:
-            st.session_state.pending_collection_path = latest_collection
-            st.rerun()
-        else:
-            st.warning(f"No collection backups found in {app_config.collection_directory}")
-    else:
-        st.warning("Collection directory not configured in app settings")
+# Render collection path input with auto-loading and backup finder
+collection_path = RecentFileInput.render(
+    label='Collection Path',
+    widget_key='widget_key_collection_path',
+    default_value=app_config.collection_path,
+    finder_directory=app_config.collection_directory,
+    finder_function=library.find_collection_backup,
+    button_label='Find Latest Collection Backup'
+)
 
 # Render optional arguments
 output_path = None

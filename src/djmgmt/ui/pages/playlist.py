@@ -93,13 +93,13 @@ if run_clicked:
                     # Create dataframe
                     df = pd.DataFrame(rows, columns=column_names)
 
-                    # Render results
+                    # Render results 
                     page.render_results_header()
                     st.success(f'Extracted {len(results)} tracks')
                     st.dataframe(
                         df,
                         hide_index=True,
-                        use_container_width=True
+                        width='stretch'
                     )
 
                     # Update config to store the most recent working playlist path
