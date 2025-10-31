@@ -30,12 +30,12 @@ page.render_arguments_header()
 
 # Render required arguments
 app_config = AppConfig.load()
-input_path = page.render_path_input('Input Path', app_config.library_path, 'Unable to load input path')
+input_path = page.render_path_input('Input Path', app_config.library_directory, 'Unable to load input path')
 
 # Render optional arguments
 comparison = None
 if function == tags_info.Namespace.FUNCTION_COMPARE:
-    comparison = st.text_input('Comparison Path', value=app_config.client_mirror_path)
+    comparison = st.text_input('Comparison Path', value=app_config.client_mirror_directory)
 
 # Separator between Arguments and Run sections
 page.render_section_separator()
@@ -56,7 +56,7 @@ if run_clicked:
                         })
         
         # Update config to store the most recent working library path
-        app_config.library_path = input_path
+        app_config.library_directory = input_path
         AppConfig.save(app_config)
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
         # Run the function

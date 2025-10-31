@@ -40,11 +40,11 @@ full_scan = True
 
 if function == music.Namespace.FUNCTION_PROCESS:
     source_path = page.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
-    output_path = page.render_path_input('Output Path', app_config.library_path, 'Unable to load output path')
+    output_path = page.render_path_input('Output Path', app_config.library_directory, 'Unable to load output path')
 elif function == music.Namespace.FUNCTION_UPDATE_LIBRARY:
     source_path = page.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
-    output_path = page.render_path_input('Library Path', app_config.library_path, 'Unable to load library path')
-    client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
+    output_path = page.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
+    client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
     full_scan = page.render_checkbox_input('Full Scan', default_value=True)
 
 # Render separator between Arguments and Run sections
@@ -78,7 +78,7 @@ if run_clicked:
 
                 # Update config to store the most recent working paths
                 app_config.download_directory = source_path
-                app_config.library_path = output_path
+                app_config.library_directory = output_path
                 AppConfig.save(app_config)
             except Exception as e:
                 st.error(f"Error processing files:\n{e}")
@@ -113,8 +113,8 @@ if run_clicked:
 
                 # Update config to store the most recent working paths
                 app_config.download_directory = source_path
-                app_config.library_path = output_path
-                app_config.client_mirror_path = client_mirror_path
+                app_config.library_directory = output_path
+                app_config.client_mirror_directory = client_mirror_path
                 AppConfig.save(app_config)
             except Exception as e:
                 st.error(f"Error updating library:\n{e}")

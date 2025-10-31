@@ -55,18 +55,18 @@ class AppKey(StrEnum):
     COLLECTION_DIRECTORY = 'collection_directory'
     COLLECTION_PATH      = 'collection_path'
     DOWNLOAD_DIRECTORY   = 'download_directory'
-    LIBRARY_PATH         = 'library_path'
-    CLIENT_MIRROR_PATH   = 'client_mirror_path'
-    PLAYLIST_PATH        = 'playlist_path'
+    LIBRARY_DIRECTORY    = 'library_directory'
+    CLIENT_MIRROR_PATH   = 'client_mirror_directory'
+    PLAYLIST_DIRECTORY   = 'playlist_directory'
 
 class AppConfig(BaseConfig):
     PATH     = Path(__file__).parent.parent / 'config.json'
     Key      = AppKey
     TEMPLATE = {key: None for key in AppKey}
     
-    collection_directory : Optional[str]
-    collection_path      : Optional[str]
-    download_directory   : Optional[str]
-    library_path         : Optional[str]
-    client_mirror_path   : Optional[str]
-    playlist_path        : Optional[str]
+    collection_directory      : Optional[str]
+    collection_path           : Optional[str]
+    download_directory        : Optional[str]
+    library_directory         : Optional[str]
+    client_mirror_directory   : Optional[str]
+    playlist_directory        : Optional[str]

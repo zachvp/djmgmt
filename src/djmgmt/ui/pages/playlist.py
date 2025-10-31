@@ -2,10 +2,11 @@ import streamlit as st
 import pandas as pd
 import os
 
-from djmgmt import playlist
+from djmgmt import playlist, common
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
+from djmgmt.ui.components.recent_file_input import RecentFileInput
 
 # Constants
 MODULE = 'playlist'
@@ -30,8 +31,15 @@ page.render_arguments_header()
 # Load app config
 app_config = AppConfig.load()
 
-# Render required arguments
-input_path = st.text_input('Playlist Path', value=app_config.playlist_path or '')
+# Render playlist path input with auto-loading and latest file finder
+finder = RecentFileInput.Finder(app_config.playlist_directory or '', common.find_latest_file, {'.tsv', '.txt', '.csv'})
+input_path = RecentFileInput.render(
+    label='Playlist Path',
+    widget_key='widget_key_playlist_path',
+    default_value=app_config.playlist_directory,
+    finder=finder,
+    button_label='Find Latest Playlist File'
+)
 
 # Render optional arguments - field selection checkboxes
 st.write('**Field Selection**')
@@ -103,7 +111,7 @@ if run_clicked:
                     )
 
                     # Update config to store the most recent working playlist path
-                    app_config.playlist_path = input_path
+                    app_config.playlist_directory = input_path
                     AppConfig.save(app_config)
 
                 except Exception as e:
