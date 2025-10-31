@@ -140,11 +140,6 @@ def load_collection(path: str) -> ET.Element:
         raise
     assert collection is not None, message
     return collection.getroot()
-
-def find_collection_backup(backup_dir: str) -> str:
-    '''Finds the path for the most recently modified collection.xml file.'''
-    paths = common.collect_paths(backup_dir, filter={'.xml'})
-    return max(paths, key=os.path.getmtime) if paths else ''
     
 def find_node(root: ET.Element, xpath: str) -> ET.Element:
     '''Arguments:

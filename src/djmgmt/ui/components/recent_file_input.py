@@ -2,7 +2,7 @@
 
 import streamlit as st
 from typing import Callable, Optional
-
+from dataclasses import dataclass
 
 class RecentFileInput:
     '''Generic file path input with session state management and latest file finder.
@@ -23,14 +23,18 @@ class RecentFileInput:
             button_label='Find Latest Collection Backup'
         )
     '''
+    @dataclass(frozen=True)
+    class Finder:
+        directory: str
+        function: Callable[[str, set[str]], str]
+        filter: set[str]
 
     @staticmethod
     def render(
         label: str,
         widget_key: str,
+        finder: Finder,
         default_value: Optional[str],
-        finder_directory: Optional[str],
-        finder_function: Callable[[str], str],
         button_label: str = 'Find Latest File'
     ) -> str:
         '''Renders a file path input with auto-loading and finder button.
@@ -54,8 +58,8 @@ class RecentFileInput:
             # Override default to latest file if config value is None and finder directory exists
             if default_path is None:
                 default_path = ''
-                if finder_directory:
-                    default_path = finder_function(finder_directory)
+                if finder.directory:
+                    default_path = finder.function(finder.directory, finder.filter)
 
             st.session_state[widget_key] = default_path
 
@@ -72,13 +76,13 @@ class RecentFileInput:
 
         # Button to find latest file
         if st.button(button_label):
-            if finder_directory:
-                latest_file = finder_function(finder_directory)
+            if finder.directory:
+                latest_file = finder.function(finder.directory, finder.filter)
                 if latest_file:
                     st.session_state[pending_key] = latest_file
                     st.rerun()
                 else:
-                    st.warning(f"No files found in {finder_directory}")
+                    st.warning(f"No files found in {finder.directory}")
             else:
                 st.warning('Directory not configured in app settings')
 

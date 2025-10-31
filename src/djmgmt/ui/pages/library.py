@@ -1,7 +1,7 @@
 import streamlit as st
 import logging
 
-from djmgmt import library, constants
+from djmgmt import library, constants, common
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -32,12 +32,12 @@ page.render_arguments_header()
 app_config = AppConfig.load()
 
 # Render collection path input with auto-loading and backup finder
+finder = RecentFileInput.Finder(app_config.collection_directory or '', common.find_latest_file, {'.xml'})
 collection_path = RecentFileInput.render(
     label='Collection Path',
     widget_key='widget_key_collection_path',
     default_value=app_config.collection_path,
-    finder_directory=app_config.collection_directory,
-    finder_function=library.find_collection_backup,
+    finder=finder,
     button_label='Find Latest Collection Backup'
 )
 
