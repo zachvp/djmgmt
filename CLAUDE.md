@@ -257,3 +257,4 @@ The `subsonic_client.py` module interacts with the Navidrome server:
 **Interactive Mode**: Most functions support `--interactive` flag for confirmation prompts
 - In test assertions, always use appropriate "assert{DataType}Equal" assertions depending on the data type. For example use  "assertListEqual" to compare lists,  "assertDictEqual" to compare dicts, and so on.
 - Except in the context of annotations (e.g., `@patch`), reference `@staticmethod` methods via class name, NOT `self`. So favor `ClassName.static_method()` rather than `self.static_method()`
+- Always avoid using pandas to create data frames for streamlit. Use python built-ins instead. You may suggest pandas if it would significantly simplify the implementation.
