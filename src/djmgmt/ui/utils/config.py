@@ -57,6 +57,7 @@ class AppKey(StrEnum):
     DOWNLOAD_DIRECTORY   = 'download_directory'
     LIBRARY_PATH         = 'library_path'
     CLIENT_MIRROR_PATH   = 'client_mirror_path'
+    PLAYLIST_PATH        = 'playlist_path'
 
 class AppConfig(BaseConfig):
     PATH     = Path(__file__).parent.parent / 'config.json'
@@ -68,3 +69,4 @@ class AppConfig(BaseConfig):
     download_directory   : Optional[str]
     library_path         : Optional[str]
     client_mirror_path   : Optional[str]
+    playlist_path        : Optional[str]
