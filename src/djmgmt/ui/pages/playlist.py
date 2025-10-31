@@ -96,7 +96,7 @@ if run_clicked:
                         column_names = ['Number', 'Title', 'Artist', 'Genre']
 
                     # Parse tab-separated results into dataframe rows
-                    rows = [line.split('\t') for line in results]
+                    rows = [line.split('\t') for line in results[1:]]
 
                     # Create dataframe
                     df = pd.DataFrame(rows, columns=column_names)
@@ -107,11 +107,12 @@ if run_clicked:
                     st.dataframe(
                         df,
                         hide_index=True,
-                        width='stretch'
+                        width='stretch',
+                        height=min((len(df) + 1) * 35, 800)
                     )
 
                     # Update config to store the most recent working playlist path
-                    app_config.playlist_directory = input_path
+                    app_config.playlist_directory = os.path.dirname(input_path)
                     AppConfig.save(app_config)
 
                 except Exception as e:
