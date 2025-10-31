@@ -1,4 +1,4 @@
-"""Main Streamlit application for djmgmt toolkit."""
+'''Main Streamlit application for djmgmt toolkit.'''
 import streamlit as st
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder

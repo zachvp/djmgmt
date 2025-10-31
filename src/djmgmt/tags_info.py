@@ -52,13 +52,14 @@ def parse_args(functions: set[str]) -> type[Namespace]:
 
 # primary functions
 # TODO: update tests to check return value
+# TODO: rename to 'find_duplicates'
 def log_duplicates(root: str) -> list[str]:
-    '''Logs all duplicate audio files in the input path. Searches recursively.'''
-    # script state
+    '''Searches recursively to find all duplicate audio files in the input path, according to artist and title.'''
+    # state: track existing IDs and duplicate files
     file_set: set[str] = set()
     duplicate_paths: list[str] = []
 
-    # script process
+    # process: explore all paths
     paths = common.collect_paths(root)
     for path in paths:
         # load track tags, check for errors

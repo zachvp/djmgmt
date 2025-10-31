@@ -255,3 +255,5 @@ The `subsonic_client.py` module interacts with the Navidrome server:
 **Async Encoding**: Use `asyncio.run()` to execute batch encoding operations with configurable thread count
 
 **Interactive Mode**: Most functions support `--interactive` flag for confirmation prompts
+- In test assertions, always use appropriate "assert{DataType}Equal" assertions depending on the data type. For example use  "assertListEqual" to compare lists,  "assertDictEqual" to compare dicts, and so on.
+- Except in the context of annotations (e.g., `@patch`), reference `@staticmethod` methods via class name, NOT `self`. So favor `ClassName.static_method()` rather than `self.static_method()`
