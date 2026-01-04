@@ -20,10 +20,12 @@ import shutil
 import logging
 import time
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from typing import Callable
 
 from . import common
 from . import constants
+from .library import TrackMetadata
 
 # Classes
 class Namespace(argparse.Namespace):
@@ -86,6 +88,12 @@ class SavedDateContext:
                 return True
         logging.info(f"date context is unprocessed: {date_context}")
         return False
+
+@dataclass
+class SyncPreviewTrack:
+    '''Represents a track that would be synced, with metadata and sync status.'''
+    metadata: TrackMetadata
+    change_type: str  # 'new' or 'changed'
 
 def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str]) -> type[Namespace]:
     ''' Returns the parsed command-line arguments.
@@ -362,8 +370,43 @@ def create_sync_mappings(root: ET.Element, output_dir: str) -> list[tuple[str, s
         context = common.find_date_context(output_path)
         if context and not SavedDateContext.is_processed(context[0]):
             filtered_mappings.append((input_path, output_path))
-    
+
     return filtered_mappings
+
+def preview_sync(collection: ET.Element,
+                client_mirror_path: str,
+                library_path: str) -> list[SyncPreviewTrack]:
+    '''Previews files that would be synced from _pruned playlist to client mirror.
+
+    Returns tracks with metadata and change type (new/changed).
+    Mirrors the logic from music.update_library (lines 632-636).
+    '''
+    from . import tags_info
+    from . import library
+
+    preview_tracks: list[SyncPreviewTrack] = []
+
+    # Get new files from _pruned playlist (not yet in client mirror)
+    new_mappings = create_sync_mappings(collection, client_mirror_path)
+
+    # Get files with metadata changes (library vs client mirror)
+    changed_mappings = tags_info.compare_tags(library_path, client_mirror_path)
+    changed_mappings = library.filter_path_mappings(changed_mappings, collection, constants.XPATH_PRUNED)
+
+    # Convert mappings to preview tracks with metadata
+    collection_node = library.find_node(collection, constants.XPATH_COLLECTION)
+
+    for source_path, _ in new_mappings:
+        metadata = library.extract_track_metadata(collection_node, source_path)
+        if metadata:
+            preview_tracks.append(SyncPreviewTrack(metadata=metadata, change_type='new'))
+
+    for source_path, _ in changed_mappings:
+        metadata = library.extract_track_metadata(collection_node, source_path)
+        if metadata:
+            preview_tracks.append(SyncPreviewTrack(metadata=metadata, change_type='changed'))
+
+    return preview_tracks
 
 # Primary functions
 def sync_from_path(args: type[Namespace]):

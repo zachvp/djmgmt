@@ -841,3 +841,95 @@ class TestRecordDynamicTracks(unittest.TestCase):
         mock_add_unplayed.assert_called_once_with(mock_collection_root, mock_base_root)
         mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
         self.assertEqual(result, mock_base_root)
+
+class TestExtractTrackMetadata(unittest.TestCase):
+    '''Tests for library.extract_track_metadata.'''
+
+    def test_success(self) -> None:
+        '''Tests that track metadata is extracted correctly from collection.'''
+        # Setup XML
+        collection_xml = '''
+            <COLLECTION Entries="1">
+                <TRACK
+                    TrackID="1"
+                    Name="Test Track"
+                    Artist="Test Artist"
+                    Album="Test Album"
+                    Location="file://localhost/Users/user/Music/DJ/test.aiff">
+                </TRACK>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+        source_path = '/Users/user/Music/DJ/test.aiff'
+
+        # Call function
+        result = library.extract_track_metadata(collection, source_path)
+
+        # Assertions
+        self.assertIsNotNone(result)
+        self.assertEqual(result.title, 'Test Track')
+        self.assertEqual(result.artist, 'Test Artist')
+        self.assertEqual(result.album, 'Test Album')
+        self.assertEqual(result.path, source_path)
+
+    def test_track_not_found(self) -> None:
+        '''Tests that None is returned when track is not found in collection.'''
+        # Setup empty collection
+        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
+        collection = ET.fromstring(collection_xml)
+        source_path = '/nonexistent/path.aiff'
+
+        # Call function
+        result = library.extract_track_metadata(collection, source_path)
+
+        # Assertions
+        self.assertIsNone(result)
+
+    def test_missing_metadata_fields(self) -> None:
+        '''Tests that empty strings are returned for missing metadata fields.'''
+        # Setup XML with minimal attributes
+        collection_xml = '''
+            <COLLECTION Entries="1">
+                <TRACK
+                    TrackID="1"
+                    Location="file://localhost/Users/user/Music/DJ/test.aiff">
+                </TRACK>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+        source_path = '/Users/user/Music/DJ/test.aiff'
+
+        # Call function
+        result = library.extract_track_metadata(collection, source_path)
+
+        # Assertions
+        self.assertIsNotNone(result)
+        self.assertEqual(result.title, '')
+        self.assertEqual(result.artist, '')
+        self.assertEqual(result.album, '')
+        self.assertEqual(result.path, source_path)
+
+    def test_url_encoded_path(self) -> None:
+        '''Tests that URL-encoded characters in path are handled correctly.'''
+        # Setup XML with URL-encoded path
+        collection_xml = '''
+            <COLLECTION Entries="1">
+                <TRACK
+                    TrackID="1"
+                    Name="Test Track"
+                    Artist="Test Artist"
+                    Album="Test Album"
+                    Location="file://localhost/Users/user/Music%20Library/test%20(mix).aiff">
+                </TRACK>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+        source_path = '/Users/user/Music Library/test (mix).aiff'
+
+        # Call function
+        result = library.extract_track_metadata(collection, source_path)
+
+        # Assertions
+        self.assertIsNotNone(result)
+        self.assertEqual(result.title, 'Test Track')
+        self.assertEqual(result.path, source_path)

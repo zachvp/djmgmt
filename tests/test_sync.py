@@ -639,3 +639,177 @@ class TestCreateSyncMappings(unittest.TestCase):
                                                          MOCK_OUTPUT_DIR,
                                                          playlist_ids={'1'},
                                                          metadata_path=True)
+
+class TestPreviewSync(unittest.TestCase):
+    '''Tests for sync.preview_sync.'''
+
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.sync.create_sync_mappings')
+    def test_success_new_tracks_only(self,
+                                     mock_create_sync_mappings: MagicMock,
+                                     mock_find_node: MagicMock,
+                                     mock_extract_metadata: MagicMock,
+                                     mock_filter_mappings: MagicMock,
+                                     mock_compare_tags: MagicMock) -> None:
+        '''Tests that new tracks are returned with correct metadata and change_type.'''
+        from djmgmt.library import TrackMetadata
+
+        # Setup mocks
+        mock_create_sync_mappings.return_value = [
+            ('/library/track1.aiff', '/mirror/track1.mp3'),
+            ('/library/track2.aiff', '/mirror/track2.mp3')
+        ]
+        mock_compare_tags.return_value = []
+        mock_filter_mappings.return_value = []
+        mock_find_node.return_value = MagicMock()
+
+        # Mock metadata extraction
+        mock_extract_metadata.side_effect = [
+            TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff'),
+            TrackMetadata('Track 2', 'Artist 2', 'Album 2', '/library/track2.aiff')
+        ]
+
+        # Call function
+        root = ET.fromstring(COLLECTION_XML)
+        result = sync.preview_sync(root, '/mirror', '/library')
+
+        # Assertions
+        self.assertEqual(len(result), 2)
+        self.assertEqual(result[0].metadata.title, 'Track 1')
+        self.assertEqual(result[0].change_type, 'new')
+        self.assertEqual(result[1].metadata.title, 'Track 2')
+        self.assertEqual(result[1].change_type, 'new')
+
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.sync.create_sync_mappings')
+    def test_success_changed_tracks_only(self,
+                                         mock_create_sync_mappings: MagicMock,
+                                         mock_find_node: MagicMock,
+                                         mock_extract_metadata: MagicMock,
+                                         mock_filter_mappings: MagicMock,
+                                         mock_compare_tags: MagicMock) -> None:
+        '''Tests that changed tracks are returned with correct change_type.'''
+        from djmgmt.library import TrackMetadata
+
+        # Setup mocks
+        mock_create_sync_mappings.return_value = []
+        mock_compare_tags.return_value = [
+            ('/library/track1.aiff', '/mirror/track1.mp3')
+        ]
+        mock_filter_mappings.return_value = [
+            ('/library/track1.aiff', '/mirror/track1.mp3')
+        ]
+        mock_find_node.return_value = MagicMock()
+        mock_extract_metadata.return_value = TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff')
+
+        # Call function
+        root = ET.fromstring(COLLECTION_XML)
+        result = sync.preview_sync(root, '/mirror', '/library')
+
+        # Assertions
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0].metadata.title, 'Track 1')
+        self.assertEqual(result[0].change_type, 'changed')
+
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.sync.create_sync_mappings')
+    def test_success_mixed_tracks(self,
+                                  mock_create_sync_mappings: MagicMock,
+                                  mock_find_node: MagicMock,
+                                  mock_extract_metadata: MagicMock,
+                                  mock_filter_mappings: MagicMock,
+                                  mock_compare_tags: MagicMock) -> None:
+        '''Tests that both new and changed tracks are returned correctly.'''
+        from djmgmt.library import TrackMetadata
+
+        # Setup mocks
+        mock_create_sync_mappings.return_value = [
+            ('/library/new_track.aiff', '/mirror/new_track.mp3')
+        ]
+        mock_compare_tags.return_value = [
+            ('/library/changed_track.aiff', '/mirror/changed_track.mp3')
+        ]
+        mock_filter_mappings.return_value = [
+            ('/library/changed_track.aiff', '/mirror/changed_track.mp3')
+        ]
+        mock_find_node.return_value = MagicMock()
+        mock_extract_metadata.side_effect = [
+            TrackMetadata('New Track', 'Artist', 'Album', '/library/new_track.aiff'),
+            TrackMetadata('Changed Track', 'Artist', 'Album', '/library/changed_track.aiff')
+        ]
+
+        # Call function
+        root = ET.fromstring(COLLECTION_XML)
+        result = sync.preview_sync(root, '/mirror', '/library')
+
+        # Assertions
+        self.assertEqual(len(result), 2)
+        # Check new track
+        new_track = [t for t in result if t.change_type == 'new'][0]
+        self.assertEqual(new_track.metadata.title, 'New Track')
+        # Check changed track
+        changed_track = [t for t in result if t.change_type == 'changed'][0]
+        self.assertEqual(changed_track.metadata.title, 'Changed Track')
+
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.sync.create_sync_mappings')
+    def test_empty_preview(self,
+                          mock_create_sync_mappings: MagicMock,
+                          mock_find_node: MagicMock,
+                          mock_extract_metadata: MagicMock,
+                          mock_filter_mappings: MagicMock,
+                          mock_compare_tags: MagicMock) -> None:
+        '''Tests that empty list is returned when no tracks need syncing.'''
+        # Setup mocks
+        mock_create_sync_mappings.return_value = []
+        mock_compare_tags.return_value = []
+        mock_filter_mappings.return_value = []
+        mock_find_node.return_value = MagicMock()
+
+        # Call function
+        root = ET.fromstring(COLLECTION_XML)
+        result = sync.preview_sync(root, '/mirror', '/library')
+
+        # Assertions
+        self.assertEqual(len(result), 0)
+        mock_extract_metadata.assert_not_called()
+
+    @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.filter_path_mappings')
+    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.sync.create_sync_mappings')
+    def test_track_not_found_in_collection(self,
+                                          mock_create_sync_mappings: MagicMock,
+                                          mock_find_node: MagicMock,
+                                          mock_extract_metadata: MagicMock,
+                                          mock_filter_mappings: MagicMock,
+                                          mock_compare_tags: MagicMock) -> None:
+        '''Tests that tracks with no metadata are skipped.'''
+        # Setup mocks
+        mock_create_sync_mappings.return_value = [
+            ('/library/track1.aiff', '/mirror/track1.mp3')
+        ]
+        mock_compare_tags.return_value = []
+        mock_filter_mappings.return_value = []
+        mock_find_node.return_value = MagicMock()
+        mock_extract_metadata.return_value = None  # Track not found
+
+        # Call function
+        root = ET.fromstring(COLLECTION_XML)
+        result = sync.preview_sync(root, '/mirror', '/library')
+
+        # Assertions
+        self.assertEqual(len(result), 0)

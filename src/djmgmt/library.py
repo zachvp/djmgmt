@@ -17,6 +17,7 @@ import shutil
 import xml.etree.ElementTree as ET
 import argparse
 import logging
+from dataclasses import dataclass
 from urllib.parse import unquote
 
 from . import constants
@@ -42,6 +43,14 @@ class Namespace(argparse.Namespace):
     FUNCTION_RECORD_DYNAMIC = 'record_dynamic'
     
     FUNCTIONS = {FUNCTION_DATE_PATHS, FUNCTION_IDENTIFIERS, FUNCTION_FILENAMES, FUNCTION_RECORD_DYNAMIC}
+
+@dataclass
+class TrackMetadata:
+    '''Represents metadata for a track from the XML collection.'''
+    title: str
+    artist: str
+    album: str
+    path: str
 
 def parse_args(valid_functions: set[str]) -> type[Namespace]:
     parser = argparse.ArgumentParser()
@@ -92,12 +101,9 @@ def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], incl
     # construct the path
     path = os.path.join('/', path_components[0], subpath_date)
     if include_metadata:
-        artist = node.attrib[constants.ATTR_ARTIST]
-        album = node.attrib[constants.ATTR_ALBUM]
-        if not artist:
-            artist = constants.UNKNOWN_ARTIST
-        if not album:
-            album = constants.UNKNOWN_ALBUM
+        artist = node.get(constants.ATTR_ARTIST, constants.UNKNOWN_ARTIST)
+        album = node.get(constants.ATTR_ALBUM, constants.UNKNOWN_ALBUM)
+
         # sanitize artist and album for filesystem compatibility
         artist = common.clean_dirname_fat32(artist)
         album = common.clean_dirname_fat32(album)
@@ -185,6 +191,35 @@ def filter_path_mappings(mappings: list[tuple[str, str]], collection: ET.Element
     # filter the mappings according to the track paths
     filtered = [mapping for mapping in mappings if mapping[0] in track_paths]
     return filtered
+
+def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMetadata | None:
+    '''Extracts track metadata from XML collection by file path.
+
+    Args:
+        collection: The COLLECTION node element
+        source_path: System file path to look up
+
+    Returns:
+        TrackMetadata with title, artist, album, path, or None if not found
+    '''
+    from urllib.parse import quote
+
+    # Convert system path to URL format for XML lookup (pattern from music.py:254)
+    file_url = f'{constants.REKORDBOX_ROOT}{quote(source_path, safe="()/")}'
+
+    # Find track in collection
+    track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
+
+    if track_node is None:
+        logging.warning(f'Track not found in collection: {source_path}')
+        return None
+
+    return TrackMetadata(
+        title=track_node.get(constants.ATTR_TITLE, ''),
+        artist=track_node.get(constants.ATTR_ARTIST, ''),
+        album=track_node.get(constants.ATTR_ALBUM, ''),
+        path=source_path
+    )
 
 def get_played_tracks(root: ET.Element) -> list[str]:
     '''Returns a list of TRACK.Key/ID strings for all playlist tracks in the 'mixtapes' folder.'''
