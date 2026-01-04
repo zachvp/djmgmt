@@ -22,6 +22,7 @@ This plan describes a Docker-based end-to-end testing environment that fully sim
 
 ### Install Dependencies
 
+- Install system zip
 - Install ffmpeg
 - Install rsync
 - Install python
