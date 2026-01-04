@@ -5,9 +5,23 @@ import io
 import imagehash
 from PIL import Image
 from typing import Optional
+from dataclasses import dataclass
 
 import mutagen.flac
 import mutagen.id3
+
+@dataclass
+class Diff:
+    '''Represents differences between two Tags instances.'''
+    different_fields: list[str]
+
+    def has_differences(self) -> bool:
+        '''Returns True if there are any differences.'''
+        return len(self.different_fields) > 0
+
+    def __str__(self) -> str:
+        '''Returns comma-separated list of different fields.'''
+        return ', '.join(self.different_fields) if self.different_fields else 'no differences'
 
 class Tags:
     def __init__(self,
@@ -58,7 +72,48 @@ class Tags:
                     self.genre  == other.genre,
                     self.key    == other.key,
                     self._eq_cover_image(other, 5)])
-    
+
+    def diff(self, other: Tags) -> Diff:
+        '''Compares this Tags instance with another and returns detailed differences.
+
+        Logs info messages for each difference with actual values from both instances.
+
+        Args:
+            other: The Tags instance to compare against
+
+        Returns:
+            Diff object containing list of different field names
+        '''
+        different_fields: list[str] = []
+
+        # compare each field and log differences with actual values
+        if self.artist != other.artist:
+            different_fields.append('artist')
+            logging.info(f'Artist differs: "{self.artist}" vs "{other.artist}"')
+
+        if self.album != other.album:
+            different_fields.append('album')
+            logging.info(f'Album differs: "{self.album}" vs "{other.album}"')
+
+        if self.title != other.title:
+            different_fields.append('title')
+            logging.info(f'Title differs: "{self.title}" vs "{other.title}"')
+
+        if self.genre != other.genre:
+            different_fields.append('genre')
+            logging.info(f'Genre differs: "{self.genre}" vs "{other.genre}"')
+
+        if self.key != other.key:
+            different_fields.append('key')
+            logging.info(f'Key differs: "{self.key}" vs "{other.key}"')
+
+        if not self._eq_cover_image(other, 5):
+            different_fields.append('cover_image')
+            # don't log actual image data, just indicate difference
+            logging.info('Cover image differs (perceptual hash difference > 5)')
+
+        return Diff(different_fields)
+
     def __hash__(self) -> int:
         return hash((
             self.artist,

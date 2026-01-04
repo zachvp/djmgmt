@@ -10,7 +10,7 @@ from unittest.mock import patch, MagicMock
 from typing import cast
 
 # Test targets
-from djmgmt.tags import Tags
+from djmgmt.tags import Tags, Diff
 
 # Constants
 ## Mock input arguments and values
@@ -648,11 +648,208 @@ class TestEQCoverImage(unittest.TestCase):
         '''Tests that comparison resulting in a hash error raises a value error.'''
         # Set up mocks: hash exception
         mock_cover_hash.side_effect = ValueError()
-        
+
         # Call target function, expecting exception and error log
         tags_lhs = Tags()
         tags_rhs = Tags()
         with self.assertRaises(ValueError):
             tags_lhs._eq_cover_image(tags_rhs)
         mock_cover_hash.assert_called()
+
+class TestDiff(unittest.TestCase):
+    '''Tests for the Diff dataclass.'''
+
+    def test_success_init_empty(self) -> None:
+        '''Tests that a Diff instance can be created with an empty list.'''
+        # Call target function
+        diff = Diff(different_fields=[])
+
+        # Assert expectations
+        self.assertListEqual(diff.different_fields, [])
+
+    def test_success_init_with_fields(self) -> None:
+        '''Tests that a Diff instance can be created with multiple fields.'''
+        # Call target function
+        diff = Diff(different_fields=['artist', 'title', 'album'])
+
+        # Assert expectations
+        self.assertListEqual(diff.different_fields, ['artist', 'title', 'album'])
+
+    def test_success_has_differences_true(self) -> None:
+        '''Tests that has_differences returns True when there are differences.'''
+        # Call target function
+        diff = Diff(different_fields=['artist'])
+        actual = diff.has_differences()
+
+        # Assert expectations
+        self.assertTrue(actual)
+
+    def test_success_has_differences_false(self) -> None:
+        '''Tests that has_differences returns False when there are no differences.'''
+        # Call target function
+        diff = Diff(different_fields=[])
+        actual = diff.has_differences()
+
+        # Assert expectations
+        self.assertFalse(actual)
+
+    def test_success_str_empty(self) -> None:
+        '''Tests that __str__ returns correct format for empty diff.'''
+        # Call target function
+        diff = Diff(different_fields=[])
+        actual = str(diff)
+
+        # Assert expectations
+        self.assertEqual(actual, 'no differences')
+
+    def test_success_str_single_field(self) -> None:
+        '''Tests that __str__ returns correct format for single field.'''
+        # Call target function
+        diff = Diff(different_fields=['artist'])
+        actual = str(diff)
+
+        # Assert expectations
+        self.assertEqual(actual, 'artist')
+
+    def test_success_str_multiple_fields(self) -> None:
+        '''Tests that __str__ returns comma-separated list for multiple fields.'''
+        # Call target function
+        diff = Diff(different_fields=['artist', 'title', 'album'])
+        actual = str(diff)
+
+        # Assert expectations
+        self.assertEqual(actual, 'artist, title, album')
+
+class TestTagsDiff(unittest.TestCase):
+    '''Tests for the Tags.diff method.'''
+
+    def test_success_no_differences(self) -> None:
+        '''Tests that diff returns empty list when all fields match.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, [])
+        self.assertFalse(actual.has_differences())
+
+    def test_success_artist_differs(self) -> None:
+        '''Tests that diff detects artist difference.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.artist = 'different_artist'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['artist'])
+        self.assertTrue(actual.has_differences())
+
+    def test_success_album_differs(self) -> None:
+        '''Tests that diff detects album difference.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.album = 'different_album'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['album'])
+        self.assertTrue(actual.has_differences())
+
+    def test_success_title_differs(self) -> None:
+        '''Tests that diff detects title difference.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.title = 'different_title'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['title'])
+        self.assertTrue(actual.has_differences())
+
+    def test_success_genre_differs(self) -> None:
+        '''Tests that diff detects genre difference.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.genre = 'different_genre'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['genre'])
+        self.assertTrue(actual.has_differences())
+
+    def test_success_key_differs(self) -> None:
+        '''Tests that diff detects key difference.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.key = 'different_key'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['key'])
+        self.assertTrue(actual.has_differences())
+
+    @patch('djmgmt.tags.Tags._eq_cover_image')
+    def test_success_cover_image_differs(self, mock_eq_cover: MagicMock) -> None:
+        '''Tests that diff detects cover image difference.'''
+        # Set up mocks
+        mock_eq_cover.return_value = False
+
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['cover_image'])
+        self.assertTrue(actual.has_differences())
+        mock_eq_cover.assert_called_once()
+
+    def test_success_multiple_fields_differ(self) -> None:
+        '''Tests that diff detects multiple field differences.'''
+        # Set up tags
+        lhs = create_full_mock_tags()
+        rhs = create_full_mock_tags()
+        rhs.artist = 'different_artist'
+        rhs.title = 'different_title'
+        rhs.album = 'different_album'
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertListEqual(actual.different_fields, ['artist', 'album', 'title'])
+        self.assertTrue(actual.has_differences())
+
+    def test_success_none_values(self) -> None:
+        '''Tests that diff handles None values correctly.'''
+        # Set up tags with None values
+        lhs = Tags(artist='artist', title='title')
+        rhs = Tags(artist='artist', title='title', album='album')
+
+        # Call target function
+        actual = lhs.diff(rhs)
+
+        # Assert expectations
+        self.assertIn('album', actual.different_fields)
+        self.assertTrue(actual.has_differences())
 

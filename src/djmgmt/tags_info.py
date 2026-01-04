@@ -5,9 +5,9 @@ Uses a combination of audio file metadata to determine duplicates
 import os
 import argparse
 import logging
-from typing import Callable
+from typing import Callable, Iterator
 
-from .tags import Tags
+from .tags import Tags, Diff
 from . import common
 
 # command support
@@ -105,44 +105,66 @@ def collect_filenames(root: str) -> list[str]:
         names.append(name)
     return names
 
-# TODO: enhance to report which tags don't match
-# TODO: enhance to report progress to caller
-def compare_tags(source: str, comparison: str) -> list[tuple[str, str]]:
-    '''Compares tag metadata between files in source and comparison directories.
-    Returns a list of (source, comparison) path mappings where tags have changed for matching filenames.'''
-    # output data
-    changed_paths: list[tuple[str, str]] = []
-    
+def _generate_tag_pairs(source: str, comparison: str) -> Iterator[tuple[str, str, Tags, Tags]]:
+    '''Generator that yields matching tag pairs from source and comparison directories.
+
+    Yields:
+        Tuples of (source_path, compare_path, source_tags, compare_tags) for files
+        with matching names (excluding extension)
+    '''
     # use to compare files based on filename, excluding extension
     normalize_filename: Callable[[str], str] = lambda path: os.path.splitext(os.path.basename(path))[0]
-    
+
     # collect paths and build a mapping for comparison files by normalized filename
     source_paths = common.collect_paths(source)
     comparison_files = {}
     for compare_path in common.collect_paths(comparison):
         base_name = normalize_filename(compare_path)
         comparison_files[base_name] = compare_path
-    
-    # compare the source paths present in the comparison directory
+
+    # yield matching source/comparison tag pairs
     for source_path in source_paths:
         base_name = normalize_filename(source_path)
         if base_name in comparison_files:
             compare_path = comparison_files[base_name]
-            
+
             # read tags from both files
             source_tags = Tags.load(source_path)
             compare_tags = Tags.load(compare_path)
-            
+
             # skip if tags can't be read from either file
             if not source_tags or not compare_tags:
                 logging.error(f"Unable to read tags from '{source_path}' or '{compare_path}'")
                 continue
-            
-            # compare relevant tags (title, artist, cover image, genre, etc) add to list if any differ
-            if source_tags != compare_tags:
-                changed_paths.append((os.path.abspath(source_path), os.path.abspath(compare_path)))
-                logging.info(f"Detected tag difference in '{source_path}'")
-                
+
+            yield (source_path, compare_path, source_tags, compare_tags)
+
+# TODO: enhance to report progress to caller
+def compare_tags(source: str, comparison: str) -> list[tuple[str, str]]:
+    '''Compares tag metadata between files in source and comparison directories.
+    Returns a list of (source, comparison) path mappings where tags have changed for matching filenames.'''
+    changed_paths: list[tuple[str, str]] = []
+
+    for source_path, compare_path, source_tags, compare_tags in _generate_tag_pairs(source, comparison):
+        # compare using Tags.__eq__
+        if source_tags != compare_tags:
+            changed_paths.append((os.path.abspath(source_path), os.path.abspath(compare_path)))
+            logging.info(f"Detected tag difference in '{source_path}'")
+
+    return changed_paths
+
+def compare_tags_with_diff(source: str, comparison: str) -> list[tuple[str, str, Diff]]:
+    '''Compares tag metadata between files in source and comparison directories.
+    Returns a list of (source, comparison, diff) tuples where tags have changed for matching filenames.'''
+    changed_paths: list[tuple[str, str, Diff]] = []
+
+    for source_path, compare_path, source_tags, compare_tags in _generate_tag_pairs(source, comparison):
+        # compare using Tags.diff() for detailed difference information
+        diff = source_tags.diff(compare_tags)
+        if diff.has_differences():
+            changed_paths.append((os.path.abspath(source_path), os.path.abspath(compare_path), diff))
+            logging.info(f"Detected tag difference in '{source_path}'")
+
     return changed_paths
 
 # main

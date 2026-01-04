@@ -1,4 +1,5 @@
 import streamlit as st
+import pandas as pd
 
 from djmgmt import tags_info
 from djmgmt.ui.utils.config import AppConfig
@@ -16,7 +17,7 @@ FUNCTIONS = [
 function_mapper = FunctionMapper(module=tags_info)
 function_mapper.add_all({
     tags_info.Namespace.FUNCTION_LOG_DUPLICATES : tags_info.log_duplicates,
-    tags_info.Namespace.FUNCTION_COMPARE        : tags_info.compare_tags
+    tags_info.Namespace.FUNCTION_COMPARE        : tags_info.compare_tags_with_diff
 })
 
 # Page initialization
@@ -61,14 +62,35 @@ if run_clicked:
         AppConfig.save(app_config)
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
         # Run the function
-        results = tags_info.compare_tags(input_path, comparison)
-        
+        results = tags_info.compare_tags_with_diff(input_path, comparison)
+
         # Render results
         page.render_results_header()
-        st.write(f"Found {len(results)} changes")
-        st.dataframe(results,
-                    hide_index=True,
-                    column_config={
-                        '0' : 'Input Path',
-                        '1' : 'Comparison Path'
-                    })
+        st.write(f'Found {len(results)} changes')
+
+        # Convert results to dataframe with diff column
+        df_data = []
+        for source_path, compare_path, diff in results:
+            df_data.append({
+                'Input Path': source_path,
+                'Comparison Path': compare_path,
+                'Differences': str(diff)
+            })
+
+        df = pd.DataFrame(df_data)
+
+        st.dataframe(
+            df,
+            hide_index=True,
+            width='stretch',
+            column_config={
+                'Input Path': st.column_config.TextColumn('Input Path', width='large'),
+                'Comparison Path': st.column_config.TextColumn('Comparison Path', width='large'),
+                'Differences': st.column_config.TextColumn('Differences', width='medium')
+            }
+        )
+
+        # Update config
+        app_config.library_directory = input_path
+        app_config.client_mirror_directory = comparison
+        AppConfig.save(app_config)

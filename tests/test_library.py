@@ -867,6 +867,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
         # Assertions
         self.assertIsNotNone(result)
+        assert result
         self.assertEqual(result.title, 'Test Track')
         self.assertEqual(result.artist, 'Test Artist')
         self.assertEqual(result.album, 'Test Album')
@@ -904,6 +905,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
         # Assertions
         self.assertIsNotNone(result)
+        assert result
         self.assertEqual(result.title, '')
         self.assertEqual(result.artist, '')
         self.assertEqual(result.album, '')
@@ -931,5 +933,6 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
         # Assertions
         self.assertIsNotNone(result)
+        assert result
         self.assertEqual(result.title, 'Test Track')
         self.assertEqual(result.path, source_path)
