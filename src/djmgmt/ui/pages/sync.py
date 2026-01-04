@@ -58,11 +58,12 @@ if run_clicked:
             st.error('All paths are required')
         else:
             try:
-                st.info(f'Analyzing sync differences...')
-                with st.spinner('...'):
-                    # Load collection and run preview
-                    collection = library.load_collection(collection_path)
-                    preview_tracks = sync.preview_sync(collection, client_mirror_path, library_path)
+                # Load collection and run preview
+                center = page.create_center_context()
+                with center:
+                    with st.spinner('Analyzing sync differences...'):
+                        collection = library.load_collection(collection_path)
+                        preview_tracks = sync.preview_sync(collection, client_mirror_path, library_path)
 
                 # Display results
                 page.render_results_header()

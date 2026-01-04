@@ -60,15 +60,16 @@ if run_clicked:
         else:
             try:
                 # Run the process function
-                st.info(f"Processing files from `{source_path}` to `{output_path}`")
-                with st.spinner('...'):
-                    music.process(
-                        source=source_path,
-                        output=output_path,
-                        interactive=False,
-                        valid_extensions=constants.EXTENSIONS,
-                        prefix_hints=music.PREFIX_HINTS
-                    )
+                center = page.create_center_context()
+                with center:
+                    with st.spinner(f"Processing files from `{source_path}` to `{output_path}`", show_time=True):
+                        music.process(
+                            source=source_path,
+                            output=output_path,
+                            interactive=False,
+                            valid_extensions=constants.EXTENSIONS,
+                            prefix_hints=music.PREFIX_HINTS
+                        )
 
                 # Display results
                 page.render_results_header()
@@ -91,17 +92,18 @@ if run_clicked:
         else:
             try:
                 # Run the update_library function
-                st.info(f"Updating library from `{source_path}` to `{output_path}`")
-                with st.spinner('...'):
-                    music.update_library(
-                        source=source_path,
-                        library_path=output_path,
-                        client_mirror_path=client_mirror_path,
-                        interactive=False,
-                        valid_extensions=constants.EXTENSIONS,
-                        prefix_hints=music.PREFIX_HINTS,
-                        full_scan=full_scan
-                    )
+                center = page.create_center_context()
+                with center:
+                    with st.spinner(f"Updating library from `{source_path}` to `{output_path}`"):
+                        music.update_library(
+                            source=source_path,
+                            library_path=output_path,
+                            client_mirror_path=client_mirror_path,
+                            interactive=False,
+                            valid_extensions=constants.EXTENSIONS,
+                            prefix_hints=music.PREFIX_HINTS,
+                            full_scan=full_scan
+                        )
 
                 # Display results
                 page.render_results_header()

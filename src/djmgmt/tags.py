@@ -9,6 +9,7 @@ from dataclasses import dataclass
 
 import mutagen.flac
 import mutagen.id3
+import mutagen.mp4
 
 @dataclass
 class Diff:
@@ -186,7 +187,15 @@ class Tags:
         if key and track[key]:
             value = track[key]
             value = value[0] if isinstance(value, list) else value
-            value = str(value)
+
+            # handle MP4FreeForm values (bytes that need decoding)
+            if isinstance(value, mutagen.mp4.MP4FreeForm):
+                try:
+                    value = bytes(value).decode('utf-8')
+                except (UnicodeDecodeError, AttributeError):
+                    value = str(value)
+            else:
+                value = str(value)
         return value
 
     @classmethod
@@ -226,10 +235,10 @@ class Tags:
     def load(cls, path: str) -> Optional[Tags]:
         # define possible tag keys
         artist_keys    = {'TPE1', 'TPE2', 'TPE4', '©ART', 'Author', 'artist', 'TOPE'}
-        album_keys     = {'TALB', 'TOAL', 'album'}
+        album_keys     = {'TALB', 'TOAL', 'album', '©alb'}
         title_keys     = {'TIT2', '©nam', 'Title', 'title'}
-        genre_keys     = {'TCON', 'genre'}
-        music_key_keys = {'TKEY', 'initialkey', 'key'}
+        genre_keys     = {'TCON', 'genre', '©gen'}
+        music_key_keys = {'TKEY', 'initialkey', 'key', '----:com.apple.iTunes:initialkey'}
 
         # load track tags, check for errors
         try:

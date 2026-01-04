@@ -47,8 +47,11 @@ run_clicked = page.render_run_button()
 if run_clicked:
     if function == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
         # Run the function
-        duplicates = tags_info.log_duplicates(input_path)
-        
+        center = page.create_center_context()
+        with center:
+            with st.spinner('Finding duplicate tracks...', show_time=True):
+                duplicates = tags_info.log_duplicates(input_path)
+
         # Render results
         page.render_results_header()
         st.dataframe(sorted(duplicates),
@@ -56,13 +59,16 @@ if run_clicked:
                         column_config={
                             'value' : 'Duplicate Track Paths'
                         })
-        
+
         # Update config to store the most recent working library path
         app_config.library_directory = input_path
         AppConfig.save(app_config)
     elif function == tags_info.Namespace.FUNCTION_COMPARE and comparison:
         # Run the function
-        results = tags_info.compare_tags_with_diff(input_path, comparison)
+        center = page.create_center_context()
+        with center:
+            with st.spinner('Comparing track metadata...', show_time=True):
+                results = tags_info.compare_tags_with_diff(input_path, comparison)
 
         # Render results
         page.render_results_header()
