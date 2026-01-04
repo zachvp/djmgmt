@@ -170,3 +170,96 @@ class TestPromptCompareTags(unittest.TestCase):
         self.assertEqual(actual, [])
         self.assertEqual(mock_collect_paths.call_count, 2)
         self.assertEqual(mock_load_tags.call_count, 2)
+
+class TestParseArgs(unittest.TestCase):
+    '''Tests for tags_info.parse_args and argument validation.'''
+
+    def test_valid_log_duplicates(self) -> None:
+        '''Tests that log_duplicates can be called with only --input.'''
+        argv = ['log_duplicates', '--input', '/mock/input']
+        args = tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        self.assertEqual(args.function, 'log_duplicates')
+        self.assertEqual(args.input, '/mock/input')
+        self.assertIsNone(args.output)
+        self.assertIsNone(args.comparison)
+
+    def test_valid_write_identifiers(self) -> None:
+        '''Tests that write_identifiers can be called with --input and --output.'''
+        argv = ['write_identifiers', '--input', '/mock/input', '--output', '/mock/output.txt']
+        args = tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        self.assertEqual(args.function, 'write_identifiers')
+        self.assertEqual(args.input, '/mock/input')
+        self.assertEqual(args.output, '/mock/output.txt')
+        self.assertIsNone(args.comparison)
+
+    def test_valid_compare(self) -> None:
+        '''Tests that compare can be called with all required arguments.'''
+        argv = ['compare', '--input', '/source', '--output', '/out.txt', '--comparison', '/compare']
+        args = tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        self.assertEqual(args.function, 'compare')
+        self.assertEqual(args.input, '/source')
+        self.assertEqual(args.output, '/out.txt')
+        self.assertEqual(args.comparison, '/compare')
+
+    @patch('sys.exit')
+    def test_missing_input(self, mock_exit: MagicMock) -> None:
+        '''Tests that missing --input causes error.'''
+        argv = ['log_duplicates']
+        tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        mock_exit.assert_called_once_with(2)
+
+    @patch('sys.exit')
+    def test_write_identifiers_missing_output(self, mock_exit: MagicMock) -> None:
+        '''Tests that write_identifiers requires --output.'''
+        argv = ['write_identifiers', '--input', '/mock/input']
+        tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        mock_exit.assert_called_once_with(2)
+
+    @patch('sys.exit')
+    def test_write_paths_missing_output(self, mock_exit: MagicMock) -> None:
+        '''Tests that write_paths requires --output.'''
+        argv = ['write_paths', '--input', '/mock/input']
+        tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        mock_exit.assert_called_once_with(2)
+
+    @patch('sys.exit')
+    def test_compare_missing_comparison(self, mock_exit: MagicMock) -> None:
+        '''Tests that compare requires --comparison.'''
+        argv = ['compare', '--input', '/source', '--output', '/out.txt']
+        tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        mock_exit.assert_called_once_with(2)
+
+    @patch('sys.exit')
+    def test_invalid_function(self, mock_exit: MagicMock) -> None:
+        '''Tests that invalid function name causes error.'''
+        argv = ['invalid_function', '--input', '/mock/input']
+        tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        mock_exit.assert_called_once_with(2)
+
+    def test_path_normalization(self) -> None:
+        '''Tests that paths are normalized.'''
+        argv = ['log_duplicates', '--input', 'relative/path']
+        args = tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        # os.path.normpath should have been applied
+        import os
+        expected_path = os.path.normpath('relative/path')
+        self.assertEqual(args.input, expected_path)
+
+    def test_all_paths_normalized(self) -> None:
+        '''Tests that all paths (input, output, comparison) are normalized.'''
+        argv = ['compare', '--input', 'source/', '--output', 'output/', '--comparison', 'compare/']
+        args = tags_info.parse_args(tags_info.Namespace.FUNCTIONS, argv)
+
+        import os
+        self.assertEqual(args.input, os.path.normpath('source/'))
+        self.assertEqual(args.output, os.path.normpath('output/'))
+        self.assertEqual(args.comparison, os.path.normpath('compare/'))

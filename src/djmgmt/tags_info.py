@@ -12,43 +12,82 @@ from . import common
 
 # command support
 class Namespace(argparse.Namespace):
-    # required
+    '''Command-line arguments for tags_info module.'''
+
+    # Required
     function: str
-    input: str
-    
-    # optional
-    output: str
+
+    # Optional (alphabetical)
     comparison: str
-    
-    # constants
+    input: str
+    output: str
+
+    # Function constants
     FUNCTION_LOG_DUPLICATES = 'log_duplicates'
     FUNCTION_WRITE_IDENTIFIERS = 'write_identifiers'
     FUNCTION_WRITE_PATHS = 'write_paths'
     FUNCTION_COMPARE = 'compare'
     FUNCTIONS = {FUNCTION_LOG_DUPLICATES, FUNCTION_WRITE_IDENTIFIERS, FUNCTION_WRITE_PATHS, FUNCTION_COMPARE}
 
-def parse_args(functions: set[str]) -> type[Namespace]:
+def parse_args(functions: set[str], argv: list[str] | None = None) -> type[Namespace]:
+    '''Parse command line arguments.
+
+    Args:
+        functions: Set of valid function names
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('function', type=str, help=f"The function to run. One of '{functions}'")
-    parser.add_argument('input', type=str, help='The input/source path root.')
-    parser.add_argument('--output', '-o', type=str, help='The output file to write to.')
-    parser.add_argument('--comparison', '-c', type=str, help='The comparison directory (required for compare).')
-    
-    args = parser.parse_args(namespace=Namespace)
-    args.input = os.path.normpath(args.input)
-    if args.output:
-        args.output = os.path.normpath(args.output)
-    if args.comparison:
-        args.comparison = os.path.normpath(args.comparison)
-    
-    if args.function not in functions: # TODO: use common logic across all `parse_args` functions
-        parser.error(f"invalid function '{args.function}'\nexpect one of '{'\n'.join(sorted(functions))}'")
-    if not args.output and args.function in {Namespace.FUNCTION_WRITE_IDENTIFIERS, Namespace.FUNCTION_WRITE_PATHS, Namespace.FUNCTION_COMPARE}:
-        parser.error(f"missing required --output argument for '{args.function}'")
-    if not args.comparison and args.function == Namespace.FUNCTION_COMPARE:
-        parser.error(f"missing required --comparison argument for '{args.function}'")
-    
+
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--comparison', '-c', type=str,
+                       help='Comparison directory for tag comparison')
+    parser.add_argument('--input', '-i', type=str,
+                       help='Input directory or file path')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output file to write results to')
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    for attr in ['comparison', 'input', 'output']:
+        value = getattr(args, attr, None)
+        if value:
+            setattr(args, attr, os.path.normpath(value))
+
+    # Validate function
+    if args.function not in functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(functions))}")
+
+    # Function-specific validation
+    _validate_function_args(parser, args)
+
     return args
+
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # All functions require --input
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+
+    # Functions that require --output
+    if args.function in {Namespace.FUNCTION_WRITE_IDENTIFIERS,
+                        Namespace.FUNCTION_WRITE_PATHS,
+                        Namespace.FUNCTION_COMPARE}:
+        if not args.output:
+            parser.error(f"'{args.function}' requires --output")
+
+    # compare function requires --comparison
+    if args.function == Namespace.FUNCTION_COMPARE:
+        if not args.comparison:
+            parser.error(f"'{args.function}' requires --comparison")
 
 # primary functions
 # TODO: update tests to check return value
