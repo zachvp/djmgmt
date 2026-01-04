@@ -238,7 +238,7 @@ class Tags:
         album_keys     = {'TALB', 'TOAL', 'album', '©alb'}
         title_keys     = {'TIT2', '©nam', 'Title', 'title'}
         genre_keys     = {'TCON', 'genre', '©gen'}
-        music_key_keys = {'TKEY', 'initialkey', 'key', '----:com.apple.iTunes:initialkey'}
+        music_key_keys = {'TKEY', 'initialkey', 'key', '----:com.apple.iTunes:initialkey', 'TXXX:initialkey'}
 
         # load track tags, check for errors
         try:
