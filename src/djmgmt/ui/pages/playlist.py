@@ -20,6 +20,7 @@ function_mapper.add_all({
 })
 
 # Page initialization
+PageBuilder.set_page_layout('wide')
 page = PageBuilder(module_name=MODULE, module_ref=playlist)
 page.initialize_logging()
 page.render_header_and_overview()

@@ -18,6 +18,7 @@ function_mapper = FunctionMapper(module=sync)
 function_mapper.add(FUNCTION_PREVIEW, sync.preview_sync)
 
 # Page initialization
+PageBuilder.set_page_layout('wide')
 page = PageBuilder(module_name=MODULE, module_ref=sync)
 page.initialize_logging()
 page.render_header_and_overview()

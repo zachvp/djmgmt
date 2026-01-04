@@ -3,7 +3,7 @@
 import streamlit as st
 import logging
 from streamlit.delta_generator import DeltaGenerator
-from typing import Callable, Optional
+from typing import Callable, Optional, Literal
 from types import ModuleType
 
 from djmgmt import common
@@ -14,17 +14,30 @@ class PageBuilder:
     '''Builder pattern for creating Streamlit pages with standardized structure.
 
     Handles common patterns across pages:
+    - Page layout configuration
     - Logging initialization
     - Module header and overview display
     - Function selection UI
     - Standard section separators
 
     Example:
+        PageBuilder.set_page_layout('wide')  # Call first, before other Streamlit commands
         page = PageBuilder(module_name='library', module_ref=library)
         page.initialize_logging()
         page.render_header_and_overview()
         function = page.render_function_selector(FUNCTIONS, get_function_description)
     '''
+
+    @staticmethod
+    def set_page_layout(layout: Literal['wide', 'centered'] | None = 'wide') -> None:
+        '''Configure the page layout width.
+
+        Must be called before any other Streamlit commands.
+
+        Args:
+            layout: Page layout mode - 'wide' (full width) or 'centered' (default Streamlit)
+        '''
+        st.set_page_config(layout=layout)
 
     def __init__(self, module_name: str, module_ref: ModuleType):
         '''Initialize the page builder.
