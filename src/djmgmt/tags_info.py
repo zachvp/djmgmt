@@ -29,7 +29,7 @@ class Namespace(argparse.Namespace):
     FUNCTION_COMPARE = 'compare'
     FUNCTIONS = {FUNCTION_LOG_DUPLICATES, FUNCTION_WRITE_IDENTIFIERS, FUNCTION_WRITE_PATHS, FUNCTION_COMPARE}
 
-def parse_args(functions: set[str], argv: list[str] | None = None) -> type[Namespace]:
+def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -54,10 +54,7 @@ def parse_args(functions: set[str], argv: list[str] | None = None) -> type[Names
     args = parser.parse_args(argv, namespace=Namespace())
 
     # Normalize paths (only if not None)
-    for attr in ['comparison', 'input', 'output']:
-        value = getattr(args, attr, None)
-        if value:
-            setattr(args, attr, os.path.normpath(value))
+    common.normalize_arg_paths(args, ['comparison', 'input', 'output'])
 
     # Validate function
     if args.function not in functions:
@@ -79,8 +76,8 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
 
     # Functions that require --output
     if args.function in {Namespace.FUNCTION_WRITE_IDENTIFIERS,
-                        Namespace.FUNCTION_WRITE_PATHS,
-                        Namespace.FUNCTION_COMPARE}:
+                         Namespace.FUNCTION_WRITE_PATHS,
+                         Namespace.FUNCTION_COMPARE}:
         if not args.output:
             parser.error(f"'{args.function}' requires --output")
 

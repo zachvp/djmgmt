@@ -1,5 +1,6 @@
 import logging
 import os
+from argparse import Namespace
 
 from . import constants
 
@@ -181,3 +182,9 @@ def find_latest_file(search_dir: str, filter: set[str] = set()) -> str:
     '''Recursively finds the path for the most recently modified collection.xml file.'''
     paths = collect_paths(search_dir, filter=filter)
     return max(paths, key=os.path.getmtime) if paths else ''
+
+def normalize_arg_paths(args: Namespace, paths: list[str]) -> None:
+    for attr in paths:
+        value = getattr(args, attr, None)
+        if value:
+            setattr(args, attr, os.path.normpath(value))
