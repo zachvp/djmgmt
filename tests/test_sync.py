@@ -828,7 +828,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.scan_mode, 'quick')
         self.assertEqual(args.sync_mode, 'remote')  # default
         self.assertIsNone(args.end_date)
-        self.assertIsNone(args.path_0)
 
     def test_valid_copy(self) -> None:
         '''Tests that copy function can be called with required arguments.'''
@@ -843,7 +842,7 @@ class TestParseArgs(unittest.TestCase):
     def test_valid_with_all_optional_args(self) -> None:
         '''Tests that all optional arguments can be provided.'''
         argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick',
-                '--sync-mode', 'local', '--end-date', '2025/10 october/09', '--path-0', '/music']
+                '--sync-mode', 'local', '--end-date', '2025/10 october/09']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertEqual(args.function, 'sync')
@@ -852,7 +851,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.scan_mode, 'quick')
         self.assertEqual(args.sync_mode, 'local')
         self.assertEqual(args.end_date, '2025/10 october/09')
-        self.assertEqual(args.path_0, '/music')
 
     @patch('sys.exit')
     def test_missing_input(self, mock_exit: MagicMock) -> None:

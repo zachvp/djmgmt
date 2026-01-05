@@ -38,7 +38,6 @@ class Namespace(argparse.Namespace):
     end_date: str | None
     input: str
     output: str
-    path_0: str
     scan_mode: str
     sync_mode: str
 
@@ -120,8 +119,6 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
                        help="Input directory (date-structured: /year/month/day/...)")
     parser.add_argument('--output', '-o', type=str,
                        help="Output directory to populate")
-    parser.add_argument('--path-0', '-p0', type=str,
-                       help="Optional path. Sync uses this as the music root")
     parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
                        help="Scan mode for the server")
     parser.add_argument('--sync-mode', type=str, choices=list(valid_sync_modes),
@@ -132,7 +129,7 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
     args = parser.parse_args(argv, namespace=Namespace())
 
     # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output', 'path_0'])
+    common.normalize_arg_paths(args, ['input', 'output'])
 
     # Validate function
     if args.function not in valid_functions:
