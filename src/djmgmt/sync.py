@@ -173,7 +173,7 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
             parser.error(f"'{args.function}' requires --scan-mode")
 
 # Helper functions
-def normalize_paths(paths: list[str], parent: str) -> list[str]:
+def relative_paths(paths: list[str], parent: str) -> list[str]:
     '''Returns a collection with the given paths transformed to be relative to the given parent directory.
 
     Function arguments:
@@ -461,7 +461,7 @@ def sync_from_path(args: Namespace):
     '''
 
     # collect the sorted input paths relative to the input directory
-    input_paths = sorted(normalize_paths(common.collect_paths(args.input), args.input))
+    input_paths = sorted(relative_paths(common.collect_paths(args.input), args.input))
 
     # define the date context tracker to determine when a new date context is entered
     previous_date_context = ''
