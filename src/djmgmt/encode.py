@@ -55,11 +55,11 @@ def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
     '''
     parser = argparse.ArgumentParser()
 
-    # Required: function only
+    # required: function only
     parser.add_argument('function', type=str,
                        help=f"Function to run. One of: {', '.join(sorted(functions))}")
 
-    # Optional: all function parameters (alphabetical)
+    # optional: all function parameters (alphabetical)
     parser.add_argument('--extension', '-e', type=str,
                        help='Output file extension (e.g., .aiff, .mp3)')
     parser.add_argument('--input', '-i', type=str,
@@ -69,35 +69,34 @@ def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory or file path')
     parser.add_argument('--scan-mode', type=str,
-                       help=f"Scan mode for missing art. One of: {', '.join(sorted(Namespace.SCAN_MODES))} (case-insensitive)")
+                       help=f"Scan mode for missing art.", choices=list(Namespace.SCAN_MODES))
     parser.add_argument('--store-path', type=str,
                        help='Storage path for script output files')
     parser.add_argument('--store-skipped', action='store_true',
                        help='Store skipped files in storage path')
 
-    # Parse into Namespace
+    # parse into Namespace
     args = parser.parse_args(argv, namespace=Namespace())
 
-    # Normalize paths (only if not None)
+    # normalize paths
     common.normalize_arg_paths(args, ['input', 'output', 'store_path'])
 
-    # Validate function
+    # validate function
     if args.function not in functions:
         parser.error(f"invalid function '{args.function}'\n"
                     f"expect one of: {', '.join(sorted(functions))}")
 
-    # Function-specific validation
+    # function-specific validation
     _validate_function_args(parser, args)
 
     return args
-
 
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
     '''Validate function-specific required arguments.'''
 
     EXTENSION_FUNCTIONS = {Namespace.FUNCTION_LOSSLESS, Namespace.FUNCTION_LOSSY}
 
-    # All functions require --input and --output
+    # all functions require --input and --output
     if not args.input:
         parser.error(f"'{args.function}' requires --input")
     if not args.output:
@@ -115,11 +114,6 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
     if args.function == Namespace.FUNCTION_MISSING_ART:
         if not args.scan_mode:
             parser.error(f"'{args.function}' requires --scan-mode")
-        # Case-insensitive enum conversion
-        args.scan_mode = args.scan_mode.lower()
-        if args.scan_mode not in Namespace.SCAN_MODES:
-            parser.error(f"invalid scan mode '{args.scan_mode}'\n"
-                        f"expect one of: {', '.join(sorted(Namespace.SCAN_MODES))}")
 
 def ffmpeg_base(input_path: str, output_path: str, options: str) -> list[str]:
     '''Creates the base FFMPEG transcoding command with the options:

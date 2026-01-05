@@ -156,14 +156,6 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
     if not args.scan_mode:
         parser.error(f"'{args.function}' requires --scan-mode")
 
-    # Validate enum values
-    if args.scan_mode not in Namespace.SCAN_MODES:
-        parser.error(f"invalid scan mode '{args.scan_mode}'\n"
-                    f"expect one of: {', '.join(sorted(Namespace.SCAN_MODES))}")
-    if args.sync_mode not in Namespace.SYNC_MODES:
-        parser.error(f"invalid sync mode '{args.sync_mode}'\n"
-                    f"expect one of: {', '.join(sorted(Namespace.SYNC_MODES))}")
-
 # Helper functions
 def normalize_paths(paths: list[str], parent: str) -> list[str]:
     '''Returns a collection with the given paths transformed to be relative to the given parent directory.
