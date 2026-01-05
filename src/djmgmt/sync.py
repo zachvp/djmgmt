@@ -35,8 +35,11 @@ class Namespace(argparse.Namespace):
     function: str
 
     # Optional (alphabetical)
+    client_mirror_path: str
+    collection: str
     end_date: str | None
     input: str
+    library_path: str
     output: str
     scan_mode: str
     sync_mode: str
@@ -45,8 +48,9 @@ class Namespace(argparse.Namespace):
     FUNCTION_COPY = 'copy'
     FUNCTION_MOVE = 'move'
     FUNCTION_SYNC = 'sync'
+    FUNCTION_PREVIEW_SYNC = 'preview_sync'
 
-    FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC}
+    FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC, FUNCTION_PREVIEW_SYNC}
 
     # Scan mode constants
     SCAN_QUICK = 'quick'
@@ -113,10 +117,16 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
                        help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
 
     # Optional: all function parameters (alphabetical)
+    parser.add_argument('--client-mirror-path', '-m', type=str,
+                       help="Client mirror path (for preview_sync)")
+    parser.add_argument('--collection', '-c', type=str,
+                       help="Rekordbox XML collection file path (for preview_sync)")
     parser.add_argument('--end-date', type=str,
                        help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date")
     parser.add_argument('--input', '-i', type=str,
                        help="Input directory (date-structured: /year/month/day/...)")
+    parser.add_argument('--library-path', '-l', type=str,
+                       help="Library path (for preview_sync)")
     parser.add_argument('--output', '-o', type=str,
                        help="Output directory to populate")
     parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
@@ -129,7 +139,7 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
     args = parser.parse_args(argv, namespace=Namespace())
 
     # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output'])
+    common.normalize_arg_paths(args, ['input', 'output', 'collection', 'client_mirror_path', 'library_path'])
 
     # Validate function
     if args.function not in valid_functions:
@@ -145,13 +155,22 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
     '''Validate function-specific required arguments.'''
 
-    # All functions require --input, --output, and --scan-mode
-    if not args.input:
-        parser.error(f"'{args.function}' requires --input")
-    if not args.output:
-        parser.error(f"'{args.function}' requires --output")
-    if not args.scan_mode:
-        parser.error(f"'{args.function}' requires --scan-mode")
+    if args.function == Namespace.FUNCTION_PREVIEW_SYNC:
+        # preview_sync requires different arguments
+        if not args.collection:
+            parser.error(f"'{args.function}' requires --collection")
+        if not args.client_mirror_path:
+            parser.error(f"'{args.function}' requires --client-mirror-path")
+        if not args.library_path:
+            parser.error(f"'{args.function}' requires --library-path")
+    else:
+        # Other functions require --input, --output, and --scan-mode
+        if not args.input:
+            parser.error(f"'{args.function}' requires --input")
+        if not args.output:
+            parser.error(f"'{args.function}' requires --output")
+        if not args.scan_mode:
+            parser.error(f"'{args.function}' requires --scan-mode")
 
 # Helper functions
 def normalize_paths(paths: list[str], parent: str) -> list[str]:
@@ -530,3 +549,43 @@ if __name__ == '__main__':
         mappings = create_sync_mappings(tree, script_args.output)
         full_scan = script_args.scan_mode == Namespace.SCAN_FULL
         run_sync_mappings(mappings, full_scan, script_args.sync_mode, script_args.end_date)
+    elif script_args.function == Namespace.FUNCTION_PREVIEW_SYNC:
+        from . import library
+
+        # Load collection
+        collection = library.load_collection(script_args.collection)
+
+        # Run preview
+        preview_tracks = preview_sync(
+            collection,
+            script_args.client_mirror_path,
+            script_args.library_path
+        )
+
+        # Display results
+        if not preview_tracks:
+            print('No tracks to sync - library is up to date!')
+        else:
+            print(f'Found {len(preview_tracks)} tracks to sync:\n')
+
+            # Group by change type for clearer output
+            new_tracks = [t for t in preview_tracks if t.change_type == 'new']
+            changed_tracks = [t for t in preview_tracks if t.change_type == 'changed']
+
+            if new_tracks:
+                print(f'NEW TRACKS ({len(new_tracks)}):')
+                for track in new_tracks:
+                    print(f'  {track.metadata.artist} - {track.metadata.title}')
+                    print(f'    Album: {track.metadata.album}')
+                    print(f'    Path: {track.metadata.path}')
+                    print()
+
+            if changed_tracks:
+                print(f'CHANGED TRACKS ({len(changed_tracks)}):')
+                for track in changed_tracks:
+                    print(f'  {track.metadata.artist} - {track.metadata.title}')
+                    print(f'    Album: {track.metadata.album}')
+                    print(f'    Path: {track.metadata.path}')
+                    print()
+
+            print(f'Summary: {len(new_tracks)} new, {len(changed_tracks)} changed')
