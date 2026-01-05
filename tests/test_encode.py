@@ -1,13 +1,12 @@
 import unittest
 import os
 from unittest.mock import patch, MagicMock, call, AsyncMock
-from typing import cast
-from argparse import Namespace
 
 from djmgmt import constants
 
 # Test targets
 from djmgmt import encode
+from djmgmt.encode import Namespace
 
 # Constants
 MOCK_INPUT = '/mock/input'
@@ -338,13 +337,12 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
     def test_success_cli(self, mock_encode: MagicMock) -> None:
         '''Tests that the CLI wrapper function calls the expected core function with appropriate arguments.'''
         # Call target function
-        args = encode.Namespace(input='/mock/input',
+        args = Namespace(input='/mock/input',
                                 output='/mock/output',
                                 extension='mock_ext',
                                 store_path='/mock/store/path',
                                 store_skipped=True,
                                 interactive=False)
-        args = cast(type[encode.Namespace], args)
         encode.encode_lossless_cli(args)
         
         # Assert that the existing arguments are passed properly
@@ -401,9 +399,7 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
                          mock_encode_lossy: MagicMock) -> None:
         
         # Call target function
-        args = encode.Namespace(input=MOCK_INPUT, output=MOCK_OUTPUT, extension='.mp3')
-        args = cast(type[encode.Namespace], args)
-        
+        args = Namespace(input=MOCK_INPUT, output=MOCK_OUTPUT, extension='.mp3')
         encode.encode_lossy_cli(args)
         
         # Assert expectations
@@ -423,11 +419,11 @@ class TestMissingArtCLI(unittest.TestCase):
         mock_find_missing_art_xml.return_value = mock_paths
         
         # Call target function
-        args = encode.Namespace(function=encode.Namespace.FUNCTION_MISSING_ART,
-                                       input=MOCK_INPUT,
-                                       output=MOCK_OUTPUT,
-                                       scan_mode=encode.Namespace.SCAN_MODE_XML)
-        encode.missing_art_cli(args) # type: ignore
+        args = Namespace(function=Namespace.FUNCTION_MISSING_ART,
+                         input=MOCK_INPUT,
+                         output=MOCK_OUTPUT,
+                         scan_mode=Namespace.SCAN_MODE_XML)
+        encode.missing_art_cli(args)
         
         # Assert expectations
         mock_find_missing_art_xml.assert_called_once_with(args.input, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
@@ -444,11 +440,11 @@ class TestMissingArtCLI(unittest.TestCase):
         mock_find_missing_art_os.return_value = mock_paths
         
         # Call target function
-        args = Namespace(function=encode.Namespace.FUNCTION_MISSING_ART,
+        args = Namespace(function=Namespace.FUNCTION_MISSING_ART,
                          input=MOCK_INPUT,
                          output=MOCK_OUTPUT,
-                         scan_mode=encode.Namespace.SCAN_MODE_OS)
-        encode.missing_art_cli(args) # type: ignore
+                         scan_mode=Namespace.SCAN_MODE_OS)
+        encode.missing_art_cli(args)
         
         # Assert expectations
         mock_find_missing_art_os.assert_called_once_with(args.input, threads=72)

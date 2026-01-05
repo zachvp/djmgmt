@@ -35,18 +35,19 @@ PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 
 # classes
 class Namespace(argparse.Namespace):
-    # arguments
-    ## required
+    '''Command-line arguments for music module.'''
+
+    # Required
     function: str
-    input: str
-    output: str
-    
-    ## optional
-    interactive: bool    
+
+    # Optional (alphabetical)
     client_mirror_path: str
     collection_backup_directory: str
-    
-    # primary functions
+    input: str
+    interactive: bool
+    output: str
+
+    # Function constants
     FUNCTION_SWEEP = 'sweep'
     FUNCTION_FLATTEN = 'flatten'
     FUNCTION_EXTRACT = 'extract'
@@ -60,54 +61,77 @@ class Namespace(argparse.Namespace):
     FUNCTIONS = {FUNCTION_SWEEP, FUNCTION_EXTRACT, FUNCTION_PROCESS, FUNCTION_UPDATE_LIBRARY}.union(FUNCTIONS_SINGLE_ARG)
 
 # Helper functions
-# TODO: include function docstring in help summary (-h)
-def parse_args(valid_functions: set[str], single_arg_functions: set[str]) -> type[Namespace]:
-    # create the parser
+def parse_args(valid_functions: set[str], single_arg_functions: set[str],
+               argv: list[str] | None = None) -> Namespace:
+    '''Parse command line arguments.
+
+    Args:
+        valid_functions: Set of valid function names
+        single_arg_functions: Functions that only require --input (not --output)
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
     parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-    
-    # configure arguments
-    parser.add_argument('function', type=str, help=f"Which script function to run. One of '{valid_functions}'.\
-        The following functions only require a single argument: '{single_arg_functions}'.")
-    # TODO: define argument strings as Namespace constants
-    parser.add_argument('input', type=str, help='The input path.')
-    parser.add_argument('output', nargs='?', type=str, help='The output path.')
-    parser.add_argument('--interactive', '-i', action='store_true', help='Run script in interactive mode.')
-    parser.add_argument('--client-mirror-path', '-m', type=str, help='The client mirror path to pass to media sync.')
-    parser.add_argument('--collection-backup-directory', '-b', type=str, help='The directory that stores the backup XML files.')
-    
-    # parse arguments
-    args = parser.parse_args(namespace=Namespace)
 
-    # validate the arguments
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--client-mirror-path', '-m', type=str,
+                       help='Client mirror path for media sync')
+    parser.add_argument('--collection-backup-directory', '-b', type=str,
+                       help='Directory containing backup XML files')
+    parser.add_argument('--input', '-i', type=str,
+                       help='Input directory or file path')
+    parser.add_argument('--interactive', action='store_true',
+                       help='Run script in interactive mode')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output directory or file path')
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path', 'collection_backup_directory'])
+
+    # Validate function
     if args.function not in valid_functions:
-        parser.error(f"Invalid function '{args.function}'")
-    if not args.output and args.function not in single_arg_functions:
-        parser.error(f"The 'output' argument is required for function '{args.function}'")
-    if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
-        if not args.client_mirror_path:
-            parser.error(f"The '--client-mirror-path' argument is required for {Namespace.FUNCTION_UPDATE_LIBRARY}")
-        if not args.collection_backup_directory:
-            parser.error(f"The '--collection-backup-path' argument is required for {Namespace.FUNCTION_UPDATE_LIBRARY}")
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(valid_functions))}")
 
-    # normalize and validate path arguments
-    args.input = os.path.normpath(args.input)
-    if args.client_mirror_path:
-        if not os.path.exists(args.client_mirror_path):
-            parser.error(f"The '--client-mirror-path' '{args.client_mirror_path}' does not exist.")
-        args.client_mirror_path = os.path.normpath(args.client_mirror_path)
-    
-    if args.collection_backup_directory:
-        if not os.path.exists(args.collection_backup_directory):
-            parser.error(f"The '--collection-backup-path' '{args.collection_backup_directory}' does not exist.")
-        args.collection_backup_directory = os.path.normpath(args.collection_backup_directory)
+    # Function-specific validation
+    _validate_function_args(parser, args, single_arg_functions)
 
-    # handle input and output for single vs. multiple arg functions
-    if args.output:
-        args.output = os.path.normpath(args.output)
-    else:
+    # Handle output defaulting to input for single-arg functions
+    if not args.output and args.function in single_arg_functions:
         args.output = args.input
 
     return args
+
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, single_arg_functions: set[str]) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # All functions require --input
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+
+    # Multi-arg functions require --output (single-arg functions use input as output)
+    if args.function not in single_arg_functions and not args.output:
+        parser.error(f"'{args.function}' requires --output")
+
+    # update_library requires additional paths
+    if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
+        if not args.client_mirror_path:
+            parser.error(f"'{args.function}' requires --client-mirror-path")
+        if not args.collection_backup_directory:
+            parser.error(f"'{args.function}' requires --collection-backup-directory")
+
+        # Validate paths exist
+        if not os.path.exists(args.client_mirror_path):
+            parser.error(f"--client-mirror-path '{args.client_mirror_path}' does not exist")
+        if not os.path.exists(args.collection_backup_directory):
+            parser.error(f"--collection-backup-directory '{args.collection_backup_directory}' does not exist")
 
 def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
     compressed: list[str] = []
@@ -379,7 +403,7 @@ def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str
     logging.info(f"swept all files ({len(swept)})\n{swept}")
     return swept    
 
-def sweep_cli(args: type[Namespace], valid_extensions: set[str], prefix_hints: set[str]) -> None:
+def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     sweep(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
 
 def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple[str, str]]:
@@ -413,7 +437,7 @@ def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple
     logging.debug(f"flattened all files ({len(flattened)})\n{flattened}")
     return flattened
 
-def flatten_hierarchy_cli(args: type[Namespace]) -> None:
+def flatten_hierarchy_cli(args: Namespace) -> None:
     flatten_hierarchy(args.input, args.output, args.interactive)
 
 def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list[str]]]:
@@ -445,10 +469,10 @@ def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list
             logging.debug(f"skip: non-zip file '{input_path}'")
     return extracted
 
-def extract_cli(args: type[Namespace]) -> None:
+def extract_cli(args: Namespace) -> None:
     extract(args.input, args.output, args.interactive)
 
-def compress_all_cli(args: type[Namespace]) -> None:
+def compress_all_cli(args: Namespace) -> None:
     for working_dir, directories, _ in os.walk(args.input):
         for directory in directories:
             compress_dir(os.path.join(working_dir, directory), os.path.join(args.output, directory))
@@ -494,7 +518,7 @@ def prune_non_user_dirs(source: str, interactive: bool) -> list[str]:
     logging.debug(f"pruned all non-user directories ({len(result)}\n{result})")
     return result
 
-def prune_non_user_dirs_cli(args: type[Namespace]) -> None:
+def prune_non_user_dirs_cli(args: Namespace) -> None:
     '''CLI wrapper for the core `prune_non_user_dirs` function.'''
     prune_non_user_dirs(args.input, args.interactive)
     
@@ -529,7 +553,7 @@ def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) 
                 raise RuntimeError(msg)
     return pruned
 
-def prune_non_music_cli(args: type[Namespace], valid_extensions: set[str]) -> None:
+def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
     prune_non_music(args.input, valid_extensions, args.interactive)
 
 def process(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> None:
@@ -561,7 +585,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
     common.write_paths(missing, constants.MISSING_ART_PATH)
 
-def process_cli(args: type[Namespace], valid_extensions: set[str], prefix_hints: set[str]) -> None:
+def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core `process` function.'''
     process(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
 

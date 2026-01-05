@@ -18,74 +18,108 @@ from . import constants
 
 # classes
 class Namespace(argparse.Namespace):
-    # arguments
-    ## required
-    function: str
-    input: str
-    output: str
+    '''Command-line arguments for encode module.'''
 
-    ## optional    
+    # Required
+    function: str
+
+    # Optional (alphabetical)
     extension: str
+    input: str
+    interactive: bool
+    output: str
+    scan_mode: str
     store_path: str
     store_skipped: bool
-    interactive: bool
-    scan_mode: str
-    # threads: int TODO: add and integrate
-    
-    # functions
+
+    # Function constants
     FUNCTION_LOSSLESS    = 'lossless'
     FUNCTION_LOSSY       = 'lossy'
     FUNCTION_MISSING_ART = 'missing_art'
-    
+
     FUNCTIONS = {FUNCTION_LOSSLESS, FUNCTION_LOSSY, FUNCTION_MISSING_ART}
-    
-    # options
+
+    # Scan mode constants
     SCAN_MODE_XML = 'xml'
     SCAN_MODE_OS  = 'os'
-    
+
     SCAN_MODES = {SCAN_MODE_XML, SCAN_MODE_OS}
 
 # helper functions
-def parse_args(functions: set[str]) -> type[Namespace]:
-    '''Process the script's command line aruments.'''
-    EXTENSION_FUNCTIONS = {Namespace.FUNCTION_LOSSLESS, Namespace.FUNCTION_LOSSY}
-    
-    # configure args
+def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
+    '''Parse command line arguments.
+
+    Args:
+        functions: Set of valid function names
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('function', type=str, help=f"the function to run; one of: '{functions}'")
-    parser.add_argument('input', type=str, help='the input path')
-    parser.add_argument('output', type=str, help='the output path')
-    
-    parser.add_argument('--extension', '-e', type=str, help=f"the output extension for each file; required for '{EXTENSION_FUNCTIONS}'")
-    parser.add_argument('--store-path', type=str, help='the script storage path to write to')
-    parser.add_argument('--store-skipped', action='store_true', help='store the skipped files in store path')
-    parser.add_argument('--interactive', '-i', action='store_true', help='run the script in interactive mode')
-    parser.add_argument('--scan-mode', type=str, help=f"the missing art scan mode; one of: '{Namespace.SCAN_MODES}' (case-insensitive)")
 
-    # parse args
-    args = parser.parse_args(namespace=Namespace)
-    
-    # validate function
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--extension', '-e', type=str,
+                       help='Output file extension (e.g., .aiff, .mp3)')
+    parser.add_argument('--input', '-i', type=str,
+                       help='Input directory or file path')
+    parser.add_argument('--interactive', action='store_true',
+                       help='Run script in interactive mode')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output directory or file path')
+    parser.add_argument('--scan-mode', type=str,
+                       help=f"Scan mode for missing art. One of: {', '.join(sorted(Namespace.SCAN_MODES))} (case-insensitive)")
+    parser.add_argument('--store-path', type=str,
+                       help='Storage path for script output files')
+    parser.add_argument('--store-skipped', action='store_true',
+                       help='Store skipped files in storage path')
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['input', 'output', 'store_path'])
+
+    # Validate function
     if args.function not in functions:
-        parser.error(f"invalid function '{args.function}', expect one of: '{functions}'")
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(functions))}")
 
-    # validate storage path args
-    if args.store_skipped and not args.store_path:
-        parser.error("if option '--store-skipped' is set, option '--store-path' is required")
-    
-    # validate extension argument
-    if args.extension and args.function not in EXTENSION_FUNCTIONS:
-        parser.error(f"function '{args.function}' requires '--extension' argument")
-        
-    # validate scan mode argument
-    if args.scan_mode:
-        args.scan_mode = args.scan_mode.lower()
-        if args.scan_mode not in Namespace.SCAN_MODES:
-            parser.error(f"invalid scan mode: '{args.scan_mode}'")
-    elif args.function == Namespace.FUNCTION_MISSING_ART:
-        parser.error(f"funtion '{args.function}' requires '--scan-mode' option")
+    # Function-specific validation
+    _validate_function_args(parser, args)
 
     return args
+
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    EXTENSION_FUNCTIONS = {Namespace.FUNCTION_LOSSLESS, Namespace.FUNCTION_LOSSY}
+
+    # All functions require --input and --output
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+    if not args.output:
+        parser.error(f"'{args.function}' requires --output")
+
+    # lossless and lossy require --extension
+    if args.function in EXTENSION_FUNCTIONS and not args.extension:
+        parser.error(f"'{args.function}' requires --extension")
+
+    # --store-skipped requires --store-path
+    if args.store_skipped and not args.store_path:
+        parser.error("'--store-skipped' requires --store-path")
+
+    # missing_art requires --scan-mode
+    if args.function == Namespace.FUNCTION_MISSING_ART:
+        if not args.scan_mode:
+            parser.error(f"'{args.function}' requires --scan-mode")
+        # Case-insensitive enum conversion
+        args.scan_mode = args.scan_mode.lower()
+        if args.scan_mode not in Namespace.SCAN_MODES:
+            parser.error(f"invalid scan mode '{args.scan_mode}'\n"
+                        f"expect one of: {', '.join(sorted(Namespace.SCAN_MODES))}")
 
 def ffmpeg_base(input_path: str, output_path: str, options: str) -> list[str]:
     '''Creates the base FFMPEG transcoding command with the options:
@@ -254,7 +288,7 @@ async def run_command_async(command: list[str]) -> tuple[int, str]:
         return (process.returncode, stderr)
 
 # primary functions
-def encode_lossless_cli(args: type[Namespace]) -> list[tuple[str, str]]:
+def encode_lossless_cli(args: Namespace) -> list[tuple[str, str]]:
     return asyncio.run(encode_lossless(args.input,
                                        args.output,
                                        extension=args.extension,
@@ -388,7 +422,7 @@ async def encode_lossless(input_dir: str,
     
     return processed_files
 
-def encode_lossy_cli(args: type[Namespace]) -> None:
+def encode_lossy_cli(args: Namespace) -> None:
     '''Parse each path mapping entry into an encoding operation.'''
     path_mappings = common.collect_paths(args.input)
     path_mappings = common.add_output_path(args.output, path_mappings, args.input)
@@ -518,7 +552,7 @@ async def find_missing_art_xml(collection_file_path: str, collection_xpath: str,
     missing += await run_missing_art_tasks(tasks)
     return missing
 
-def missing_art_cli(args: type[Namespace]) -> None:
+def missing_art_cli(args: Namespace) -> None:
     # TODO: add timing
     # TODO: refactor into wrapper + internal functions
     coroutine = None

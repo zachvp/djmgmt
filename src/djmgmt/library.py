@@ -25,23 +25,25 @@ from . import common
 
 # CLI support
 class Namespace(argparse.Namespace):
-    # required
+    '''Command-line arguments for library module.'''
+
+    # Required
     function: str
-    xml_collection_path: str
-    
-    # optional
-    output_path: str
-    root_path: str
-    metadata_path: bool
-    interactive: bool
+
+    # Optional (alphabetical)
+    collection: str
     force: bool
-    
-    # Script functions
+    interactive: bool
+    metadata_path: bool
+    output: str
+    root_path: str
+
+    # Function constants
     FUNCTION_DATE_PATHS = 'date_paths'
     FUNCTION_IDENTIFIERS = 'identifiers'
     FUNCTION_FILENAMES = 'filenames'
     FUNCTION_RECORD_DYNAMIC = 'record_dynamic'
-    
+
     FUNCTIONS = {FUNCTION_DATE_PATHS, FUNCTION_IDENTIFIERS, FUNCTION_FILENAMES, FUNCTION_RECORD_DYNAMIC}
 
 @dataclass
@@ -52,23 +54,56 @@ class TrackMetadata:
     album: str
     path: str
 
-def parse_args(valid_functions: set[str]) -> type[Namespace]:
+def parse_args(valid_functions: set[str], argv: list[str] | None = None) -> Namespace:
+    '''Parse command line arguments.
+
+    Args:
+        valid_functions: Set of valid function names
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('function', type=str, help=f"The script function to run. One of: {valid_functions}.")
-    parser.add_argument('xml_collection_path', type=str, help='The rekordbox library path containing the DateAdded history.')
-    
-    parser.add_argument('--output-path', '-o', type=str, help='Write to this file path.')
-    parser.add_argument('--root-path', '-p', type=str, help='The path to use in place of the root path defined in the rekordbox xml.')
-    parser.add_argument('--metadata-path', '-m', action='store_true', help='Include artist and album in path.')
-    parser.add_argument('--interactive', '-i', action='store_true', help='Run script in interactive mode.')
-    parser.add_argument('--force', action='store_true', help='Skip all interaction safeguards and run the script.')
 
-    args = parser.parse_args(namespace=Namespace)
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
 
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--collection', '-c', type=str,
+                       help='Rekordbox XML collection file path')
+    parser.add_argument('--force', action='store_true',
+                       help='Skip interaction safeguards and run the script')
+    parser.add_argument('--interactive', '-i', action='store_true',
+                       help='Run script in interactive mode')
+    parser.add_argument('--metadata-path', '-m', action='store_true',
+                       help='Include artist and album in path')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output file path')
+    parser.add_argument('--root-path', '-p', type=str,
+                       help='Path to use in place of root path from XML')
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['collection', 'output', 'root_path'])
+
+    # Validate function
     if args.function not in valid_functions:
-        parser.error(f"invalid parameter '{args.function}'")
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # Function-specific validation
+    _validate_function_args(parser, args)
 
     return args
+
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # All functions require --collection
+    if not args.collection:
+        parser.error(f"'{args.function}' requires --collection")
 
 # helper functions
 def date_path(date: str, mapping: dict[int, str]) -> str:
@@ -312,8 +347,8 @@ def dev_debug():
     logging.debug(u)
 
 # Primary functions
-def generate_date_paths_cli(args: type[Namespace]) -> list[tuple[str, str]]:
-    collection = load_collection(args.xml_collection_path)
+def generate_date_paths_cli(args: Namespace) -> list[tuple[str, str]]:
+    collection = load_collection(args.collection)
     collection = find_node(collection, constants.XPATH_COLLECTION)
     return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
 
@@ -472,7 +507,7 @@ if __name__ == '__main__':
     if script_args.function == Namespace.FUNCTION_DATE_PATHS:
         print(get_pipe_output(generate_date_paths_cli(script_args)))
     elif script_args.function == Namespace.FUNCTION_IDENTIFIERS or script_args.function == Namespace.FUNCTION_FILENAMES:
-        tree = load_collection(script_args.xml_collection_path)
+        tree = load_collection(script_args.collection)
         pruned = find_node(tree, constants.XPATH_PRUNED)
         collection = find_node(tree, constants.XPATH_COLLECTION)
         
@@ -487,7 +522,7 @@ if __name__ == '__main__':
         
         items.sort()
         lines = [f"{id}\n" for id in items]
-        with open(script_args.output_path, 'w', encoding='utf-8') as file:
+        with open(script_args.output, 'w', encoding='utf-8') as file:
             file.writelines(lines)
     elif script_args.function == Namespace.FUNCTION_RECORD_DYNAMIC:
-        record_dynamic_tracks(script_args.xml_collection_path, script_args.output_path)
+        record_dynamic_tracks(script_args.collection, script_args.output)

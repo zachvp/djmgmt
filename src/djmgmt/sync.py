@@ -29,32 +29,33 @@ from .library import TrackMetadata
 
 # Classes
 class Namespace(argparse.Namespace):
-    # script Arguments
-    ## required
+    '''Command-line arguments for sync module.'''
+
+    # Required
     function: str
+
+    # Optional (alphabetical)
+    end_date: str | None
     input: str
     output: str
-    scan_mode: str
-
-    ## optional
     path_0: str
+    scan_mode: str
     sync_mode: str
-    end_date: str | None
 
-    # functions
+    # Function constants
     FUNCTION_COPY = 'copy'
     FUNCTION_MOVE = 'move'
     FUNCTION_SYNC = 'sync'
 
     FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC}
 
-    # scan modes
+    # Scan mode constants
     SCAN_QUICK = 'quick'
     SCAN_FULL = 'full'
 
     SCAN_MODES = {SCAN_QUICK, SCAN_FULL}
 
-    # sync modes
+    # Sync mode constants
     SYNC_MODE_LOCAL = 'local'
     SYNC_MODE_REMOTE = 'remote'
 
@@ -95,38 +96,73 @@ class SyncPreviewTrack:
     metadata: TrackMetadata
     change_type: str  # 'new' or 'changed'
 
-def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str]) -> type[Namespace]:
-    ''' Returns the parsed command-line arguments.
+def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str],
+               argv: list[str] | None = None) -> Namespace:
+    '''Parse command line arguments.
 
-    Function arguments:
-        valid_functions -- defines the supported script functions
-        valid_scan_modes -- defines the supported scan modes
-        valid_sync_modes -- defines the supported sync modes
+
+    Args:
+        valid_functions: Set of valid function names
+        valid_scan_modes: Set of valid scan mode names
+        valid_sync_modes: Set of valid sync mode names
+        argv: Optional argument list for testing (defaults to sys.argv)
     '''
     parser = argparse.ArgumentParser()
-    parser.add_argument('function', type=str, help=f"The mode to apply for the function. One of '{valid_functions}'.")
-    parser.add_argument('input', type=str, help="The top level directory to search.\
-        It's expected to be structured in a year/month/audio.file format.")
-    parser.add_argument('output', type=str, help="The output directory to populate.")
-    parser.add_argument('scan_mode', type=str, help=f"The scan mode for the server. One of: '{valid_scan_modes}'.")
-    parser.add_argument('--path-0', '-p0', type=str, help="An optional path. Sync uses this as the music root.")
-    parser.add_argument('--sync-mode', type=str, default=Namespace.SYNC_MODE_REMOTE,
-                        help=f"Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'.")
-    parser.add_argument('--end-date', type=str, default=None,
-                        help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date.")
 
-    args = parser.parse_args(namespace=Namespace)
-    args.input = os.path.normpath(args.input)
-    args.output = os.path.normpath(args.output)
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
 
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--end-date', type=str,
+                       help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date")
+    parser.add_argument('--input', '-i', type=str,
+                       help="Input directory (date-structured: /year/month/day/...)")
+    parser.add_argument('--output', '-o', type=str,
+                       help="Output directory to populate")
+    parser.add_argument('--path-0', '-p0', type=str,
+                       help="Optional path. Sync uses this as the music root")
+    parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
+                       help="Scan mode for the server")
+    parser.add_argument('--sync-mode', type=str, choices=list(valid_sync_modes),
+                       default=Namespace.SYNC_MODE_REMOTE,
+                       help="Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'")
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['input', 'output', 'path_0'])
+
+    # Validate function
     if args.function not in valid_functions:
-        parser.error(f"Invalid function: '{args.function}'")
-    if args.scan_mode not in valid_scan_modes:
-        parser.error(f"Invalid scan mode: '{args.scan_mode}'")
-    if args.sync_mode not in valid_sync_modes:
-        parser.error(f"Invalid sync mode: '{args.sync_mode}'")
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # Function-specific validation
+    _validate_function_args(parser, args)
 
     return args
+
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # All functions require --input, --output, and --scan-mode
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+    if not args.output:
+        parser.error(f"'{args.function}' requires --output")
+    if not args.scan_mode:
+        parser.error(f"'{args.function}' requires --scan-mode")
+
+    # Validate enum values
+    if args.scan_mode not in Namespace.SCAN_MODES:
+        parser.error(f"invalid scan mode '{args.scan_mode}'\n"
+                    f"expect one of: {', '.join(sorted(Namespace.SCAN_MODES))}")
+    if args.sync_mode not in Namespace.SYNC_MODES:
+        parser.error(f"invalid sync mode '{args.sync_mode}'\n"
+                    f"expect one of: {', '.join(sorted(Namespace.SYNC_MODES))}")
 
 # Helper functions
 def normalize_paths(paths: list[str], parent: str) -> list[str]:
@@ -409,7 +445,7 @@ def preview_sync(collection: ET.Element,
     return preview_tracks
 
 # Primary functions
-def sync_from_path(args: type[Namespace]):
+def sync_from_path(args: Namespace):
     '''A primary script function.
 
     Function arguments:

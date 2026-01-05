@@ -1984,3 +1984,109 @@ class TestUpdateLibrary(unittest.TestCase):
     def create_mock_file_mapping(self, index: int) -> tuple[str, str]:
         create_mock_path: Callable[[str, int], str] = lambda p, n: os.path.join(p, f"mock_file_{n}")
         return (create_mock_path(MOCK_INPUT_DIR, index), create_mock_path(MOCK_OUTPUT_DIR, index))
+
+class TestParseArgs(unittest.TestCase):
+    '''Tests for music.parse_args and argument validation.'''
+
+    def test_valid_single_arg_function(self) -> None:
+        '''Tests that single-arg functions (flatten, prune, etc.) only need --input.'''
+        argv = ['flatten', '--input', '/mock/input']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'flatten')
+        self.assertEqual(args.input, '/mock/input')
+        self.assertEqual(args.output, '/mock/input')  # output defaults to input for single-arg functions
+        self.assertFalse(args.interactive)
+
+    def test_valid_multi_arg_function(self) -> None:
+        '''Tests that multi-arg functions require --input and --output.'''
+        argv = ['sweep', '--input', '/src', '--output', '/dst']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'sweep')
+        self.assertEqual(args.input, '/src')
+        self.assertEqual(args.output, '/dst')
+        self.assertFalse(args.interactive)
+
+    def test_valid_process(self) -> None:
+        '''Tests that process function works with required args.'''
+        argv = ['process', '--input', '/in', '--output', '/out']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'process')
+        self.assertEqual(args.input, '/in')
+        self.assertEqual(args.output, '/out')
+
+    @patch('os.path.exists', return_value=True)
+    def test_valid_update_library(self, mock_exists: MagicMock) -> None:
+        '''Tests that update_library works with all required arguments.'''
+        argv = ['update_library', '--input', '/in', '--output', '/lib',
+                '--client-mirror-path', '/mirror', '--collection-backup-directory', '/backup']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'update_library')
+        self.assertEqual(args.input, '/in')
+        self.assertEqual(args.output, '/lib')
+        self.assertEqual(args.client_mirror_path, '/mirror')
+        self.assertEqual(args.collection_backup_directory, '/backup')
+
+    def test_valid_with_interactive(self) -> None:
+        '''Tests that --interactive flag works.'''
+        argv = ['sweep', '--input', '/in', '--output', '/out', '--interactive']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertTrue(args.interactive)
+
+    @patch('sys.exit')
+    def test_missing_input(self, mock_exit: MagicMock) -> None:
+        '''Tests that missing --input causes error.'''
+        argv = ['sweep', '--output', '/out']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    def test_multi_arg_missing_output(self, mock_exit: MagicMock) -> None:
+        '''Tests that multi-arg functions require --output.'''
+        argv = ['sweep', '--input', '/in']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', return_value=True)
+    def test_update_library_missing_client_mirror(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library requires --client-mirror-path.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--collection-backup-directory', '/backup']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', return_value=True)
+    def test_update_library_missing_collection_backup(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library requires --collection-backup-directory.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/mirror']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', return_value=False)
+    def test_update_library_invalid_client_mirror_path(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library validates client_mirror_path exists.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/nonexistent', '--collection-backup-directory', '/backup']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    def test_invalid_function(self, mock_exit: MagicMock) -> None:
+        '''Tests that invalid function name causes error.'''
+        argv = ['invalid', '--input', '/in', '--output', '/out']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
