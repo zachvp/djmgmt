@@ -1820,30 +1820,53 @@ class TestProcess(unittest.TestCase):
                      mock_standardize_lossless: MagicMock,
                      mock_find_missing_art_os: MagicMock,
                      mock_write_paths: MagicMock) -> None:
-        '''Tests that the process function calls the expected functions in the the correct order.'''
-        # Set up mocks
+        '''Tests that the process function calls the expected functions in the correct order and returns expected ProcessResults.'''
+        # Set up mocks with return values for tracking execution order
         mock_call_container = MagicMock()
-        mock_sweep.side_effect = lambda *_, **__: mock_call_container.sweep()
-        mock_extract.side_effect = lambda *_, **__: mock_call_container.extract()
-        mock_flatten.side_effect = lambda *_, **__: mock_call_container.flatten()
-        mock_prune_empty.side_effect = lambda *_, **__: mock_call_container.prune_non_user_dirs()
-        mock_prune_non_music.side_effect = lambda *_, **__: mock_call_container.prune_non_music()
-        mock_standardize_lossless.side_effect = lambda *_, **__: mock_call_container.standardize_lossless()
-        mock_find_missing_art_os.side_effect = lambda *_, **__: mock_call_container.find_missing_art_os()
-        mock_write_paths.side_effect = lambda *_, **__: mock_call_container.write_paths()
-        
-        # Mock the result of the lossless function
-        mock_standardize_lossless.return_value = [
-            ('/mock/input/file_0.aif', '/mock/output/file_0.aiff'),
-            ('/mock/input/file_1.wav', '/mock/output/file_1.aiff')
+
+        # Configure sweep to return realistic data for both calls
+        def sweep_side_effect(*args: object, **kwargs: object) -> list[tuple[str, str]]:
+            mock_call_container.sweep()
+            # Return different data for first and second calls
+            if mock_call_container.sweep.call_count == 1:
+                # First sweep: source → temp
+                return [
+                    ('/source/track1.mp3', '/tmp/xyz/track1.mp3'),
+                    ('/source/track2.wav', '/tmp/xyz/track2.wav'),
+                    ('/source/archive.zip', '/tmp/xyz/archive.zip')
+                ]
+            else:
+                # Second sweep: temp → output
+                return [
+                    ('/tmp/xyz/track1.mp3', '/output/track1.mp3'),
+                    ('/tmp/xyz/track2.aiff', '/output/track2.aiff'),
+                    ('/tmp/xyz/extracted_track.mp3', '/output/extracted_track.mp3')
+                ]
+
+        # Configure return values for statistics
+        extract_result = [
+            ('/tmp/xyz/archive.zip', ['/tmp/xyz/extracted_track.mp3'])
         ]
-        
+        standardize_result = [
+            ('/tmp/xyz/track2.wav', '/tmp/xyz/track2.aiff')
+        ]
+        missing_art_result = ['/output/track1.mp3']
+
+        mock_sweep.side_effect = sweep_side_effect
+        mock_extract.side_effect = lambda *_, **__: (mock_call_container.extract(), extract_result)[1]
+        mock_flatten.side_effect = lambda *_, **__: (mock_call_container.flatten(), [])[1]
+        mock_prune_empty.side_effect = lambda *_, **__: (mock_call_container.prune_non_user_dirs(), [])[1]
+        mock_prune_non_music.side_effect = lambda *_, **__: (mock_call_container.prune_non_music(), [])[1]
+        mock_standardize_lossless.side_effect = lambda *_, **__: (mock_call_container.standardize_lossless(), standardize_result)[1]
+        mock_find_missing_art_os.side_effect = lambda *_, **__: (mock_call_container.find_missing_art_os(), missing_art_result)[1]
+        mock_write_paths.side_effect = lambda *_, **__: (mock_call_container.write_paths(), None)[1]
+
         # Call target function
         mock_interactive = False
         mock_valid_extensions = {'a'}
         mock_prefix_hints = {'b'}
-        music.process(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, mock_interactive, mock_valid_extensions, mock_prefix_hints)
-        
+        result = music.process(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, mock_interactive, mock_valid_extensions, mock_prefix_hints)
+
         # Assert that the primary dependent functions are called in the correct order
         self.assertEqual(mock_call_container.mock_calls[0], call.sweep())
         self.assertEqual(mock_call_container.mock_calls[1], call.extract())
@@ -1860,7 +1883,26 @@ class TestProcess(unittest.TestCase):
         mock_extract.assert_called_once()
         mock_flatten.assert_called_once()
         self.assertEqual(MOCK_OUTPUT_DIR, mock_find_missing_art_os.call_args.args[0])
-        self.assertEqual(mock_call_container.find_missing_art_os(), mock_write_paths.call_args.args[0])
+        self.assertEqual(missing_art_result, mock_write_paths.call_args.args[0])
+
+        # Assert return value structure and type
+        self.assertIsInstance(result, music.ProcessResults)
+        self.assertIsInstance(result.processed_files, list)
+        self.assertIsInstance(result.missing_art_paths, list)
+        self.assertIsInstance(result.archives_extracted, int)
+        self.assertIsInstance(result.files_encoded, int)
+
+        # Assert processed files mapped correctly
+        expected_processed_files = [('/source/track1.mp3', '/output/track1.mp3'),
+                                    ('/source/track2.wav', '/output/track2.aiff'),
+                                    ('/source/archive.zip/extracted_track.mp3', '/output/extracted_track.mp3')]
+        self.assertListEqual(result.processed_files, expected_processed_files)
+
+        # Assert statistics
+        self.assertEqual(result.archives_extracted, 1)
+        self.assertEqual(result.files_encoded, 1)
+        self.assertEqual(len(result.missing_art_paths), 1)
+        self.assertIn('/output/track1.mp3', result.missing_art_paths)
 
 class TestProcessCLI(unittest.TestCase):
     @patch('djmgmt.music.process')

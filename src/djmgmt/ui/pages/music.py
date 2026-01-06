@@ -1,5 +1,6 @@
 import streamlit as st
 import logging
+import pandas as pd
 
 from djmgmt import music, constants
 from djmgmt.ui.utils.config import AppConfig
@@ -63,7 +64,7 @@ if run_clicked:
                 center = page.create_center_context()
                 with center:
                     with st.spinner(f"Processing files from `{source_path}` to `{output_path}`", show_time=True):
-                        music.process(
+                        results = music.process(
                             source=source_path,
                             output=output_path,
                             interactive=False,
@@ -73,10 +74,43 @@ if run_clicked:
 
                 # Display results
                 page.render_results_header()
-                message = ['**Success!**',
-                           f"- Processed files to `{output_path}`",
-                           f"- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`"]
+
+                # Summary message
+                message = [
+                    '**Success!**',
+                    f'- Processed {len(results.processed_files)} files to `{output_path}`',
+                    f'- Extracted {results.archives_extracted} archives',
+                    f'- Encoded {results.files_encoded} files to standard format',
+                    f'- Found {len(results.missing_art_paths)} missing artwork files',
+                    f'- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`'
+                ]
                 st.success('\n'.join(message))
+
+                # Build dataframe for processed files
+                missing_set = set(results.missing_art_paths)
+                df_data = []
+                for source_file, output_file in results.processed_files:
+                    status = '⚠ Missing Art' if output_file in missing_set else '✓ Processed'
+                    df_data.append({
+                        'Source': source_file,
+                        'Output': output_file,
+                        'Status': status
+                    })
+
+                df = pd.DataFrame(df_data)
+
+                # Display table
+                st.dataframe(
+                    df,
+                    hide_index=True,
+                    use_container_width=True,
+                    height=min((len(df) + 1) * 35, 800),
+                    column_config={
+                        'Source': st.column_config.TextColumn('Source', width='large'),
+                        'Output': st.column_config.TextColumn('Output', width='large'),
+                        'Status': st.column_config.TextColumn('Status', width='small')
+                    }
+                )
 
                 # Update config to store the most recent working paths
                 app_config.download_directory = source_path

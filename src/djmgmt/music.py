@@ -21,6 +21,7 @@ import logging
 
 import uuid
 import xml.etree.ElementTree as ET
+from dataclasses import dataclass
 from datetime import datetime
 from urllib.parse import quote
 
@@ -34,6 +35,14 @@ from .tags import Tags
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 
 # classes
+@dataclass
+class ProcessResults:
+    '''Results from processing music files.'''
+    processed_files: list[tuple[str, str]]
+    missing_art_paths: list[str]
+    archives_extracted: int
+    files_encoded: int
+
 class Namespace(argparse.Namespace):
     '''Command-line arguments for music module.'''
 
@@ -556,7 +565,7 @@ def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) 
 def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
     prune_non_music(args.input, valid_extensions, args.interactive)
 
-def process(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> None:
+def process(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> ProcessResults:
     '''Performs the following, in sequence:
         1. Sweeps all music files and archives from the `source` directory into the `output` directory.
         2. Extracts all zip archives within the `output` directory.
@@ -565,25 +574,73 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
         4. Removes all non-music files in the `output` directory.
         5. Removes all directories that contain no visible files within the `output` directory.
         6. Records the paths of the `output` tracks that are missing artwork to a text file.
-        
+
         The source and output directories may be the same for effectively in-place processing.
     '''
     import asyncio
     from tempfile import TemporaryDirectory
-    
+
+    # Track source files to correlate with final output (use filename without extension)
+    source_to_temp: dict[str, str] = {}
+
     # process all files in a temporary directory, then move the processed files to the designated output directory
     with TemporaryDirectory() as processing_dir:
-        sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
-        extract(processing_dir, processing_dir, interactive)
+        # First sweep: source → temp (track for correlation)
+        initial_sweep = sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
+        for source_path, temp_path in initial_sweep:
+            filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
+            if filename_no_ext in source_to_temp:
+                logging.error(f'Duplicate filename detected: {filename_no_ext} from {source_path} and {source_to_temp[filename_no_ext]}')
+            source_to_temp[filename_no_ext] = source_path
+
+        # Track extracted archives and map extracted files to their archive origin
+        extracted = extract(processing_dir, processing_dir, interactive)
+        archives_extracted = len(extracted)
+        for archive_path, extracted_files in extracted:
+            # Get the original archive source path
+            archive_basename = os.path.basename(archive_path)
+            archive_name_no_ext = os.path.splitext(archive_basename)[0]
+            original_archive_source = source_to_temp.get(archive_name_no_ext, archive_path)
+
+            # Map each extracted file to archive_source/filename
+            for extracted_file in extracted_files:
+                extracted_basename = os.path.basename(extracted_file)
+                extracted_name_no_ext = os.path.splitext(extracted_basename)[0]
+                # Build source path as: original_archive.zip/extracted_file.ext
+                archive_relative_source = f'{original_archive_source}/{extracted_basename}'
+                if extracted_name_no_ext in source_to_temp:
+                    logging.error(f'Duplicate filename detected: {extracted_name_no_ext} from {archive_relative_source} and {source_to_temp[extracted_name_no_ext]}')
+                source_to_temp[extracted_name_no_ext] = archive_relative_source
+
         flatten_hierarchy(processing_dir, processing_dir, interactive)
-        standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
+
+        # Track encoded files count
+        encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
+        files_encoded = len(encoded)
+
         prune_non_music(processing_dir, valid_extensions, interactive)
         prune_non_user_dirs(processing_dir, interactive)
-    
-        sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
-    
+
+        # Final sweep: temp → output
+        final_sweep = sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
+
+    # Map final output back to original source using filename without extension
+    processed_files: list[tuple[str, str]] = []
+    for temp_path, output_path in final_sweep:
+        filename_no_ext = os.path.splitext(os.path.basename(output_path))[0]
+        original_source = source_to_temp.get(filename_no_ext, temp_path)
+        processed_files.append((original_source, output_path))
+
+    # Find missing art
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
     common.write_paths(missing, constants.MISSING_ART_PATH)
+
+    return ProcessResults(
+        processed_files=processed_files,
+        missing_art_paths=missing,
+        archives_extracted=archives_extracted,
+        files_encoded=files_encoded
+    )
 
 def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core `process` function.'''
