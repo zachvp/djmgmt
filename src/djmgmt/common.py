@@ -27,11 +27,19 @@ def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> str:
     
     # Configure the log
     log_file_path = f"{logs_directory}/{filename}.log"
+
+    # Clear existing handlers to allow reconfiguration in long-running processes (like Streamlit)
+    root_logger = logging.getLogger()
+    for handler in root_logger.handlers[:]:
+        handler.close()
+        root_logger.removeHandler(handler)
+
     logging.basicConfig(filename=log_file_path,
                         level=level,
                         format="%(asctime)s [%(levelname)s] %(message)s",
                         datefmt="%D %H:%M:%S",
-                        filemode='w')
+                        filemode='w',
+                        force=True)
     return log_file_path
 
 # TODO: refactor calling functions to use filter
