@@ -30,6 +30,7 @@ from . import common
 from . import encode
 from . import library
 from .tags import Tags
+from .common import FileMapping
 
 # constants
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
@@ -38,7 +39,7 @@ PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 @dataclass
 class ProcessResults:
     '''Results from processing music files.'''
-    processed_files: list[tuple[str, str]]
+    processed_files: list[FileMapping]
     missing_art_paths: list[str]
     archives_extracted: int
     files_encoded: int
@@ -318,7 +319,7 @@ def get_dirs(dir_path: str) -> list[str]:
             dirs.append(path)
     return dirs
 
-def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], interactive: bool) -> list[tuple[str, str]]:
+def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], interactive: bool) -> list[FileMapping]:
     '''Standardizes all lossless files in the source directory according to `.encode.encode_lossless()` using the .aiff extension.
     Returns a list of each (source, encoded_file) mapping.'''
     from tempfile import TemporaryDirectory
@@ -427,7 +428,7 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     return root
 
 # Primary functions
-def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> list[tuple[str, str]]:
+def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> list[FileMapping]:
     '''Moves all music files and valid archives from source to output directory.
 
     Validates archives by inspecting contents - archives must contain music files and not contain .app files.
@@ -448,7 +449,7 @@ def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str
         [('/downloads/track1.mp3', '/music/staging/track1.mp3'),
          ('/downloads/beatport_tracks.zip', '/music/staging/beatport_tracks.zip')]
     '''
-    swept: list[tuple[str, str]] = []
+    swept: list[FileMapping] = []
     for input_path in common.collect_paths(source):
         # loop state
         name = os.path.basename(input_path)
@@ -513,7 +514,7 @@ def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str
     '''CLI wrapper for the core sweep function.'''
     sweep(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
 
-def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple[str, str]]:
+def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[FileMapping]:
     '''Recursively moves all files from nested directories to the output root, removing the directory structure.
 
     Args:
@@ -534,7 +535,7 @@ def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple
         [('/music/nested/album1/track1.mp3', '/music/flat/track1.mp3'),
          ('/music/nested/album2/track2.mp3', '/music/flat/track2.mp3')]
     '''
-    flattened: list[tuple[str, str]] = []
+    flattened: list[FileMapping] = []
     for input_path in common.collect_paths(source):
         name = os.path.basename(input_path)
         output_path = os.path.join(output, name)
@@ -784,7 +785,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
         final_sweep = sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
 
     # map final output back to original source using filename without extension
-    processed_files: list[tuple[str, str]] = []
+    processed_files: list[FileMapping] = []
     for processing_path, output_path in final_sweep:
         filename_no_ext = os.path.splitext(os.path.basename(output_path))[0]
         original_source = file_to_source_path.get(filename_no_ext, processing_path)

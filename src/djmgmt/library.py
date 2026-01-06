@@ -22,6 +22,7 @@ from urllib.parse import unquote
 
 from . import constants
 from . import common
+from .common import FileMapping
 
 # CLI support
 class Namespace(argparse.Namespace):
@@ -194,7 +195,7 @@ def find_node(root: ET.Element, xpath: str) -> ET.Element:
         raise ValueError(f"Unable to find node for XPath '{xpath}' in '{root.tag}'")
     return node
 
-def filter_path_mappings(mappings: list[tuple[str, str]], collection: ET.Element, playlist_xpath: str) -> list[tuple[str, str]]:
+def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, playlist_xpath: str) -> list[FileMapping]:
     # output data
     filtered = []
     
@@ -347,7 +348,7 @@ def dev_debug():
     logging.debug(u)
 
 # Primary functions
-def generate_date_paths_cli(args: Namespace) -> list[tuple[str, str]]:
+def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
     collection = load_collection(args.collection)
     collection = find_node(collection, constants.XPATH_COLLECTION)
     return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
@@ -357,12 +358,12 @@ def generate_date_paths_cli(args: Namespace) -> list[tuple[str, str]]:
 def generate_date_paths(collection: ET.Element,
                         root_path: str,
                         playlist_ids: set[str] = set(),
-                        metadata_path: bool = False) -> list[tuple[str, str]]:
+                        metadata_path: bool = False) -> list[FileMapping]:
     '''Generates a list of path mappings for a flat source structure.
     Each item maps from the original source path to a new date-structured path.
     The new path combines the root_path with the date context (year/month/day), optional metadata, and filename.
     '''
-    paths: list[tuple[str, str]] = []
+    paths: list[FileMapping] = []
 
     for node in collection:
         # check if track file is in expected library folder
@@ -390,7 +391,7 @@ def generate_date_paths(collection: ET.Element,
     
     return paths
 
-def get_pipe_output(structure: list[tuple[str, str]]) -> str:
+def get_pipe_output(structure: list[FileMapping]) -> str:
     output = []
     for item in structure:
         output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")

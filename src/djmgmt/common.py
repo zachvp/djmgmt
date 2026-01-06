@@ -4,6 +4,10 @@ from argparse import Namespace
 
 from . import constants
 
+# Type definitions
+FileMapping = tuple[str, str]
+'''A tuple of (source_path, destination_path) representing a file mapping.'''
+
 # Constants
 # TODO: use project path as root for logs, they shouldn't be in src/
 DEFAULT_PATH = os.path.abspath(__file__)
@@ -64,10 +68,10 @@ def collect_paths(root: str, filter: set[str] = set()) -> list[str]:
             paths.append(full_path)
     return paths
 
-def add_output_path(output_path: str, input_paths: list[str], root_input_path: str) -> list[tuple[str, str]]:
+def add_output_path(output_path: str, input_paths: list[str], root_input_path: str) -> list[FileMapping]:
     '''Adds the given path + filename as the output path for each input path.
     Maintains the path structure relative to the root input path.'''
-    paths: list[tuple[str, str]] = []
+    paths: list[FileMapping] = []
     for input_path in input_paths:
         full_output_path = os.path.join(output_path, os.path.relpath(input_path, root_input_path))
         paths.append((input_path, full_output_path))

@@ -10,6 +10,7 @@ from zipfile import ZipInfo
 from djmgmt import music
 from djmgmt import constants
 from djmgmt.tags import Tags
+from djmgmt.common import FileMapping
 
 # Constants
 MOCK_INPUT_DIR     = '/mock/input'
@@ -1825,7 +1826,7 @@ class TestProcess(unittest.TestCase):
         mock_call_container = MagicMock()
 
         # Configure sweep to return realistic data for both calls
-        def sweep_side_effect(*args: object, **kwargs: object) -> list[tuple[str, str]]:
+        def sweep_side_effect(*args: object, **kwargs: object) -> list[FileMapping]:
             mock_call_container.sweep()
             # Return different data for first and second calls
             if mock_call_container.sweep.call_count == 1:
@@ -2023,7 +2024,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_filter_path_mappings.assert_called_once()
         mock_run_sync_mappings.assert_called_once()
         
-    def create_mock_file_mapping(self, index: int) -> tuple[str, str]:
+    def create_mock_file_mapping(self, index: int) -> FileMapping:
         create_mock_path: Callable[[str, int], str] = lambda p, n: os.path.join(p, f"mock_file_{n}")
         return (create_mock_path(MOCK_INPUT_DIR, index), create_mock_path(MOCK_OUTPUT_DIR, index))
 

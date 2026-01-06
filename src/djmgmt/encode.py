@@ -15,6 +15,7 @@ from typing import Any
 
 from . import common
 from . import constants
+from .common import FileMapping
 
 # classes
 class Namespace(argparse.Namespace):
@@ -282,7 +283,7 @@ async def run_command_async(command: list[str]) -> tuple[int, str]:
         return (process.returncode, stderr)
 
 # primary functions
-def encode_lossless_cli(args: Namespace) -> list[tuple[str, str]]:
+def encode_lossless_cli(args: Namespace) -> list[FileMapping]:
     return asyncio.run(encode_lossless(args.input,
                                        args.output,
                                        extension=args.extension,
@@ -298,7 +299,7 @@ async def encode_lossless(input_dir: str,
                           store_skipped: bool = False,
                           interactive: bool = False,
                           threads: int = 16,
-                          encode_always: bool = False) -> list[tuple[str, str]]:
+                          encode_always: bool = False) -> list[FileMapping]:
     '''Primary script function. Recursively walks the input path specified in `input_dir` to re-encode each eligible file.
     Returns a list of the processed (input_file_path, output_file_path) tuples.
     A file is eligible if all conditions are met:
@@ -339,7 +340,7 @@ async def encode_lossless(input_dir: str,
             raise error
     
     # core data
-    processed_files: list[tuple[str, str]] = []
+    processed_files: list[FileMapping] = []
     size_diff_sum = 0.0
     tasks: list[tuple[str, str, Task[tuple[int, str]]]] = []
 
@@ -422,7 +423,7 @@ def encode_lossy_cli(args: Namespace) -> None:
     path_mappings = common.add_output_path(args.output, path_mappings, args.input)
     asyncio.run(encode_lossy(path_mappings, args.extension))
 
-async def encode_lossy(path_mappings: list[tuple[str, str]], extension: str, threads: int = 4) -> None:
+async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4) -> None:
     '''Encodes the given input, output mappings in lossy format with the given extension. Uses FFMPEG as backend.
     Encoding operations are parallelized.'''
     tasks: list[Task[tuple[int, str]]] = []

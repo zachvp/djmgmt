@@ -26,6 +26,7 @@ from typing import Callable
 from . import common
 from . import constants
 from .library import TrackMetadata
+from .common import FileMapping
 
 # Classes
 class Namespace(argparse.Namespace):
@@ -212,7 +213,7 @@ def format_timing(timestamp: float) -> str:
         return f"{hours}h {minutes}m {seconds:.3f}s"
     return f"{timestamp:.3f}s"
 
-def key_date_context(mapping: tuple[str, str]) -> str:
+def key_date_context(mapping: FileMapping) -> str:
     date_context = common.find_date_context(mapping[1])
     return date_context[0] if date_context else ''
     
@@ -248,7 +249,7 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str) -> tu
         return (error.returncode, error.stderr)
 
 # TODO: add error handling for encoding
-def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, full_scan: bool, sync_mode: str) -> bool:
+def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str) -> bool:
     '''Transfers all files in the batch to the given destination, then tells the music server to perform a scan.
 
     Returns True if the batch sync was successful, False otherwise.
@@ -303,9 +304,9 @@ def sync_batch(batch: list[tuple[str, str]], date_context: str, source: str, ful
                     time.sleep(sleep_time)
     return success
 
-def sync_mappings(mappings:list[tuple[str, str]], full_scan: bool, sync_mode: str) -> None:
+def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str) -> None:
     # core data
-    batch: list[tuple[str, str]] = []
+    batch: list[FileMapping] = []
     dest_previous = mappings[0][1]
     date_context, dest = '', ''
     index = 0
@@ -388,28 +389,28 @@ def rsync_healthcheck() -> bool:
             logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
             return False
     
-def create_sync_mappings(root: ET.Element, output_dir: str) -> list[tuple[str, str]]:
+def create_sync_mappings(root: ET.Element, output_dir: str) -> list[FileMapping]:
     '''Creates a mapping list of system paths based on the given XML collection and output directory.
     Each list entry maps from a source collection file path to a target date context + metadata-structured file path.
     See organize_library_dates.generate_date_paths for more info.'''
     from . import library
-    
+
     # collect the target playlist IDs to sync
     pruned = library.find_node(root, constants.XPATH_PRUNED)
     playlist_ids: set[str] = {
         track.attrib[constants.ATTR_TRACK_KEY]
         for track in pruned
     }
-    
+
     # generate the paths to sync based on the target playlist
     collection_node = library.find_node(root, constants.XPATH_COLLECTION)
     mappings = library.generate_date_paths(collection_node,
                                            output_dir,
                                            playlist_ids=playlist_ids,
                                            metadata_path=True)
-    
+
     # filter out processed date contexts from the mappings
-    filtered_mappings: list[tuple[str, str]] = []
+    filtered_mappings: list[FileMapping] = []
     for input_path, output_path in mappings:
         context = common.find_date_context(output_path)
         if context and not SavedDateContext.is_processed(context[0]):
@@ -500,7 +501,7 @@ def sync_from_path(args: Namespace):
             os.makedirs(output_parent_path)
         action(input_path_full, output_path_full)
 
-def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE, end_date: str | None = None) -> None:
+def run_sync_mappings(mappings: list[FileMapping], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE, end_date: str | None = None) -> None:
     # record initial run timestamp
     timestamp = time.time()
 
@@ -513,7 +514,7 @@ def run_sync_mappings(mappings: list[tuple[str, str]], full_scan: bool = True, s
 
     # filter mappings based on end_date if provided
     if end_date:
-        filtered_mappings: list[tuple[str, str]] = []
+        filtered_mappings: list[FileMapping] = []
         for mapping in mappings:
             date_context = common.find_date_context(mapping[1])
             if date_context and date_context[0] <= end_date:

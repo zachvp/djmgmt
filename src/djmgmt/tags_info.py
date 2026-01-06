@@ -9,6 +9,7 @@ from typing import Callable, Iterator
 
 from .tags import Tags, Diff
 from . import common
+from .common import FileMapping
 
 # command support
 class Namespace(argparse.Namespace):
@@ -176,10 +177,10 @@ def _generate_tag_pairs(source: str, comparison: str) -> Iterator[tuple[str, str
             yield (source_path, compare_path, source_tags, compare_tags)
 
 # TODO: enhance to report progress to caller
-def compare_tags(source: str, comparison: str) -> list[tuple[str, str]]:
+def compare_tags(source: str, comparison: str) -> list[FileMapping]:
     '''Compares tag metadata between files in source and comparison directories.
     Returns a list of (source, comparison) path mappings where tags have changed for matching filenames.'''
-    changed_paths: list[tuple[str, str]] = []
+    changed_paths: list[FileMapping] = []
 
     for source_path, compare_path, source_tags, compare_tags in _generate_tag_pairs(source, comparison):
         # compare using Tags.__eq__
