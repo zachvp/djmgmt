@@ -143,6 +143,19 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, si
             parser.error(f"--collection-backup-directory '{args.collection_backup_directory}' does not exist")
 
 def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
+    '''Compresses all files in a directory into a zip archive.
+
+    Args:
+        input_path: Directory containing files to compress (e.g., '/path/to/tracks')
+        output_path: Base path for output archive without .zip extension (e.g., '/output/myarchive')
+
+    Returns:
+        Tuple of (archive_path, list of compressed file paths)
+
+    Example:
+        >>> compress_dir('/music/album', '/archives/album')
+        ('/archives/album.zip', ['/music/album/track1.mp3', '/music/album/track2.mp3'])
+    '''
     compressed: list[str] = []
     archive_path = f"{output_path}.zip"
     with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as archive:
@@ -153,12 +166,43 @@ def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
     return (archive_path, compressed)
 
 def is_prefix_match(value: str, prefixes: set[str]) -> bool:
+    '''Checks if a string starts with any of the given prefixes.
+
+    Args:
+        value: String to check (e.g., 'beatport_tracks_20231027')
+        prefixes: Set of prefix strings to match against (e.g., {'beatport_tracks', 'juno_download'})
+
+    Returns:
+        True if value starts with any prefix, False otherwise
+
+    Example:
+        >>> is_prefix_match('beatport_tracks_20231027', {'beatport_tracks', 'juno_download'})
+        True
+        >>> is_prefix_match('random_archive', {'beatport_tracks', 'juno_download'})
+        False
+    '''
     for prefix in prefixes:
         if value.startswith(prefix):
             return True
     return False
 
 def prune(working_dir: str, directories: list[str], filenames: list[str]) -> None:
+    '''Removes hidden files, hidden directories, and .app archives from the given lists in-place.
+
+    Args:
+        working_dir: Base directory path for logging purposes (e.g., '/music/library')
+        directories: List of directory names to filter (modified in-place)
+        filenames: List of filenames to filter (modified in-place)
+
+    Example:
+        >>> dirs = ['Album', '.hidden', '_temp', 'App.app']
+        >>> files = ['track.mp3', '.DS_Store', 'cover.jpg']
+        >>> prune('/music', dirs, files)
+        >>> dirs
+        ['Album']
+        >>> files
+        ['track.mp3', 'cover.jpg']
+    '''
     for index, directory in enumerate(directories):
         if is_prefix_match(directory, {'.', '_'}) or '.app' in directory:
             logging.info(f"prune: hidden directory or '.app' archive '{os.path.join(working_dir, directory)}'")
@@ -169,12 +213,27 @@ def prune(working_dir: str, directories: list[str], filenames: list[str]) -> Non
             del filenames[index]
 
 def extract_all_normalized_encodings(zip_path: str, output: str) -> tuple[str, list[str]]:
+    '''Extracts all files from a zip archive with normalized filename encodings.
+
+    Handles common zip encoding issues by attempting to correct filenames using UTF-8 and Latin-1 encodings.
+
+    Args:
+        zip_path: Path to the zip archive (e.g., '/downloads/beatport_tracks.zip')
+        output: Directory to extract files into (e.g., '/temp/extracted')
+
+    Returns:
+        Tuple of (original zip path, list of extracted filenames)
+
+    Example:
+        >>> extract_all_normalized_encodings('/downloads/tracks.zip', '/temp')
+        ('/downloads/tracks.zip', ['01 Track One.mp3', '02 Track Two.mp3'])
+    '''
     extracted: list[str] = []
     with zipfile.ZipFile(zip_path, 'r') as file:
         for info in file.infolist():
             # default to the current filename
             corrected = info.filename
-            
+
             # try to normalize the filename encoding
             try:
                 # attempt to encode the filename with the common zip encoding and decode as utf-8
@@ -194,6 +253,24 @@ def extract_all_normalized_encodings(zip_path: str, output: str) -> tuple[str, l
     return (zip_path, extracted)
 
 def flatten_zip(zip_path: str, extract_path: str) -> None:
+    '''Extracts a zip archive and moves all files to the extract path root, removing nested directories.
+
+    Args:
+        zip_path: Path to the zip archive (e.g., '/downloads/album.zip')
+        extract_path: Directory to extract and flatten into (e.g., '/music/temp')
+
+    Example:
+        Given archive structure:
+            album.zip
+            └── album/
+                ├── track1.mp3
+                └── track2.mp3
+
+        After flatten_zip('/downloads/album.zip', '/music/temp'):
+            /music/temp/
+            ├── track1.mp3
+            └── track2.mp3
+    '''
     output_directory = os.path.splitext(os.path.basename(zip_path))[0]
     logging.debug(f"output dir: {os.path.join(extract_path, output_directory)}")
     extract_all_normalized_encodings(zip_path, extract_path)
@@ -351,6 +428,26 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
 
 # Primary functions
 def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> list[tuple[str, str]]:
+    '''Moves all music files and valid archives from source to output directory.
+
+    Validates archives by inspecting contents - archives must contain music files and not contain .app files.
+    Archives matching prefix_hints (e.g., 'beatport_tracks') are automatically considered valid.
+
+    Args:
+        source: Directory to scan for music files (e.g., '/downloads')
+        output: Destination directory (e.g., '/music/staging')
+        interactive: If True, prompts for confirmation before each move
+        valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
+        prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
+
+    Returns:
+        List of (source_path, destination_path) tuples for all moved files
+
+    Example:
+        >>> sweep('/downloads', '/music/staging', False, {'.mp3', '.aiff'}, {'beatport_tracks'})
+        [('/downloads/track1.mp3', '/music/staging/track1.mp3'),
+         ('/downloads/beatport_tracks.zip', '/music/staging/beatport_tracks.zip')]
+    '''
     swept: list[tuple[str, str]] = []
     for input_path in common.collect_paths(source):
         # loop state
@@ -413,9 +510,30 @@ def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str
     return swept    
 
 def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
+    '''CLI wrapper for the core sweep function.'''
     sweep(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
 
 def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple[str, str]]:
+    '''Recursively moves all files from nested directories to the output root, removing the directory structure.
+
+    Args:
+        source: Directory to flatten (e.g., '/music/nested')
+        output: Destination directory for flattened files (e.g., '/music/flat')
+        interactive: If True, prompts for confirmation before each move
+
+    Returns:
+        List of (source_path, destination_path) tuples for all moved files
+
+    Example:
+        Given structure:
+            /music/nested/
+            ├── album1/track1.mp3
+            └── album2/track2.mp3
+
+        >>> flatten_hierarchy('/music/nested', '/music/flat', False)
+        [('/music/nested/album1/track1.mp3', '/music/flat/track1.mp3'),
+         ('/music/nested/album2/track2.mp3', '/music/flat/track2.mp3')]
+    '''
     flattened: list[tuple[str, str]] = []
     for input_path in common.collect_paths(source):
         name = os.path.basename(input_path)
@@ -447,9 +565,25 @@ def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[tuple
     return flattened
 
 def flatten_hierarchy_cli(args: Namespace) -> None:
+    '''CLI wrapper for the core flatten_hierarchy function.'''
     flatten_hierarchy(args.input, args.output, args.interactive)
 
 def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list[str]]]:
+    '''Extracts all zip archives in the source directory to the output directory.
+
+    Args:
+        source: Directory to scan for zip archives (e.g., '/music/archives')
+        output: Destination directory for extracted files (e.g., '/music/extracted')
+        interactive: If True, prompts for confirmation before each extraction
+
+    Returns:
+        List of (archive_path, list of extracted filenames) tuples
+
+    Example:
+        >>> extract('/music/archives', '/music/extracted', False)
+        [('/music/archives/album1.zip', ['track1.mp3', 'track2.mp3']),
+         ('/music/archives/album2.zip', ['track3.mp3', 'track4.mp3'])]
+    '''
     extracted: list[tuple[str, list[str]]] = []
     for input_path in common.collect_paths(source):
         name = os.path.basename(input_path)
@@ -479,9 +613,22 @@ def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list
     return extracted
 
 def extract_cli(args: Namespace) -> None:
+    '''CLI wrapper for the core extract function.'''
     extract(args.input, args.output, args.interactive)
 
 def compress_all_cli(args: Namespace) -> None:
+    '''CLI wrapper that compresses each subdirectory in the input path into separate zip archives.
+
+    Example:
+        Given structure:
+            /input/
+            ├── album1/
+            └── album2/
+
+        Creates:
+            /output/album1.zip
+            /output/album2.zip
+    '''
     for working_dir, directories, _ in os.walk(args.input):
         for directory in directories:
             compress_dir(os.path.join(working_dir, directory), os.path.join(args.output, directory))
@@ -532,7 +679,20 @@ def prune_non_user_dirs_cli(args: Namespace) -> None:
     prune_non_user_dirs(args.input, args.interactive)
     
 def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) -> list[str]:
-    '''Removes all files that don't have a valid music extension from the given directory.'''
+    '''Removes all files that don't have a valid music extension from the given directory.
+
+    Args:
+        source: Directory to scan (e.g., '/music/library')
+        valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
+        interactive: If True, prompts for confirmation before each removal
+
+    Returns:
+        List of paths that were removed
+
+    Example:
+        >>> prune_non_music('/music/mixed', {'.mp3', '.aiff'}, False)
+        ['/music/mixed/readme.txt', '/music/mixed/cover.jpg', '/music/mixed/.DS_Store']
+    '''
     pruned = []
     for input_path in common.collect_paths(source):
         _, extension = os.path.splitext(input_path)
@@ -563,6 +723,7 @@ def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) 
     return pruned
 
 def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
+    '''CLI wrapper for the core prune_non_music function.'''
     prune_non_music(args.input, valid_extensions, args.interactive)
 
 def process(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> ProcessResults:
@@ -690,14 +851,37 @@ def update_library(source: str,
                    valid_extensions: set[str],
                    prefix_hints: set[str],
                    full_scan: bool = True) -> None:
-    '''Performs the following, in sequence:
+    '''Processes music files into library and syncs to media server.
+
+    Performs the following sequence:
         1. Processes files from source dir -> temp dir
         2. Sweeps files from temp dir -> library
         3. Records the updated library to the XML collection
         4. Collects library -> client mirror file mappings according to the new files added to the XML collection
-        4. Adds file mappings according to metadata differences between library <-> client mirror
-        5. Syncs the new and changed files from library -> client mirror path -> media server
-        
+        5. Adds file mappings according to metadata differences between library <-> client mirror
+        6. Syncs the new and changed files from library -> client mirror path -> media server
+
+    Args:
+        source: Directory containing new music files to process (e.g., '/downloads/new_music')
+        library_path: Main library directory with date structure (e.g., '/music/library')
+        client_mirror_path: Local mirror of media server files (e.g., '/music/mirror')
+        interactive: If True, prompts for confirmation at various steps
+        valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
+        prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
+        full_scan: If True, triggers full media server scan after sync
+
+    Example:
+        >>> update_library(
+        ...     '/downloads/new_tracks',
+        ...     '/music/library',
+        ...     '/music/mirror',
+        ...     False,
+        ...     {'.mp3', '.aiff'},
+        ...     {'beatport_tracks'},
+        ...     full_scan=True
+        ... )
+
+    Note:
         The source, library, and client_mirror_path arguments should all be distinct directories.
     '''
     from . import sync
