@@ -741,55 +741,53 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     import asyncio
     from tempfile import TemporaryDirectory
 
-    # Track source files to correlate with final output (use filename without extension)
-    source_to_temp: dict[str, str] = {}
+    # track source files to correlate with final output (use filename without extension)
+    file_to_source_path: dict[str, str] = {}
 
-    # process all files in a temporary directory, then move the processed files to the designated output directory
+    # process all files in a temporary directory, then move the processed files to the output directory
     with TemporaryDirectory() as processing_dir:
-        # First sweep: source → temp (track for correlation)
+        # first sweep: source → processing
         initial_sweep = sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
-        for source_path, temp_path in initial_sweep:
+        # track for correlation
+        for source_path, _ in initial_sweep:
             filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
-            if filename_no_ext in source_to_temp:
-                logging.error(f'Duplicate filename detected: {filename_no_ext} from {source_path} and {source_to_temp[filename_no_ext]}')
-            source_to_temp[filename_no_ext] = source_path
+            if filename_no_ext in file_to_source_path:
+                logging.error(f"Duplicate filename detected: '{filename_no_ext}' from '{source_path}' and '{file_to_source_path[filename_no_ext]}'")
+            file_to_source_path[filename_no_ext] = source_path
 
-        # Track extracted archives and map extracted files to their archive origin
+        # track extracted archives and map extracted files to their archive origin
         extracted = extract(processing_dir, processing_dir, interactive)
-        archives_extracted = len(extracted)
         for archive_path, extracted_files in extracted:
-            # Get the original archive source path
-            archive_basename = os.path.basename(archive_path)
-            archive_name_no_ext = os.path.splitext(archive_basename)[0]
-            original_archive_source = source_to_temp.get(archive_name_no_ext, archive_path)
+            # get the original archive source path
+            archive_name_no_ext = os.path.splitext(os.path.basename(archive_path))[0]
+            original_archive_source = file_to_source_path.get(archive_name_no_ext, archive_path)
 
-            # Map each extracted file to archive_source/filename
+            # map each extracted file to archive_source/filename
             for extracted_file in extracted_files:
                 extracted_basename = os.path.basename(extracted_file)
                 extracted_name_no_ext = os.path.splitext(extracted_basename)[0]
-                # Build source path as: original_archive.zip/extracted_file.ext
-                archive_relative_source = f'{original_archive_source}/{extracted_basename}'
-                if extracted_name_no_ext in source_to_temp:
-                    logging.error(f'Duplicate filename detected: {extracted_name_no_ext} from {archive_relative_source} and {source_to_temp[extracted_name_no_ext]}')
-                source_to_temp[extracted_name_no_ext] = archive_relative_source
+                
+                # build source path as: original_archive.zip/extracted_file.ext
+                archive_relative_source = os.path.join(original_archive_source, extracted_basename)
+                if extracted_name_no_ext in file_to_source_path:
+                    logging.error(f"Duplicate filename detected: '{extracted_name_no_ext}' from '{archive_relative_source}' and '{file_to_source_path[extracted_name_no_ext]}'")
+                file_to_source_path[extracted_name_no_ext] = archive_relative_source
 
         flatten_hierarchy(processing_dir, processing_dir, interactive)
 
-        # Track encoded files count
+        # track encoded files and prune the processing directory
         encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
-        files_encoded = len(encoded)
-
         prune_non_music(processing_dir, valid_extensions, interactive)
         prune_non_user_dirs(processing_dir, interactive)
 
-        # Final sweep: temp → output
+        # final sweep: processing → output
         final_sweep = sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
 
-    # Map final output back to original source using filename without extension
+    # map final output back to original source using filename without extension
     processed_files: list[tuple[str, str]] = []
-    for temp_path, output_path in final_sweep:
+    for processing_path, output_path in final_sweep:
         filename_no_ext = os.path.splitext(os.path.basename(output_path))[0]
-        original_source = source_to_temp.get(filename_no_ext, temp_path)
+        original_source = file_to_source_path.get(filename_no_ext, processing_path)
         processed_files.append((original_source, output_path))
 
     # Find missing art
@@ -799,8 +797,8 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     return ProcessResults(
         processed_files=processed_files,
         missing_art_paths=missing,
-        archives_extracted=archives_extracted,
-        files_encoded=files_encoded
+        archives_extracted=len(extracted),
+        files_encoded=len(encoded)
     )
 
 def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
