@@ -200,3 +200,12 @@ def normalize_arg_paths(args: Namespace, paths: list[str]) -> None:
         value = getattr(args, attr, None)
         if value:
             setattr(args, attr, os.path.normpath(value))
+
+def log_dry_run(operation: str, target: str) -> None:
+    '''Logs skipped operation during dry-run mode.
+
+    Args:
+        operation: Description of the operation (e.g., 'move', 'remove', 'encode')
+        target: Target of the operation (e.g., file path, directory)
+    '''
+    logging.info(f'[DRY-RUN] Would {operation}: {target}')

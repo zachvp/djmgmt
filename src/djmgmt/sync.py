@@ -28,6 +28,20 @@ from . import constants
 from .library import TrackMetadata
 from .common import FileMapping
 
+# Data classes
+@dataclass
+class SyncBatchResult:
+    '''Results from syncing a single date context batch.'''
+    date_context: str
+    files_processed: int
+    success: bool
+
+@dataclass
+class SyncResult:
+    '''Complete results from sync operation.'''
+    mappings: list[FileMapping]
+    batches: list[SyncBatchResult]
+
 # Classes
 class Namespace(argparse.Namespace):
     '''Command-line arguments for sync module.'''
@@ -501,7 +515,10 @@ def sync_from_path(args: Namespace):
             os.makedirs(output_parent_path)
         action(input_path_full, output_path_full)
 
-def run_sync_mappings(mappings: list[FileMapping], full_scan: bool = True, sync_mode: str = Namespace.SYNC_MODE_REMOTE, end_date: str | None = None) -> None:
+def run_sync_mappings(mappings: list[FileMapping],
+                      full_scan: bool = True,
+                      sync_mode: str = Namespace.SYNC_MODE_REMOTE,
+                      end_date: str | None = None) -> None:
     # record initial run timestamp
     timestamp = time.time()
 

@@ -236,3 +236,14 @@ class TestCleanDirnameSimple(unittest.TestCase):
         '''Tests that both slashes and colons are replaced.'''
         actual = common.clean_dirname_simple('artist/name:with:chars')
         self.assertEqual(actual, 'artist&name-with-chars')
+
+class TestLogDryRun(unittest.TestCase):
+    def test_log_dry_run(self) -> None:
+        '''Test dry-run logging helper.'''
+        with self.assertLogs(level='INFO') as log_context:
+            common.log_dry_run('move', '/source/file.txt -> /dest/file.txt')
+
+        self.assertEqual(len(log_context.output), 1)
+        self.assertIn('[DRY-RUN]', log_context.output[0])
+        self.assertIn('Would move', log_context.output[0])
+        self.assertIn('/source/file.txt -> /dest/file.txt', log_context.output[0])

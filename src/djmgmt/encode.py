@@ -423,52 +423,78 @@ def encode_lossy_cli(args: Namespace) -> None:
     path_mappings = common.add_output_path(args.output, path_mappings, args.input)
     asyncio.run(encode_lossy(path_mappings, args.extension))
 
-async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4) -> None:
+async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4, dry_run: bool = False) -> list[FileMapping]:
     '''Encodes the given input, output mappings in lossy format with the given extension. Uses FFMPEG as backend.
-    Encoding operations are parallelized.'''
+    Encoding operations are parallelized.
+
+    Args:
+        path_mappings: List of (source, dest) file path tuples
+        extension: Target file extension (e.g., '.mp3')
+        threads: Number of parallel encoding tasks
+        dry_run: If True, skip encoding and return mappings without executing
+
+    Returns:
+        List of (source, dest) mappings showing what was or would be encoded
+    '''
+    from . import common
+
     tasks: list[Task[tuple[int, str]]] = []
-    
+    result_mappings: list[FileMapping] = []
+
     # loop through the input/output mappings
     for mapping in path_mappings:
         source, dest = mapping[0], mapping[1]
         dest = os.path.splitext(dest)[0] + extension
-        
+
+        # track the mapping for return value
+        result_mappings.append((source, dest))
+
+        if dry_run:
+            common.log_dry_run('encode', f'{source} -> {dest}')
+            continue
+
         # create the destination folders if needed
         dest_dir = os.path.dirname(dest)
         if not os.path.exists(dest_dir):
             logging.debug(f"create path: '{dest_dir}'")
             os.makedirs(dest_dir)
-        
+
         # determine if the source file has a cover image
         ffprobe_data = read_ffprobe_json(source)
         cover_stream = guess_cover_stream_specifier(ffprobe_data)
-        map_options = f"-map 0:0"
+        map_options = f'-map 0:0'
         if cover_stream > -1:
-            logging.debug(f"guessed cover image in stream: {cover_stream}")
-            map_options += f" -map 0:{cover_stream}"
+            logging.debug(f'guessed cover image in stream: {cover_stream}')
+            map_options += f' -map 0:{cover_stream}'
         else:
             logging.info(f"no cover image found for '{source}'")
-        
+
         # construct the command and add it to the task batch
         command = ffmpeg_lossy(source, dest, map_options=map_options)
         task = asyncio.create_task(run_command_async(command))
         tasks.append(task)
-        logging.debug(f"add task: {len(tasks)}")
-        
+        logging.debug(f'add task: {len(tasks)}')
+
         # run the full task batch
         if len(tasks) == threads:
             run_tasks = tasks.copy()
             await asyncio.gather(*run_tasks)
-            logging.debug(f"ran {len(run_tasks)} tasks")
+            logging.debug(f'ran {len(run_tasks)} tasks')
             tasks.clear()
-    
+
     # run any remaining tasks in the batch
     if tasks:
         run_tasks = tasks.copy()
         await asyncio.gather(*run_tasks)
-        logging.debug(f"ran {len(tasks)} tasks")
+        logging.debug(f'ran {len(tasks)} tasks')
         tasks.clear()
-    logging.info('finished lossy encoding')
+
+    if dry_run:
+        logging.info(f'[DRY-RUN] Would encode {len(result_mappings)} files')
+    else:
+        logging.info('finished lossy encoding')
+
+    return result_mappings
 
 async def run_missing_art_tasks(tasks: list[tuple[str, Task[tuple[int, str]]]]) -> list[str]:
     '''Outputs a list of system file paths that are missing artwork.'''

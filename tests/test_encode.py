@@ -376,20 +376,69 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         mock_guess_cover.return_value = -1
         
         # Call target function
-        SOURCE_FILE = f"{MOCK_INPUT}{os.sep}file_0.aiff"
-        mappings = [(SOURCE_FILE, f"{MOCK_OUTPUT}{os.sep}file_0.aiff")]
-        await encode.encode_lossy(mappings, '.mp3')
-        
+        SOURCE_FILE = f'{MOCK_INPUT}{os.sep}file_0.aiff'
+        DEST_FILE = f'{MOCK_OUTPUT}{os.sep}file_0.mp3'
+        mappings = [(SOURCE_FILE, f'{MOCK_OUTPUT}{os.sep}file_0.aiff')]
+        result = await encode.encode_lossy(mappings, '.mp3')
+
         # Assert expectations
         ## Path does not exist, so expect makedirs to be called
         mock_makedirs.assert_called_once_with(MOCK_OUTPUT)
-        
+
         ## Expect these calls once for the single mapping
         mock_read_ffprobe_json.assert_called_once_with(SOURCE_FILE)
         mock_guess_cover.assert_called_once_with(mock_read_ffprobe_json.return_value)
-        mock_ffmpeg_mp3.assert_called_once_with(SOURCE_FILE, f"{MOCK_OUTPUT}{os.sep}file_0.mp3", map_options=f"-map 0:0")
+        mock_ffmpeg_mp3.assert_called_once_with(SOURCE_FILE, DEST_FILE, map_options=f'-map 0:0')
         mock_run_command_async.assert_called_once()
-    
+
+        ## Should return list of mappings
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0], (SOURCE_FILE, DEST_FILE))
+
+    @patch('djmgmt.common.log_dry_run')
+    @patch('djmgmt.encode.run_command_async')
+    @patch('djmgmt.encode.ffmpeg_lossy')
+    @patch('djmgmt.encode.guess_cover_stream_specifier')
+    @patch('djmgmt.encode.read_ffprobe_json')
+    @patch('os.path.exists')
+    @patch('os.makedirs')
+    async def test_dry_run_skips_encoding(self,
+                                          mock_makedirs: MagicMock,
+                                          mock_path_exists: MagicMock,
+                                          mock_read_ffprobe_json: MagicMock,
+                                          mock_guess_cover: MagicMock,
+                                          mock_ffmpeg_mp3: MagicMock,
+                                          mock_run_command_async: AsyncMock,
+                                          mock_log_dry_run: MagicMock) -> None:
+        '''Test encode_lossy with dry_run skips ffmpeg execution and makedirs.'''
+        # Set up mocks
+        mock_path_exists.return_value = False
+        mock_guess_cover.return_value = -1
+
+        # Call target function with dry_run=True
+        SOURCE_FILE = f'{MOCK_INPUT}{os.sep}file_0.aiff'
+        DEST_FILE = f'{MOCK_OUTPUT}{os.sep}file_0.mp3'
+        mappings = [(SOURCE_FILE, f'{MOCK_OUTPUT}{os.sep}file_0.aiff')]
+        result = await encode.encode_lossy(mappings, '.mp3', dry_run=True)
+
+        # Assert expectations
+        ## Should NOT create directories
+        mock_makedirs.assert_not_called()
+
+        ## Should NOT run ffmpeg
+        mock_run_command_async.assert_not_called()
+
+        ## Should log dry-run operation
+        mock_log_dry_run.assert_called_once()
+        self.assertIn('encode', mock_log_dry_run.call_args[0][0])
+
+        ## Should return list of mappings
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result[0][0], SOURCE_FILE)
+        self.assertEqual(result[0][1], DEST_FILE)
+
     @patch('djmgmt.encode.encode_lossy')
     @patch('djmgmt.common.add_output_path')
     @patch('djmgmt.common.collect_paths')

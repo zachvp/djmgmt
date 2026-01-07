@@ -31,6 +31,7 @@ from . import encode
 from . import library
 from .tags import Tags
 from .common import FileMapping
+from .sync import SyncResult
 
 # constants
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
@@ -43,6 +44,21 @@ class ProcessResults:
     missing_art_paths: list[str]
     archives_extracted: int
     files_encoded: int
+
+@dataclass
+class RecordResult:
+    '''Results from recording tracks to XML collection.'''
+    collection_root: ET.Element
+    tracks_added: int
+    tracks_updated: int
+
+@dataclass
+class UpdateLibraryResult:
+    '''Complete results from library update operation.'''
+    process_results: ProcessResults
+    record_results: RecordResult
+    sync_results: SyncResult
+    changed_mappings: list[FileMapping]
 
 class Namespace(argparse.Namespace):
     '''Command-line arguments for music module.'''
