@@ -246,48 +246,48 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(actual, [
             (f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff")
         ])
-        
-    @patch('os.path.getsize')
-    @patch('builtins.open')
+
+    @patch('djmgmt.common.log_dry_run')
+    @patch('djmgmt.encode.run_command_async')
     @patch('djmgmt.encode.ffmpeg_lossless')
     @patch('djmgmt.encode.check_skip_bit_depth')
     @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    async def test_success_optional_interactive(self,
-                                                mock_setup_storage: MagicMock,
-                                                mock_input: MagicMock,
-                                                mock_walk: MagicMock,
-                                                mock_skip_sample_rate: MagicMock,
-                                                mock_skip_bit_depth: MagicMock,
-                                                mock_ffmepg_losless: MagicMock,
-                                                mock_open: MagicMock,
-                                                mock_get_size: MagicMock) -> None:
-        '''Tests that passing the optional interactive argument suceeds.'''
+    @patch('djmgmt.common.collect_paths')
+    @patch('builtins.open')
+    async def test_dry_run_skips_encoding(self,
+                                          mock_open: MagicMock,
+                                          mock_collect_paths: MagicMock,
+                                          mock_skip_sample_rate: MagicMock,
+                                          mock_skip_bit_depth: MagicMock,
+                                          mock_ffmpeg_lossless: MagicMock,
+                                          mock_run_command_async: AsyncMock,
+                                          mock_log_dry_run: MagicMock) -> None:
+        '''Test encode_lossless with dry_run skips ffmpeg execution and file writes.'''
         # Setup mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.aif', 'file_1.wav'])]
+        mock_paths = [f'{MOCK_INPUT}/file_0.aif', f'{MOCK_INPUT}/file_1.wav']
+        mock_collect_paths.return_value = mock_paths
         mock_skip_bit_depth.return_value = False
         mock_skip_sample_rate.return_value = False
-        mock_input.return_value = 'y' # Mock user confirmation
-        
-        # Call target function, encoding to AIFF
-        actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff', interactive=True)
-        
-        # Ensure the argument does not disrupt other expected/unexpected calls
-        mock_setup_storage.assert_not_called
+
+        # Call target function with dry_run=True
+        result = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff', dry_run=True)
+
+        # Assert expectations
+        ## Should NOT run ffmpeg
+        mock_run_command_async.assert_not_called()
+
+        ## Should NOT write storage files
         mock_open.assert_not_called()
-        mock_ffmepg_losless.assert_called()
-        mock_get_size.assert_called()
-        
-        # Ensure that input was requested for each input file
-        self.assertEqual(mock_input.call_count, 2)
-        
-        # Assert the expected function output result
-        self.assertEqual(actual, [
-            (f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff"),
-            (f"{MOCK_INPUT}/file_1.wav", f"{MOCK_OUTPUT}/file_1.aiff"),
-        ])
+
+        ## Should log dry-run operations
+        self.assertGreater(mock_log_dry_run.call_count, 0)
+
+        ## Should return expected mappings
+        expected = [
+            (mock_paths[0], f'{MOCK_OUTPUT}/file_0.aiff'),
+            (mock_paths[1], f'{MOCK_OUTPUT}/file_1.aiff')
+        ]
+        self.assertListEqual(result, expected)
     
     @patch('os.path.getsize')
     @patch('builtins.open')
@@ -338,20 +338,20 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         '''Tests that the CLI wrapper function calls the expected core function with appropriate arguments.'''
         # Call target function
         args = Namespace(input='/mock/input',
-                                output='/mock/output',
-                                extension='mock_ext',
-                                store_path='/mock/store/path',
-                                store_skipped=True,
-                                interactive=False)
+                         output='/mock/output',
+                         extension='mock_ext',
+                         store_path='/mock/store/path',
+                         store_skipped=True,
+                         dry_run=True)
         encode.encode_lossless_cli(args)
         
         # Assert that the existing arguments are passed properly
         expected_args = (args.input, args.output)
         expected_kwargs = {
-            'extension'     : args.extension,
-            'store_path_dir'    : args.store_path,
-            'store_skipped' : args.store_skipped,
-            'interactive'   : args.interactive
+            'extension'      : args.extension,
+            'store_path_dir' : args.store_path,
+            'store_skipped'  : args.store_skipped,
+            'dry_run'        : args.dry_run
         }
         
         self.assertTupleEqual(mock_encode.call_args.args, expected_args)
@@ -448,13 +448,13 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
                          mock_encode_lossy: MagicMock) -> None:
         
         # Call target function
-        args = Namespace(input=MOCK_INPUT, output=MOCK_OUTPUT, extension='.mp3')
+        args = Namespace(input=MOCK_INPUT, output=MOCK_OUTPUT, extension='.mp3', dry_run=True)
         encode.encode_lossy_cli(args)
         
         # Assert expectations
         mock_collect_paths.assert_called_once_with(args.input)
         mock_add_output_path.assert_called_once_with(args.output, mock_collect_paths.return_value, args.input)
-        mock_encode_lossy.assert_called_once_with(mock_add_output_path.return_value, args.extension)
+        mock_encode_lossy.assert_called_once_with(mock_add_output_path.return_value, args.extension, dry_run=args.dry_run)
 
 class TestMissingArtCLI(unittest.TestCase):
     @patch('djmgmt.common.write_paths')

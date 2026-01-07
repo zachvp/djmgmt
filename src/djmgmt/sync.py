@@ -231,16 +231,24 @@ def key_date_context(mapping: FileMapping) -> str:
     date_context = common.find_date_context(mapping[1])
     return date_context[0] if date_context else ''
     
-def transfer_files(source_path: str, dest_address: str, rsync_module: str) -> tuple[int, str]:
+def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_run: bool = False) -> tuple[int, str]:
     '''Uses rsync to transfer files using remote daemon.
-    example command: "rsync '/Users/user/developer/test-private/data/tracks-output/./2025/03 march/14' 
-                        rsync://user@pi.local:12000/navidrome --progress -auvzitR --exclude '.*'"
+
+    Args:
+        source_path: Path to source directory
+        dest_address: Destination rsync address
+        rsync_module: Rsync module name
+        dry_run: If True, add --dry-run flag to rsync command
+
+    Example command:
+        rsync '/Users/user/developer/test-private/data/tracks-output/./2025/03 march/14'
+              rsync://user@pi.local:12000/navidrome --progress -auvzitR --exclude '.*'
     '''
     import subprocess
     import shlex
-    
+
     logging.info(f"transfer from '{source_path}' to '{dest_address}'")
-    
+
     # Options
     #   -a: archive mode
     #   -v: increase verbosity
@@ -249,8 +257,11 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str) -> tu
     #   -t: preserve modification times
     #   -R: use relative path names
     #   --progess: show progress during transfer
-    options = " -avzitR --progress --exclude '.*'"
-    command = shlex.split(f"rsync {shlex.quote(source_path)} {dest_address}/{rsync_module} {options}")
+    #   --dry-run: perform a trial run with no changes made
+    options = ' -avzitR --progress --exclude \'.*\''
+    if dry_run:
+        options += ' --dry-run'
+    command = shlex.split(f'rsync {shlex.quote(source_path)} {dest_address}/{rsync_module} {options}')
     try:
         logging.debug(f'run command: "{shlex.join(command)}"')
         timestamp = time.time()
@@ -263,10 +274,19 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str) -> tu
         return (error.returncode, error.stderr)
 
 # TODO: add error handling for encoding
-def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str) -> bool:
+def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str, dry_run: bool = False) -> SyncBatchResult | bool:
     '''Transfers all files in the batch to the given destination, then tells the music server to perform a scan.
 
-    Returns True if the batch sync was successful, False otherwise.
+    Args:
+        batch: List of file mappings to sync
+        date_context: Date context string (e.g., '2023/01 january/01')
+        source: Source directory path
+        full_scan: Whether to perform full scan on server
+        sync_mode: Sync mode (local or remote)
+        dry_run: If True, skip API calls and return SyncBatchResult
+
+    Returns:
+        SyncBatchResult if dry_run=True, bool otherwise (for backward compatibility)
     '''
     import asyncio
     from . import subsonic_client, encode
@@ -276,12 +296,14 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
 
     # encode the current batch to MP3 format
     logging.info(f"encoding batch in date context {date_context}:\n{batch}")
-    asyncio.run(encode.encode_lossy(batch, '.mp3', threads=28))
+    asyncio.run(encode.encode_lossy(batch, '.mp3', threads=28, dry_run=dry_run))
     logging.info(f"finished encoding batch in date context {date_context}")
 
     # skip remote transfer if in local mode
     if sync_mode == Namespace.SYNC_MODE_LOCAL:
         logging.info('local sync mode: skipping remote transfer and scan')
+        if dry_run:
+            return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=True)
         return success
 
     # transfer batch to the media server (remote mode only)
@@ -289,11 +311,16 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
     success = bool(transfer_path)
     if transfer_path:
         logging.info(f"transferring files from {source}")
-        returncode, _ = transfer_files(transfer_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME)
+        returncode, _ = transfer_files(transfer_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=dry_run)
         success = returncode == 0
 
         # check if file transfer succeeded
         if success:
+            # skip API calls in dry-run mode
+            if dry_run:
+                logging.info('[DRY-RUN] Would initiate remote scan')
+                return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=True)
+
             logging.info('file transfer succeeded, initiating remote scan')
             # tell the media server new files are available
             scan_param = 'false'
@@ -316,6 +343,9 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
                     logging.debug("remote scan in progress, waiting...")
                     sleep_time = 5 if full_scan else 1
                     time.sleep(sleep_time)
+
+    if dry_run:
+        return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=success)
     return success
 
 def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str) -> None:

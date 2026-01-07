@@ -25,6 +25,7 @@ class Namespace(argparse.Namespace):
     function: str
 
     # Optional (alphabetical)
+    dry_run: bool
     extension: str
     input: str
     interactive: bool
@@ -61,12 +62,12 @@ def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
                        help=f"Function to run. One of: {', '.join(sorted(functions))}")
 
     # optional: all function parameters (alphabetical)
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Run script in dry run mode')
     parser.add_argument('--extension', '-e', type=str,
                        help='Output file extension (e.g., .aiff, .mp3)')
     parser.add_argument('--input', '-i', type=str,
                        help='Input directory or file path')
-    parser.add_argument('--interactive', action='store_true',
-                       help='Run script in interactive mode')
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory or file path')
     parser.add_argument('--scan-mode', type=str,
@@ -289,7 +290,7 @@ def encode_lossless_cli(args: Namespace) -> list[FileMapping]:
                                        extension=args.extension,
                                        store_path_dir=args.store_path,
                                        store_skipped=args.store_skipped,
-                                       interactive=args.interactive))
+                                       dry_run=args.dry_run))
 
 # TODO: add support for FLAC
 async def encode_lossless(input_dir: str,
@@ -297,7 +298,7 @@ async def encode_lossless(input_dir: str,
                           extension: str = '',
                           store_path_dir: str | None = None,
                           store_skipped: bool = False,
-                          interactive: bool = False,
+                          dry_run: bool = False,
                           threads: int = 16,
                           encode_always: bool = False) -> list[FileMapping]:
     '''Primary script function. Recursively walks the input path specified in `input_dir` to re-encode each eligible file.
@@ -312,25 +313,23 @@ async def encode_lossless(input_dir: str,
     '''
     async def run_batch():
         nonlocal size_diff_sum
-        
+
         run_tasks = [t[2] for t in tasks]
         await asyncio.gather(*run_tasks)
         for src_path, dest_path, _ in tasks:
-            processed_files.append((src_path, dest_path))
-            
             # compute (input - output) size difference after encoding
             size_diff = os.path.getsize(src_path)/10**6 - os.path.getsize(dest_path)/10**6
             size_diff_sum += size_diff
             size_diff = round(size_diff, 2)
-            logging.info(f"file size diff: {size_diff} MB")
-            
+            logging.info(f'file size diff: {size_diff} MB')
+
             if store_path_dir and store_path_size_diff:
                 with open(store_path_size_diff, 'a', encoding='utf-8') as store_file:
-                    store_file.write(f"{src_path}\t{dest_path}\t{size_diff}\n")
-        logging.debug(f"ran {len(run_tasks)} tasks")
+                    store_file.write(f'{src_path}\t{dest_path}\t{size_diff}\n')
+        logging.debug(f'ran {len(run_tasks)} tasks')
         tasks.clear()
         # separate entries
-        logging.info("= = = =")
+        logging.info('= = = =')
     
     # validate extension
     if extension:
@@ -344,31 +343,23 @@ async def encode_lossless(input_dir: str,
     size_diff_sum = 0.0
     tasks: list[tuple[str, str, Task[tuple[int, str]]]] = []
 
-    # set up storage
+    # set up storage (skip in dry-run mode)
     store_path_size_diff = None
     store_path_skipped = None
     skipped_files: list[str] | None = None
-    if store_path_dir:
+    if store_path_dir and not dry_run:
         store_path_size_diff = setup_storage(store_path_dir, 'size-diff.tsv')
         if store_skipped:
             store_path_skipped = setup_storage(store_path_dir, 'skipped.tsv')
             skipped_files = []
 
-        # interactive: confirm storage with user
-        if interactive:
-            choice = input("storage set up, does everything look okay? [y/N]")
-            if choice != 'y':
-                logging.info("user quit")
-                return processed_files
-
     # main processing loop
-    # for working_dir, dirnames, filenames in os.walk(input_dir):
     extensions = {'.aif', '.aiff', '.wav'}
     for input_path in common.collect_paths(input_dir, filter=extensions):
         name = os.path.basename(input_path)
         filename, input_extension = os.path.splitext(name)
         output_extension = extension
-        
+
         # skip files that meet encoding requirements
         if not encode_always:
             if not name.endswith('.wav') and\
@@ -386,18 +377,18 @@ async def encode_lossless(input_dir: str,
         # build the output path with the resolved extension
         output_path = os.path.join(output_dir, f"{filename}{output_extension}")
 
-        # interactive: confirm encoding action with user
-        if interactive:
-            choice = input(f"re-encode '{input_path}'? [y/N]")
-            if choice != 'y':
-                logging.info('exit, user quit')
-                break
+        # add to processed files list
+        processed_files.append((input_path, output_path))
+
+        if dry_run:
+            common.log_dry_run('encode', f'{input_path} -> {output_path}')
+            continue
 
         # create the ffmpeg encode command and task
         command = ffmpeg_lossless(input_path, output_path)
         task = asyncio.create_task(run_command_async(command))
         tasks.append((input_path, output_path, task))
-        
+
         # run task batch
         if len(tasks) == threads:
             await run_batch()
@@ -417,11 +408,11 @@ async def encode_lossless(input_dir: str,
     
     return processed_files
 
-def encode_lossy_cli(args: Namespace) -> None:
+def encode_lossy_cli(args: Namespace) -> list[FileMapping]:
     '''Parse each path mapping entry into an encoding operation.'''
     path_mappings = common.collect_paths(args.input)
     path_mappings = common.add_output_path(args.output, path_mappings, args.input)
-    asyncio.run(encode_lossy(path_mappings, args.extension))
+    return asyncio.run(encode_lossy(path_mappings, args.extension, dry_run=args.dry_run))
 
 async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4, dry_run: bool = False) -> list[FileMapping]:
     '''Encodes the given input, output mappings in lossy format with the given extension. Uses FFMPEG as backend.
@@ -591,10 +582,22 @@ def missing_art_cli(args: Namespace) -> None:
 if __name__ == '__main__':
     common.configure_log(level=logging.DEBUG, path=__file__)
     script_args = parse_args(Namespace.FUNCTIONS)
-    
+
     if script_args.function == Namespace.FUNCTION_LOSSLESS:
-        encode_lossless_cli(script_args)
+        result = encode_lossless_cli(script_args)
+        if script_args.dry_run:
+            print(f'\n[DRY-RUN] Would encode {len(result)} files:')
+            for source, dest in result:
+                print(f'  {source} -> {dest}')
+        else:
+            print(f'\nEncoded {len(result)} files')
     elif script_args.function == Namespace.FUNCTION_LOSSY:
-        encode_lossy_cli(script_args)
+        result = encode_lossy_cli(script_args)
+        if script_args.dry_run:
+            print(f'\n[DRY-RUN] Would encode {len(result)} files:')
+            for source, dest in result:
+                print(f'  {source} -> {dest}')
+        else:
+            print(f'\nEncoded {len(result)} files')
     elif script_args.function == Namespace.FUNCTION_MISSING_ART:
         missing_art_cli(script_args)

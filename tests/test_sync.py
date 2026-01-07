@@ -109,9 +109,9 @@ class TestSyncBatch(unittest.TestCase):
 
         # Assert that the expected functions are called with expected parameters.
         self.assertEqual(actual, True, 'Expect call to succeed')
-        mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
-        mock_transfer.assert_called_once_with(mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME)
+        mock_transfer.assert_called_once_with(mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=False)
 
         # Expect call to start scan, then re-ping when scanning, then stop pinging.
         mock_call_endpoint.assert_has_calls([
@@ -155,7 +155,7 @@ class TestSyncBatch(unittest.TestCase):
 
         # Assertions
         self.assertEqual(actual, True, 'Expect call to succeed')
-        mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
         mock_transfer.assert_called_once()
         mock_call_endpoint.assert_called()
@@ -178,17 +178,58 @@ class TestSyncBatch(unittest.TestCase):
         date_context = '2023/01 january/01'
         dest = '/dest/path1.aiff'
         full_scan = True
-        
+
         # Configure mock to return None (no valid transfer path)
         mock_transform.return_value = None
-        
+
         # Call the function
         actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
 
         # Assertions
         self.assertEqual(actual, False, 'Expect call to fail')
-        mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
+
+    @patch('djmgmt.encode.encode_lossy')
+    @patch('djmgmt.sync.transform_implied_path')
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.subsonic_client.call_endpoint')
+    @patch('djmgmt.subsonic_client.handle_response')
+    def test_dry_run_skips_api_calls(self,
+                                     mock_handle_response: MagicMock,
+                                     mock_call_endpoint: MagicMock,
+                                     mock_transfer: MagicMock,
+                                     mock_transform: MagicMock,
+                                     mock_encode: MagicMock) -> None:
+        '''Tests that dry-run mode skips Subsonic API calls.'''
+        # Setup
+        batch = [('/source/path1.aiff', '/dest/2023/01 january/01/path1.aiff')]
+        date_context = '2023/01 january/01'
+        dest = '/dest/2023/01 january/01/path1.aiff'
+        full_scan = True
+
+        # Configure mocks
+        mock_transform.return_value = '/dest/./2023/01 january/01/'
+        mock_transfer.return_value = (0, 'dry run output')
+
+        # Call the function with dry_run=True
+        result = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+
+        # Assertions
+        self.assertIsInstance(result, sync.SyncBatchResult)
+        self.assertEqual(result.date_context, date_context)
+        self.assertEqual(result.files_processed, len(batch))
+        self.assertTrue(result.success)
+
+        # Verify encode was called with dry_run=True
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=True)
+
+        # Verify transfer was called with dry_run=True
+        mock_transfer.assert_called_once_with(mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=True)
+
+        # Verify API calls were NOT made
+        mock_call_endpoint.assert_not_called()
+        mock_handle_response.assert_not_called()
         
     @patch('djmgmt.encode.encode_lossy')
     @patch('djmgmt.sync.transform_implied_path')
@@ -258,7 +299,7 @@ class TestSyncBatch(unittest.TestCase):
 
         # Assertions
         self.assertEqual(actual, True, 'Expect call to succeed')
-        mock_encode.assert_called_once_with(batch, '.mp3', threads=28)
+        mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
 
         # Verify that remote operations are NOT called in local mode
         mock_transform.assert_not_called()
@@ -318,7 +359,45 @@ class TestTransferFiles(unittest.TestCase):
         self.assertEqual(return_code, 1)
         self.assertEqual(output, 'Error')
         mock_log_error.assert_called_once()
-    
+
+    @patch('subprocess.run')
+    def test_dry_run_adds_flag(self, mock_subprocess_run: MagicMock) -> None:
+        '''Test transfer_files adds --dry-run flag to rsync command.'''
+        # Setup
+        source_path = '/source/2023/01 january/01/'
+        dest_address = 'rsync://example.com'
+        rsync_module = 'music'
+        process_mock = MagicMock(returncode=0, stdout='would transfer files')
+        mock_subprocess_run.return_value = process_mock
+
+        # Call with dry_run=True
+        return_code, output = sync.transfer_files(source_path, dest_address, rsync_module, dry_run=True)
+
+        # Assert rsync command includes --dry-run
+        mock_subprocess_run.assert_called_once()
+        command = mock_subprocess_run.call_args[0][0]
+        self.assertIn('--dry-run', command)
+        self.assertEqual(return_code, 0)
+
+    @patch('subprocess.run')
+    def test_normal_no_dry_run_flag(self, mock_subprocess_run: MagicMock) -> None:
+        '''Test transfer_files excludes --dry-run flag in normal mode.'''
+        # Setup
+        source_path = '/source/2023/01 january/01/'
+        dest_address = 'rsync://example.com'
+        rsync_module = 'music'
+        process_mock = MagicMock(returncode=0, stdout='transferred files')
+        mock_subprocess_run.return_value = process_mock
+
+        # Call with dry_run=False (default)
+        return_code, output = sync.transfer_files(source_path, dest_address, rsync_module, dry_run=False)
+
+        # Assert rsync command does NOT include --dry-run
+        mock_subprocess_run.assert_called_once()
+        command = mock_subprocess_run.call_args[0][0]
+        self.assertNotIn('--dry-run', command)
+        self.assertEqual(return_code, 0)
+
 class TestSyncMappings(unittest.TestCase):
     @patch('djmgmt.sync.sync_batch')
     @patch('djmgmt.sync.SavedDateContext.save')
