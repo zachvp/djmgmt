@@ -274,7 +274,7 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_r
         return (error.returncode, error.stderr)
 
 # TODO: add error handling for encoding
-def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str, dry_run: bool = False) -> SyncBatchResult | bool:
+def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str, dry_run: bool = False) -> SyncBatchResult:
     '''Transfers all files in the batch to the given destination, then tells the music server to perform a scan.
 
     Args:
@@ -283,10 +283,10 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
         source: Source directory path
         full_scan: Whether to perform full scan on server
         sync_mode: Sync mode (local or remote)
-        dry_run: If True, skip API calls and return SyncBatchResult
+        dry_run: If True, skip API calls
 
     Returns:
-        SyncBatchResult if dry_run=True, bool otherwise (for backward compatibility)
+        SyncBatchResult with date_context, files_processed count, and success status
     '''
     import asyncio
     from . import subsonic_client, encode
@@ -302,9 +302,7 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
     # skip remote transfer if in local mode
     if sync_mode == Namespace.SYNC_MODE_LOCAL:
         logging.info('local sync mode: skipping remote transfer and scan')
-        if dry_run:
-            return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=True)
-        return success
+        return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=True)
 
     # transfer batch to the media server (remote mode only)
     transfer_path = transform_implied_path(source)
@@ -344,16 +342,26 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
                     sleep_time = 5 if full_scan else 1
                     time.sleep(sleep_time)
 
-    if dry_run:
-        return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=success)
-    return success
+    return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=success)
 
-def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str) -> None:
+def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, dry_run: bool = False) -> list[SyncBatchResult]:
+    '''Syncs file mappings by batching them by date context.
+
+    Args:
+        mappings: List of file mappings to sync
+        full_scan: Whether to perform full scan on server
+        sync_mode: Sync mode (local or remote)
+        dry_run: If True, skip state file writes
+
+    Returns:
+        list[SyncBatchResult] containing results from each batch
+    '''
     # core data
     batch: list[FileMapping] = []
     dest_previous = mappings[0][1]
     date_context, dest = '', ''
     index = 0
+    batch_results: list[SyncBatchResult] = []
 
     # helper
     progressFormat: Callable[[int], str] = lambda i: f"{(i / len(mappings) * 100):.2f}%"
@@ -387,14 +395,16 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str) -
             logging.debug(f"add to batch: {mapping}")
         elif batch:
             logging.info(f"processing batch in date context '{date_context_previous}'")
-            if not sync_batch(batch, date_context_previous, os.path.dirname(dest_previous), full_scan, sync_mode):
+            result = sync_batch(batch, date_context_previous, os.path.dirname(dest_previous), full_scan, sync_mode, dry_run=dry_run)
+            batch_results.append(result)
+            if not result.success:
                 raise RuntimeError(f"Batch sync failed for date context '{date_context_previous}'")
             batch.clear()
             batch.append(mapping) # add the first mapping of the new context
             logging.debug(f"add new context mapping: {mapping}")
 
-            # persist the latest processed context
-            if not SavedDateContext.is_processed(date_context_previous):
+            # persist the latest processed context (skip in dry-run mode)
+            if not dry_run and not SavedDateContext.is_processed(date_context_previous):
                 SavedDateContext.save(date_context_previous)
             logging.info(f"processed batch in date context '{date_context_previous}'")
             logging.info(f"sync progress: {progressFormat(index + 1)}")
@@ -409,14 +419,18 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str) -
         if isinstance(date_context, tuple):
             date_context = date_context[0]
         logging.info(f"processing batch in date context '{date_context}'")
-        if not sync_batch(batch, date_context, os.path.dirname(dest), full_scan, sync_mode):
+        result = sync_batch(batch, date_context, os.path.dirname(dest), full_scan, sync_mode, dry_run=dry_run)
+        batch_results.append(result)
+        if not result.success:
             raise RuntimeError(f"Batch sync failed for date context '{date_context}'")
 
-        # persist the latest processed context
-        if not SavedDateContext.is_processed(date_context):
+        # persist the latest processed context (skip in dry-run mode)
+        if not dry_run and not SavedDateContext.is_processed(date_context):
             SavedDateContext.save(date_context)
         logging.info(f"processed batch in date context '{date_context}'")
         logging.info(f"sync progress: {progressFormat(index + 1)}")
+
+    return batch_results
 
 def rsync_healthcheck() -> bool:
         import subprocess

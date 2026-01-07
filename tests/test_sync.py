@@ -108,7 +108,8 @@ class TestSyncBatch(unittest.TestCase):
         actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
 
         # Assert that the expected functions are called with expected parameters.
-        self.assertEqual(actual, True, 'Expect call to succeed')
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertTrue(actual.success, 'Expect call to succeed')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
         mock_transfer.assert_called_once_with(mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=False)
@@ -154,7 +155,8 @@ class TestSyncBatch(unittest.TestCase):
         actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
 
         # Assertions
-        self.assertEqual(actual, True, 'Expect call to succeed')
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertTrue(actual.success, 'Expect call to succeed')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
         mock_transfer.assert_called_once()
@@ -186,7 +188,8 @@ class TestSyncBatch(unittest.TestCase):
         actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE)
 
         # Assertions
-        self.assertEqual(actual, False, 'Expect call to fail')
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertFalse(actual.success, 'Expect call to fail')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         mock_transform.assert_called_once_with(dest)
 
@@ -261,7 +264,8 @@ class TestSyncBatch(unittest.TestCase):
         # Call the function, expecting no exception
         try:
             actual = sync.sync_batch(batch, date_context, dest, False, sync.Namespace.SYNC_MODE_REMOTE)
-            self.assertEqual(actual, False, 'Expect call to fail')
+            self.assertIsInstance(actual, sync.SyncBatchResult)
+            self.assertFalse(actual.success, 'Expect call to fail')
         except:
             self.fail('No exception expected')
         
@@ -298,7 +302,8 @@ class TestSyncBatch(unittest.TestCase):
         actual = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_LOCAL)
 
         # Assertions
-        self.assertEqual(actual, True, 'Expect call to succeed')
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertTrue(actual.success, 'Expect call to succeed')
         mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
 
         # Verify that remote operations are NOT called in local mode
@@ -409,22 +414,27 @@ class TestSyncMappings(unittest.TestCase):
         '''Tests that a single batch with mappings in the same date context is synced properly.'''
         # Set up mocks
         mock_load.return_value = ''
-        
+        mock_sync_batch.return_value = sync.SyncBatchResult('2025/05 may/20', 2, True)
+
         # Set up call input
         mappings = [
             ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
             ('input/path/track_1.mp3', '/output/2025/05 may/20/artist/album/track_1.mp3'),
         ]
-        
+
         # Target function
-        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
-        
+        result = sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+
         # Assert expectations
         ## Expect that a single batch is synced with the given mappings
         mock_sync_batch.assert_called_once()
-        
+
         ## Expect file to be written with the date context
         mock_save.assert_called_once()
+
+        ## Expect result to be list of SyncBatchResult
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 1)
         
     @patch('djmgmt.sync.sync_batch')
     @patch('djmgmt.sync.SavedDateContext.save')
@@ -556,8 +566,50 @@ class TestSyncMappings(unittest.TestCase):
         # Assert expectations
         ## Expect that a single batch is synced with the given mappings
         self.assertEqual(mock_sync_batch.call_count, 2)
-        
+
         ## Expect no save call
+        mock_save.assert_not_called()
+
+    @patch('djmgmt.sync.sync_batch')
+    @patch('djmgmt.sync.SavedDateContext.save')
+    @patch('djmgmt.sync.SavedDateContext.load')
+    def test_dry_run_skips_state_save(self,
+                                      mock_load: MagicMock,
+                                      mock_save: MagicMock,
+                                      mock_sync_batch: MagicMock) -> None:
+        '''Tests that dry-run mode skips state file saves and returns SyncBatchResult list.'''
+        # Set up mocks
+        mock_load.return_value = ''
+        batch_result_1 = sync.SyncBatchResult('2025/05 may/20', 2, True)
+        batch_result_2 = sync.SyncBatchResult('2025/05 may/21', 2, True)
+        mock_sync_batch.side_effect = [batch_result_1, batch_result_2]
+
+        # Set up call input
+        mappings = [
+            # Date context 0: 2025/05 may/20
+            ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
+            ('input/path/track_1.mp3', '/output/2025/05 may/20/artist/album/track_1.mp3'),
+
+            # Date context 1: 2025/05 may/21
+            ('input/path/track_2.mp3', '/output/2025/05 may/21/artist/album/track_2.mp3'),
+            ('input/path/track_3.mp3', '/output/2025/05 may/21/artist/album/track_3.mp3'),
+        ]
+
+        # Target function with dry_run=True
+        result = sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+
+        # Assert expectations
+        # Should return list of SyncBatchResult
+        self.assertIsInstance(result, list)
+        self.assertEqual(len(result), 2)
+        self.assertListEqual(result, [batch_result_1, batch_result_2])
+
+        # Expect sync_batch called twice with dry_run=True
+        self.assertEqual(mock_sync_batch.call_count, 2)
+        for call in mock_sync_batch.call_args_list:
+            self.assertTrue(call.kwargs.get('dry_run', False))
+
+        # Expect NO state file saves in dry-run mode
         mock_save.assert_not_called()
 
 class TestRunSyncMappings(unittest.TestCase):
