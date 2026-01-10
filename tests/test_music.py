@@ -122,6 +122,43 @@ class TestStandardizeLossless(unittest.TestCase):
         
         ## Check output
         self.assertEqual(actual, mock_encode.return_value)
+        
+    @patch('djmgmt.music.sweep')
+    @patch('os.remove')
+    @patch('djmgmt.encode.encode_lossless')
+    @patch('tempfile.TemporaryDirectory')
+    def test_success_dry_run(self,
+                             mock_temp_dir: MagicMock,
+                             mock_encode: MagicMock,
+                             mock_remove: MagicMock,
+                             mock_sweep: MagicMock) -> None:
+        '''Tests that helper functions are called with dry run, and no files are removed.'''
+        # Set up mocks
+        mock_temp_path = 'mock_temp_path'
+        mock_input_file = 'mock_input_file'
+        mock_temp_dir.return_value.__enter__.return_value = mock_temp_path
+        mock_encode.return_value = [(mock_input_file, 'mock_output_file')]
+        
+        # Call target function
+        mock_extensions = {'a'}
+        mock_hints = {'b'}
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.standardize_lossless(MOCK_INPUT_DIR, mock_extensions, mock_hints, dry_run=True)
+        
+        # Assert expectations
+        ## Check calls
+        mock_temp_dir.assert_called_once()
+        mock_encode.assert_called_once_with(MOCK_INPUT_DIR, mock_temp_path, '.aiff', dry_run=True)
+        mock_remove.assert_not_called()
+        mock_sweep.assert_called_once_with(mock_temp_path, MOCK_INPUT_DIR, mock_extensions, mock_hints, dry_run=True)
+        
+        ## Check output
+        self.assertEqual(actual, mock_encode.return_value)
+        
+        # Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 1)
+        self.assertIn('remove', dry_run_logs[0])
 
 class TestRecordCollection(unittest.TestCase):
     '''Tests for music.record_collection.'''
@@ -1192,7 +1229,7 @@ class TestFlattenHierarchy(unittest.TestCase):
                              mock_collect_paths: MagicMock,
                              mock_path_exists: MagicMock,
                              mock_move: MagicMock) -> None:
-        '''Tests that all loose files at the input root are flattened to output.'''
+        '''Tests that no files are moved, but the dry run results are still returned.'''
         # Set up mocks
         mock_filenames = [
             f"file_{i}.foo"

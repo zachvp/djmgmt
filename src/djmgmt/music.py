@@ -307,7 +307,10 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
         
         # remove all of the original non-standard files that have been encoded.
         for input_path, _ in result:
-            os.remove(input_path)
+            if dry_run:
+                common.log_dry_run('remove', f"{input_path}")
+            else:
+                os.remove(input_path)
         # sweep all the encoded files from the temporary directory to the original source directory
         sweep(temp_dir, source, valid_extensions, prefix_hints, dry_run=dry_run)
         return result
