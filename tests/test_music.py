@@ -1121,13 +1121,11 @@ class TestSweep(unittest.TestCase):
 
 class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
-    @patch('builtins.input')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
     def test_success_output_path_not_exists(self,
                                             mock_collect_paths: MagicMock,
                                             mock_path_exists: MagicMock,
-                                            mock_input: MagicMock,
                                             mock_move: MagicMock) -> None:
         '''Tests that all loose files at the input root are flattened to output.'''
         # Set up mocks
@@ -1139,7 +1137,7 @@ class TestFlattenHierarchy(unittest.TestCase):
         mock_path_exists.return_value = False
 
         # Call target function        
-        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, False)
+        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
         
         # Assert expectations
         expected = [
@@ -1150,7 +1148,6 @@ class TestFlattenHierarchy(unittest.TestCase):
         
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_not_called()
         mock_move.assert_has_calls([
             call(input_path, output_path)
             for input_path, output_path in expected
@@ -1160,13 +1157,11 @@ class TestFlattenHierarchy(unittest.TestCase):
         self.assertEqual(actual, expected)
         
     @patch('shutil.move')
-    @patch('builtins.input')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
     def test_success_output_path_exists(self,
                                         mock_collect_paths: MagicMock,
                                         mock_path_exists: MagicMock,
-                                        mock_input: MagicMock,
                                         mock_move: MagicMock) -> None:
         '''Tests that a file is flattened only if its output path doesn't exist.'''
         # Set up mocks
@@ -1178,107 +1173,57 @@ class TestFlattenHierarchy(unittest.TestCase):
         mock_path_exists.side_effect = [False, True, True]
         
         # Call target function        
-        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, False)
+        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
         
         # Assert expectations
         expected_input, expected_output = f"{MOCK_INPUT_DIR}/{mock_filenames[0]}", f"{MOCK_OUTPUT_DIR}/{mock_filenames[0]}"
         
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_not_called()
         mock_move.assert_called_once_with(expected_input, expected_output)
         
         ## Check output
         self.assertEqual(actual, [(expected_input, expected_output)])
         
     @patch('shutil.move')
-    @patch('builtins.input')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_confirm(self,
-                                         mock_collect_paths: MagicMock,
-                                         mock_path_exists: MagicMock,
-                                         mock_input: MagicMock,
-                                         mock_move: MagicMock) -> None:
-        '''Tests that a user is prompted to confirm a path move when in interactive mode.'''
+    def test_success_dry_run(self,
+                             mock_collect_paths: MagicMock,
+                             mock_path_exists: MagicMock,
+                             mock_move: MagicMock) -> None:
+        '''Tests that all loose files at the input root are flattened to output.'''
         # Set up mocks
-        mock_filename = f"file.foo"
-        mock_input_path = f"{MOCK_INPUT_DIR}/{mock_filename}"
-        mock_collect_paths.return_value = [mock_input_path]
+        mock_filenames = [
+            f"file_{i}.foo"
+            for i in range(2)
+        ]
+        mock_collect_paths.return_value = [f"{MOCK_INPUT_DIR}/{f}" for f in mock_filenames]
         mock_path_exists.return_value = False
-        mock_input.return_value = 'y'
-        
+
         # Call target function
-        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, True)
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, dry_run=True)
         
         # Assert expectations
-        expected_output = f"{MOCK_OUTPUT_DIR}/{mock_filename}"
+        expected = [
+            (f"{MOCK_INPUT_DIR}/{mock_filenames[i]}",
+             f"{MOCK_OUTPUT_DIR}/{mock_filenames[i]}")
+            for i in range(len(mock_filenames))
+        ]
         
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_called_once()
-        mock_move.assert_called_once_with(mock_input_path, expected_output)
-        
-        ## Check output
-        self.assertEqual(actual, [(mock_input_path, expected_output)])
-        
-    @patch('shutil.move')
-    @patch('builtins.input')
-    @patch('os.path.exists')
-    @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_decline(self,
-                                         mock_collect_paths: MagicMock,
-                                         mock_path_exists: MagicMock,
-                                         mock_input: MagicMock,
-                                         mock_move: MagicMock) -> None:
-        '''Tests that a user is prompted to confirm a path move when in interactive mode.'''
-        # Set up mocks
-        mock_filename = f"file.foo"
-        mock_input_path = f"{MOCK_INPUT_DIR}/{mock_filename}"
-        mock_collect_paths.return_value = [mock_input_path]
-        mock_path_exists.return_value = False
-        mock_input.return_value = 'n'
-        
-        # Call target function
-        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, True)
-        
-        # Assert expectations
-        ## Check calls
-        mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_called_once()
         mock_move.assert_not_called()
         
         ## Check output
-        self.assertEqual(actual, [])
+        self.assertEqual(actual, expected)
         
-    @patch('shutil.move')
-    @patch('builtins.input')
-    @patch('os.path.exists')
-    @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_quit(self,
-                                      mock_collect_paths: MagicMock,
-                                      mock_path_exists: MagicMock,
-                                      mock_input: MagicMock,
-                                      mock_move: MagicMock) -> None:
-        '''Tests that a user is prompted to confirm a path move when in interactive mode.'''
-        # Set up mocks
-        mock_filename = f"file.foo"
-        mock_input_path = f"{MOCK_INPUT_DIR}/{mock_filename}"
-        mock_collect_paths.return_value = [mock_input_path]
-        mock_path_exists.return_value = False
-        mock_input.return_value = 'q'
-        
-        # Call target function
-        actual = music.flatten_hierarchy(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, True)
-        
-        # Assert expectations
-        ## Check calls
-        mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_called_once()
-        mock_move.assert_not_called()
-        
-        ## Check output
-        self.assertEqual(actual, [])
+        # Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 2)
+        self.assertIn('move', dry_run_logs[0])
+        self.assertIn('move', dry_run_logs[1])
 
 class TestExtractAllNormalizedEncodings(unittest.TestCase):
     @patch('zipfile.ZipFile')

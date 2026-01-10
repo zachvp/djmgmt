@@ -482,7 +482,7 @@ def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str
     '''CLI wrapper for the core sweep function.'''
     sweep(args.input, args.output, valid_extensions, prefix_hints)
 
-def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[FileMapping]:
+def flatten_hierarchy(source: str, output: str, dry_run: bool = False) -> list[FileMapping]:
     '''Recursively moves all files from nested directories to the output root, removing the directory structure.
 
     Args:
@@ -510,19 +510,12 @@ def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[FileM
 
         # move the files to the output root
         if not os.path.exists(output_path):
-            msg = f"move '{input_path}' to '{output_path}'"
-            if interactive:
-                print(msg)
-                choice = input('Continue? [y/N/q]')
-                if choice == 'q':
-                    logging.info('info: user quit')
-                    return flattened
-                if choice != 'y' or choice in 'nN':
-                    logging.info(f"skip: {input_path}")
-                    continue
-            logging.debug(msg)
+            logging.debug(f"move '{input_path}' to '{output_path}'")
             try:
-                shutil.move(input_path, output_path)
+                if dry_run:
+                    common.log_dry_run('move', f"'{input_path}' -> '{output_path}'")
+                else:
+                    shutil.move(input_path, output_path)
                 flattened.append((input_path, output_path))
             except FileNotFoundError as error:
                 if error.filename == input_path:
