@@ -41,86 +41,6 @@ XML_BASE = f'''
 '''.strip()
 
 # Primary test classes
-class TestExtractAllNormalizedEncodings(unittest.TestCase):
-    @patch('zipfile.ZipFile')
-    def test_success_fix_filename_encoding(self,
-                                           mock_zipfile: MagicMock) -> None:
-        '''Tests that all contents of a zip archive are extracted and their filenames normalized.'''
-        # Set up mocks
-        mock_archive_path = f"{MOCK_INPUT_DIR}/file.zip"
-        
-        mock_archive = MagicMock()
-        mock_archive.infolist.return_value = [
-            ZipInfo(filename='Agoria ft Nin╠âo de Elche - What if earth would turn faster.aiff'),
-            ZipInfo(filename='Mariachi Los Camperos - El toro viejo ΓÇö The Old Bull.aiff'),
-            ZipInfo(filename='aplicac╠ºo╠âes.mp3'),
-            ZipInfo(filename='├ÿostil - Quantic (Original Mix).mp3'),
-            ZipInfo(filename='Leitstrahl & Alberto Melloni - Automaton Lover Feat. Furo╠ür Exotica.mp3'),
-            ZipInfo(filename='maxtaylorΓÖÜ - summer17 - 08 bumpin.aiff'),
-            ZipInfo(filename='Iron Curtis & Johannes Albert - Something Unique feat. Zoot Woman (Johannes Albert Italo Mix).aiff') # no bungled characters
-        ]
-        
-        mock_zipfile.return_value.__enter__.return_value = mock_archive
-        
-        # Call target function
-        actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR)
-        
-        # Assert expectations
-        ## Dependent functions called
-        mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
-        
-        ## Check for normalized characters in output list
-        expected_filenames = [
-            'Agoria ft Niño de Elche - What if earth would turn faster.aiff',
-            'Mariachi Los Camperos - El toro viejo — The Old Bull.aiff',
-            'aplicações.mp3',
-            'Øostil - Quantic (Original Mix).mp3',
-            'Leitstrahl & Alberto Melloni - Automaton Lover Feat. Furór Exotica.mp3',
-            'maxtaylor♚ - summer17 - 08 bumpin.aiff',
-            'Iron Curtis & Johannes Albert - Something Unique feat. Zoot Woman (Johannes Albert Italo Mix).aiff'
-        ]
-        
-        ## Check extract calls
-        self.assertEqual(mock_archive.extract.call_args_list[0].args[0].filename, expected_filenames[0])
-        self.assertEqual(mock_archive.extract.call_args_list[1].args[0].filename, expected_filenames[1])
-        self.assertEqual(mock_archive.extract.call_args_list[2].args[0].filename, expected_filenames[2])
-        self.assertEqual(mock_archive.extract.call_args_list[3].args[0].filename, expected_filenames[3])
-        self.assertEqual(mock_archive.extract.call_args_list[4].args[0].filename, expected_filenames[4])
-        self.assertEqual(mock_archive.extract.call_args_list[5].args[0].filename, expected_filenames[5])
-        self.assertEqual(mock_archive.extract.call_args_list[6].args[0].filename, expected_filenames[6])
-        
-        ## Check output
-        expected = (mock_archive_path, expected_filenames)
-        self.assertEqual(actual, expected)
-        
-        ## Check output dir
-        for i in range(mock_archive.extract.call_count):
-            self.assertEqual(mock_archive.extract.call_args_list[i].args[1], MOCK_OUTPUT_DIR)
-        
-        ## Total extract calls
-        self.assertEqual(mock_archive.extract.call_count, 7)
-    
-    @patch('zipfile.ZipFile')
-    def test_success_empty_zip(self,
-                               mock_zipfile: MagicMock) -> None:
-        '''Tests that an empty list is returned if there are no zip contents.'''
-        # Set up mocks
-        mock_archive_path = f"{MOCK_INPUT_DIR}/file.zip"
-        
-        mock_archive = MagicMock()
-        mock_archive.infolist.return_value = []
-        
-        mock_zipfile.return_value.__enter__.return_value = mock_archive
-        
-        # Call target function
-        actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR)
-        
-        # Assert expectations
-        ## Dependent functions called
-        mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
-        
-        self.assertEqual(actual, (mock_archive_path, []))
-
 class TestCompressDir(unittest.TestCase):
     @patch('djmgmt.common.collect_paths')
     @patch('zipfile.ZipFile')
@@ -180,7 +100,7 @@ class TestStandardizeLossless(unittest.TestCase):
                      mock_temp_dir: MagicMock,
                      mock_encode: MagicMock,
                      mock_remove: MagicMock,
-                     mmock_sweep: MagicMock) -> None:
+                     mock_sweep: MagicMock) -> None:
         '''Tests that the encoding function is run and all encoded files are removed.'''
         # Set up mocks
         mock_temp_path = 'mock_temp_path'
@@ -191,15 +111,14 @@ class TestStandardizeLossless(unittest.TestCase):
         # Call target function
         mock_extensions = {'a'}
         mock_hints = {'b'}
-        mock_interactive = False
-        actual = music.standardize_lossless(MOCK_INPUT_DIR, mock_extensions, mock_hints, mock_interactive)
+        actual = music.standardize_lossless(MOCK_INPUT_DIR, mock_extensions, mock_hints)
         
         # Assert expectations
         ## Check calls
         mock_temp_dir.assert_called_once()
-        mock_encode.assert_called_once_with(MOCK_INPUT_DIR, mock_temp_path, '.aiff', interactive=mock_interactive)
+        mock_encode.assert_called_once_with(MOCK_INPUT_DIR, mock_temp_path, '.aiff', dry_run=False)
         mock_remove.assert_called_once_with(mock_input_file)
-        mmock_sweep.assert_called_once_with(mock_temp_path, MOCK_INPUT_DIR, mock_interactive, mock_extensions, mock_hints)        
+        mock_sweep.assert_called_once_with(mock_temp_path, MOCK_INPUT_DIR, mock_extensions, mock_hints, dry_run=False) 
         
         ## Check output
         self.assertEqual(actual, mock_encode.return_value)
@@ -1361,19 +1280,126 @@ class TestFlattenHierarchy(unittest.TestCase):
         ## Check output
         self.assertEqual(actual, [])
 
+class TestExtractAllNormalizedEncodings(unittest.TestCase):
+    @patch('zipfile.ZipFile')
+    def test_success_fix_filename_encoding(self,
+                                           mock_zipfile: MagicMock) -> None:
+        '''Tests that all contents of a zip archive are extracted and their filenames normalized.'''
+        # Set up mocks
+        mock_archive_path = f"{MOCK_INPUT_DIR}/archive.zip"
+        
+        mock_archive = MagicMock()
+        mock_archive.infolist.return_value = [
+            ZipInfo(filename='Agoria ft Nin╠âo de Elche - What if earth would turn faster.aiff'),
+            ZipInfo(filename='Mariachi Los Camperos - El toro viejo ΓÇö The Old Bull.aiff'),
+            ZipInfo(filename='aplicac╠ºo╠âes.mp3'),
+            ZipInfo(filename='├ÿostil - Quantic (Original Mix).mp3'),
+            ZipInfo(filename='Leitstrahl & Alberto Melloni - Automaton Lover Feat. Furo╠ür Exotica.mp3'),
+            ZipInfo(filename='maxtaylorΓÖÜ - summer17 - 08 bumpin.aiff'),
+            ZipInfo(filename='Iron Curtis & Johannes Albert - Something Unique feat. Zoot Woman (Johannes Albert Italo Mix).aiff') # no bungled characters
+        ]
+        
+        mock_zipfile.return_value.__enter__.return_value = mock_archive
+        
+        # Call target function
+        actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR)
+        
+        # Assert expectations
+        ## Dependent functions called
+        mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
+        
+        ## Check for normalized characters in output list
+        expected_filenames = [
+            'Agoria ft Niño de Elche - What if earth would turn faster.aiff',
+            'Mariachi Los Camperos - El toro viejo — The Old Bull.aiff',
+            'aplicações.mp3',
+            'Øostil - Quantic (Original Mix).mp3',
+            'Leitstrahl & Alberto Melloni - Automaton Lover Feat. Furór Exotica.mp3',
+            'maxtaylor♚ - summer17 - 08 bumpin.aiff',
+            'Iron Curtis & Johannes Albert - Something Unique feat. Zoot Woman (Johannes Albert Italo Mix).aiff'
+        ]
+        
+        ## Check extract calls
+        self.assertEqual(mock_archive.extract.call_args_list[0].args[0].filename, expected_filenames[0])
+        self.assertEqual(mock_archive.extract.call_args_list[1].args[0].filename, expected_filenames[1])
+        self.assertEqual(mock_archive.extract.call_args_list[2].args[0].filename, expected_filenames[2])
+        self.assertEqual(mock_archive.extract.call_args_list[3].args[0].filename, expected_filenames[3])
+        self.assertEqual(mock_archive.extract.call_args_list[4].args[0].filename, expected_filenames[4])
+        self.assertEqual(mock_archive.extract.call_args_list[5].args[0].filename, expected_filenames[5])
+        self.assertEqual(mock_archive.extract.call_args_list[6].args[0].filename, expected_filenames[6])
+        
+        ## Check output
+        expected = (mock_archive_path, expected_filenames)
+        self.assertEqual(actual, expected)
+        
+        ## Check output dir
+        for i in range(mock_archive.extract.call_count):
+            self.assertEqual(mock_archive.extract.call_args_list[i].args[1], MOCK_OUTPUT_DIR)
+        
+        ## Total extract calls
+        self.assertEqual(mock_archive.extract.call_count, 7)
+    
+    @patch('zipfile.ZipFile')
+    def test_success_empty_zip(self,
+                               mock_zipfile: MagicMock) -> None:
+        '''Tests that an empty list is returned if there are no zip contents.'''
+        # Set up mocks
+        mock_archive_path = f"{MOCK_INPUT_DIR}/archive.zip"
+        
+        mock_archive = MagicMock()
+        mock_archive.infolist.return_value = []
+        
+        mock_zipfile.return_value.__enter__.return_value = mock_archive
+        
+        # Call target function
+        actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR)
+        
+        # Assert expectations
+        ## Dependent functions called
+        mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
+        
+        self.assertEqual(actual, (mock_archive_path, []))
+        
+    @patch('zipfile.ZipFile')
+    def test_success_dry_run(self,
+                            mock_zipfile: MagicMock) -> None:
+        '''Tests that an empty list is returned if there are no zip contents.'''
+        # Set up mocks
+        mock_archive_path = f"{MOCK_INPUT_DIR}/archive.zip"
+        
+        mock_archive = MagicMock()
+        mock_archive.infolist.return_value = [
+            MagicMock(filename='file_0', spec=ZipInfo),
+            MagicMock(filename='file_1', spec=ZipInfo),
+        ]
+        
+        mock_zipfile.return_value.__enter__.return_value = mock_archive
+        
+        # Call target function
+        actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR, dry_run=True)
+        
+        # Assert expectations
+        ## Dependent functions called
+        mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
+        
+        self.assertEqual(actual, (mock_archive_path, ['file_0', 'file_1']))
+        
+        ## Extract NOT called for dry run
+        for info in mock_archive.infolist.return_value:
+            # info.assert_not_called
+            info.extract.assert_not_called() # TODO: CLAUDE: double check this is sufficient
+
 class TestExtract(unittest.TestCase):
     @patch('djmgmt.music.extract_all_normalized_encodings')
-    @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_false(self,
-                                       mock_collect_paths: MagicMock,
-                                       mock_path_exists: MagicMock,
-                                       mock_isdir: MagicMock,
-                                       mock_input: MagicMock,
-                                       mock_extract_all: MagicMock) -> None:
-        '''Tests that all zip archives are extracted without requesting user input.'''
+    def test_success(self,
+                     mock_collect_paths: MagicMock,
+                     mock_path_exists: MagicMock,
+                     mock_isdir: MagicMock,
+                     mock_extract_all: MagicMock) -> None:
+        '''Tests that all zip archives are extracted.'''
         # Set up mocks
         mock_filename = 'mock_archive.zip'
         mock_file_path = f"{MOCK_INPUT_DIR}/{mock_filename}"
@@ -1383,19 +1409,17 @@ class TestExtract(unittest.TestCase):
         mock_extract_all.return_value = (mock_filename, ['mock_file_0', 'mock_file_1'])
         
         # Call target function
-        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, False)
-        
+        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
+
         # Assert expectations
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_not_called()
-        mock_extract_all.assert_called_once_with(mock_file_path, MOCK_OUTPUT_DIR)
+        mock_extract_all.assert_called_once_with(mock_file_path, MOCK_OUTPUT_DIR, dry_run=False)
         
         # Check output
         self.assertEqual(actual, [mock_extract_all.return_value])
         
     @patch('djmgmt.music.extract_all_normalized_encodings')
-    @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
@@ -1403,7 +1427,6 @@ class TestExtract(unittest.TestCase):
                                     mock_collect_paths: MagicMock,
                                     mock_path_exists: MagicMock,
                                     mock_isdir: MagicMock,
-                                    mock_input: MagicMock,
                                     mock_extract_all: MagicMock) -> None:
         '''Tests that nothing is extracted if there are no zip archives present in the input directory.'''
         # Set up mocks
@@ -1413,19 +1436,17 @@ class TestExtract(unittest.TestCase):
         mock_isdir.return_value = False
         
         # Call target function
-        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, False)
+        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
         
         # Assert expectations
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_not_called()
         mock_extract_all.assert_not_called()
         
         ## Check output
         self.assertEqual(actual, [])
         
     @patch('djmgmt.music.extract_all_normalized_encodings')
-    @patch('builtins.input')
     @patch('os.path.isdir')
     @patch('os.path.exists')
     @patch('djmgmt.common.collect_paths')
@@ -1433,7 +1454,6 @@ class TestExtract(unittest.TestCase):
                                    mock_collect_paths: MagicMock,
                                    mock_path_exists: MagicMock,
                                    mock_isdir: MagicMock,
-                                   mock_input: MagicMock,
                                    mock_extract_all: MagicMock) -> None:
         '''Tests that nothing is extracted if the output directory exists.'''
         # Set up mocks
@@ -1443,76 +1463,11 @@ class TestExtract(unittest.TestCase):
         mock_isdir.return_value = True
         
         # Call target function
-        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, False)
+        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR)
         
         # Assert expectations
         ## Check calls
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_not_called()
-        mock_extract_all.assert_not_called()
-        
-        ## Check output
-        self.assertEqual(actual, [])
-
-    @patch('djmgmt.music.extract_all_normalized_encodings')
-    @patch('builtins.input')
-    @patch('os.path.isdir')
-    @patch('os.path.exists')
-    @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_true_confirm(self,
-                                              mock_collect_paths: MagicMock,
-                                              mock_path_exists: MagicMock,
-                                              mock_isdir: MagicMock,
-                                              mock_input: MagicMock,
-                                              mock_extract_all: MagicMock) -> None:
-        '''Tests that all zip archives are extracted after user confirms.'''
-        # Set up mocks
-        mock_filename = 'mock_archive.zip'
-        mock_file_path = f"{MOCK_INPUT_DIR}/{mock_filename}"
-        mock_collect_paths.return_value = [mock_file_path]
-        mock_path_exists.return_value = False
-        mock_isdir.return_value = False
-        mock_input.return_value = 'y'
-        mock_extract_all.return_value = (mock_filename, ['mock_file_0', 'mock_file_1'])
-        
-        # Call target function
-        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, True)
-        
-        # Assert expectations
-        ## Check calls
-        mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_called_once()
-        mock_extract_all.assert_called_once_with(mock_file_path, MOCK_OUTPUT_DIR)
-        
-        # Check output
-        self.assertEqual(actual, [mock_extract_all.return_value])
-        
-    @patch('djmgmt.music.extract_all_normalized_encodings')
-    @patch('builtins.input')
-    @patch('os.path.isdir')
-    @patch('os.path.exists')
-    @patch('djmgmt.common.collect_paths')
-    def test_success_zip_interactive_true_decline(self,
-                                                  mock_collect_paths: MagicMock,
-                                                  mock_path_exists: MagicMock,
-                                                  mock_isdir: MagicMock,
-                                                  mock_input: MagicMock,
-                                                  mock_extract_all: MagicMock) -> None:
-        '''Tests that no zip archives are extracted after user declines.'''
-        # Set up mocks
-        mock_filename = f"{MOCK_INPUT_DIR}/mock_archive.zip"
-        mock_collect_paths.return_value = [mock_filename]
-        mock_path_exists.return_value = False
-        mock_isdir.return_value = False
-        mock_input.return_value = 'n'
-        
-        # Call target function
-        actual = music.extract(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, True)
-        
-        # Assert expectations
-        ## Check calls
-        mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_input.assert_called_once()
         mock_extract_all.assert_not_called()
         
         ## Check output

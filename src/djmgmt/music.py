@@ -228,47 +228,6 @@ def prune(working_dir: str, directories: list[str], filenames: list[str]) -> Non
         if name.startswith('.'):
             logging.info(f"prune: hidden file '{name}'")
             del filenames[index]
-
-def extract_all_normalized_encodings(zip_path: str, output: str) -> tuple[str, list[str]]:
-    '''Extracts all files from a zip archive with normalized filename encodings.
-
-    Handles common zip encoding issues by attempting to correct filenames using UTF-8 and Latin-1 encodings.
-
-    Args:
-        zip_path: Path to the zip archive (e.g., '/downloads/beatport_tracks.zip')
-        output: Directory to extract files into (e.g., '/temp/extracted')
-
-    Returns:
-        Tuple of (original zip path, list of extracted filenames)
-
-    Example:
-        >>> extract_all_normalized_encodings('/downloads/tracks.zip', '/temp')
-        ('/downloads/tracks.zip', ['01 Track One.mp3', '02 Track Two.mp3'])
-    '''
-    extracted: list[str] = []
-    with zipfile.ZipFile(zip_path, 'r') as file:
-        for info in file.infolist():
-            # default to the current filename
-            corrected = info.filename
-
-            # try to normalize the filename encoding
-            try:
-                # attempt to encode the filename with the common zip encoding and decode as utf-8
-                corrected = info.filename.encode('cp437').decode('utf-8')
-                logging.debug(f"Corrected filename '{info.filename}' to '{corrected}' using utf-8 encoding")
-            except (UnicodeEncodeError, UnicodeDecodeError):
-                try:
-                    # attempt universal decoding to latin1
-                    corrected = info.filename.encode('cp437').decode('latin1')
-                    logging.debug(f"Fallback filename encoding from '{info.filename}' to '{corrected}' using latin1 encoding")
-                except (UnicodeEncodeError, UnicodeDecodeError):
-                    logging.warning(f"Unable to fix encoding for filename: '{info.filename}'")
-            info.filename = corrected
-            file.extract(info, os.path.normpath(output))
-            extracted.append(info.filename)
-    logging.debug(f"extracting archive '{zip_path}' to {extracted}")
-    return (zip_path, extracted)
-
 def flatten_zip(zip_path: str, extract_path: str) -> None:
     '''Extracts a zip archive and moves all files to the extract path root, removing nested directories.
 
@@ -350,7 +309,7 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
         for input_path, _ in result:
             os.remove(input_path)
         # sweep all the encoded files from the temporary directory to the original source directory
-        sweep(temp_dir, source, False, valid_extensions, prefix_hints)
+        sweep(temp_dir, source, valid_extensions, prefix_hints, dry_run=dry_run)
         return result
 
 # TODO: move to library module
@@ -578,13 +537,57 @@ def flatten_hierarchy_cli(args: Namespace) -> None:
     '''CLI wrapper for the core flatten_hierarchy function.'''
     flatten_hierarchy(args.input, args.output, args.interactive)
 
-def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list[str]]]:
+def extract_all_normalized_encodings(zip_path: str, output: str, dry_run: bool = False) -> tuple[str, list[str]]:
+    '''Extracts all files from a zip archive with normalized filename encodings.
+
+    Handles common zip encoding issues by attempting to correct filenames using UTF-8 and Latin-1 encodings.
+
+    Args:
+        zip_path: Path to the zip archive (e.g., '/downloads/beatport_tracks.zip')
+        output: Directory to extract files into (e.g., '/temp/extracted')
+
+    Returns:
+        Tuple of (original zip path, list of extracted filenames)
+
+    Example:
+        >>> extract_all_normalized_encodings('/downloads/tracks.zip', '/temp')
+        ('/downloads/tracks.zip', ['01 Track One.mp3', '02 Track Two.mp3'])
+    '''
+    extracted: list[str] = []
+    with zipfile.ZipFile(zip_path, 'r') as file:
+        for info in file.infolist():
+            # default to the current filename
+            corrected = info.filename
+
+            # try to normalize the filename encoding
+            try:
+                # attempt to encode the filename with the common zip encoding and decode as utf-8
+                corrected = info.filename.encode('cp437').decode('utf-8')
+                logging.debug(f"Corrected filename '{info.filename}' to '{corrected}' using utf-8 encoding")
+            except (UnicodeEncodeError, UnicodeDecodeError):
+                try:
+                    # attempt universal decoding to latin1
+                    corrected = info.filename.encode('cp437').decode('latin1')
+                    logging.debug(f"Fallback filename encoding from '{info.filename}' to '{corrected}' using latin1 encoding")
+                except (UnicodeEncodeError, UnicodeDecodeError):
+                    logging.warning(f"Unable to fix encoding for filename: '{info.filename}'")
+            info.filename = corrected
+            output_path = os.path.normpath(output)
+            if dry_run:
+                input_path = os.path.join(zip_path, info.filename)
+                common.log_dry_run('extract', f"file {input_path} -> {output_path}")
+            else:
+                file.extract(info, output_path)
+            extracted.append(info.filename)
+    logging.debug(f"extracted archive '{zip_path}' to {extracted}")
+    return (zip_path, extracted)
+
+def extract(source: str, output: str, dry_run: bool = False) -> list[tuple[str, list[str]]]:
     '''Extracts all zip archives in the source directory to the output directory.
 
     Args:
         source: Directory to scan for zip archives (e.g., '/music/archives')
         output: Destination directory for extracted files (e.g., '/music/extracted')
-        interactive: If True, prompts for confirmation before each extraction
 
     Returns:
         List of (archive_path, list of extracted filenames) tuples
@@ -605,19 +608,9 @@ def extract(source: str, output: str, interactive: bool) -> list[tuple[str, list
                 logging.info(f"skip: existing ouput path '{zip_output_path}'")
                 continue
 
-            msg = f"extracting '{input_path}' to '{output}'"
-            logging.debug(msg)
-            if interactive:
-                print(msg)
-                choice = input('Continue? [y/N/q]')
-                if choice == 'q':
-                    logging.info('user quit')
-                    return extracted
-                if choice != 'y' or choice in 'nN':
-                    logging.info(f"skip: {input_path}")
-                    continue
+            logging.debug(f"extracting '{input_path}' to '{output}'")
             # extract all zip contents, with normalized filename encodings
-            extracted.append(extract_all_normalized_encodings(input_path, output))
+            extracted.append(extract_all_normalized_encodings(input_path, output, dry_run=dry_run))
         else:
             logging.debug(f"skip: non-zip file '{input_path}'")
     return extracted
@@ -757,7 +750,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
     # process all files in a temporary directory, then move the processed files to the output directory
     with TemporaryDirectory() as processing_dir:
         # first sweep: source → processing
-        initial_sweep = sweep(source, processing_dir, interactive, valid_extensions, prefix_hints)
+        initial_sweep = sweep(source, processing_dir, valid_extensions, prefix_hints)
         # track for correlation
         for source_path, _ in initial_sweep:
             filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
@@ -791,7 +784,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
         prune_non_user_dirs(processing_dir, interactive)
 
         # final sweep: processing → output
-        final_sweep = sweep(processing_dir, output, interactive, valid_extensions, prefix_hints)
+        final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints)
 
     # map final output back to original source using filename without extension
     processed_files: list[FileMapping] = []
