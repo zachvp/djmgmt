@@ -335,7 +335,7 @@ def get_dirs(dir_path: str) -> list[str]:
             dirs.append(path)
     return dirs
 
-def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], interactive: bool) -> list[FileMapping]:
+def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
     '''Standardizes all lossless files in the source directory according to `.encode.encode_lossless()` using the .aiff extension.
     Returns a list of each (source, encoded_file) mapping.'''
     from tempfile import TemporaryDirectory
@@ -344,7 +344,7 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
     # create a temporary directory to place the encoded files.
     with TemporaryDirectory() as temp_dir:
         # encode all non-standard lossless files
-        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', interactive=interactive))
+        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', dry_run=dry_run))
         
         # remove all of the original non-standard files that have been encoded.
         for input_path, _ in result:
@@ -444,7 +444,7 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     return root
 
 # Primary functions
-def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> list[FileMapping]:
+def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
     '''Moves all music files and valid archives from source to output directory.
 
     Validates archives by inspecting contents - archives must contain music files and not contain .app files.
@@ -453,7 +453,6 @@ def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str
     Args:
         source: Directory to scan for music files (e.g., '/downloads')
         output: Destination directory (e.g., '/music/staging')
-        interactive: If True, prompts for confirmation before each move
         valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
         prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
 
@@ -511,24 +510,18 @@ def sweep(source: str, output: str, interactive: bool, valid_extensions: set[str
         # move input file if it has a supported extension or is a valid archive
         if name_split[1] in valid_extensions or is_valid_archive:
             logging.debug(f"filter matched file '{input_path}'")
-            if interactive:
-                print(f"move from '{input_path}' to '{output_path}'")
-                choice = input('Continue? [y/N/q]')
-                if choice == 'q':
-                    logging.info('user quit')
-                    return swept
-                if choice != 'y' or choice in 'nN':
-                    logging.info('skip: user skipped file')
-                    continue
             logging.debug(f"move from '{input_path}' to '{output_path}'")
-            shutil.move(input_path, output_path)
+            if dry_run:
+                common.log_dry_run('move', f"{input_path} -> {output_path}")
+            else:
+                shutil.move(input_path, output_path)
             swept.append((input_path, output_path))
     logging.info(f"swept all files ({len(swept)})\n{swept}")
     return swept    
 
 def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core sweep function.'''
-    sweep(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
+    sweep(args.input, args.output, valid_extensions, prefix_hints)
 
 def flatten_hierarchy(source: str, output: str, interactive: bool) -> list[FileMapping]:
     '''Recursively moves all files from nested directories to the output root, removing the directory structure.

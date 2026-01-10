@@ -967,7 +967,6 @@ class TestSweep(unittest.TestCase):
         # Call target function
         actual = music.sweep(MOCK_INPUT_DIR,
                              MOCK_OUTPUT_DIR,
-                             False,
                              constants.EXTENSIONS,
                              music.PREFIX_HINTS)
         
@@ -1017,7 +1016,6 @@ class TestSweep(unittest.TestCase):
         # Call target function
         actual = music.sweep(MOCK_INPUT_DIR,
                              MOCK_OUTPUT_DIR,
-                             False,
                              constants.EXTENSIONS,
                              music.PREFIX_HINTS)
         
@@ -1054,7 +1052,6 @@ class TestSweep(unittest.TestCase):
         # Call target function
         actual = music.sweep(MOCK_INPUT_DIR,
                              MOCK_OUTPUT_DIR,
-                             False,
                              constants.EXTENSIONS,
                              music.PREFIX_HINTS)
         
@@ -1095,10 +1092,9 @@ class TestSweep(unittest.TestCase):
         mock_archive.namelist.return_value = [f"mock_file{ext}" for ext in constants.EXTENSIONS]
         mock_zipfile.return_value.__enter__.return_value = mock_archive
 
-        # Call target function        
+        # Call target function
         actual = music.sweep(MOCK_INPUT_DIR,
                              MOCK_OUTPUT_DIR,
-                             False,
                              constants.EXTENSIONS,
                              music.PREFIX_HINTS)
         
@@ -1140,10 +1136,9 @@ class TestSweep(unittest.TestCase):
         mock_archive.namelist.return_value += ['mock_cover.jpg']
         mock_zipfile.return_value.__enter__.return_value = mock_archive
 
-        # Call target function        
+        # Call target function
         actual = music.sweep(MOCK_INPUT_DIR,
                              MOCK_OUTPUT_DIR,
-                             False,
                              constants.EXTENSIONS,
                              music.PREFIX_HINTS)
         
@@ -1159,6 +1154,51 @@ class TestSweep(unittest.TestCase):
         
         ## Check output
         self.assertEqual(actual, [(mock_input_path, expected_output_path)])
+
+    @patch('shutil.move')
+    @patch('zipfile.ZipFile')
+    @patch('djmgmt.music.is_prefix_match')
+    @patch('os.path.exists')
+    @patch('djmgmt.common.collect_paths')
+    def test_dry_run(self,
+                     mock_collect_paths: MagicMock,
+                     mock_path_exists: MagicMock,
+                     mock_is_prefix_match: MagicMock,
+                     mock_zipfile: MagicMock,
+                     mock_move: MagicMock) -> None:
+        '''Test that dry_run=True skips file moves and logs operations.'''
+        # Set up mocks
+        mock_filenames = ['track1.mp3', 'track2.aiff']
+        mock_paths = [f"{MOCK_INPUT_DIR}/{p}" for p in mock_filenames]
+        mock_collect_paths.return_value = mock_paths
+        mock_path_exists.return_value = False
+        mock_is_prefix_match.return_value = False
+
+        # Call target function with dry_run=True
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.sweep(MOCK_INPUT_DIR,
+                                MOCK_OUTPUT_DIR,
+                                constants.EXTENSIONS,
+                                music.PREFIX_HINTS,
+                                dry_run=True)
+
+        # Assert expectations
+        expected = [
+            (f"{MOCK_INPUT_DIR}/{mock_filenames[0]}", f"{MOCK_OUTPUT_DIR}/{mock_filenames[0]}"),
+            (f"{MOCK_INPUT_DIR}/{mock_filenames[1]}", f"{MOCK_OUTPUT_DIR}/{mock_filenames[1]}")
+        ]
+
+        # Verify shutil.move was NOT called in dry-run mode
+        mock_move.assert_not_called()
+
+        # Verify return value still contains expected mappings
+        self.assertListEqual(actual, expected)
+
+        # Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 2)
+        self.assertIn('move', dry_run_logs[0])
+        self.assertIn('move', dry_run_logs[1])
 
 class TestFlattenHierarchy(unittest.TestCase):
     @patch('shutil.move')
