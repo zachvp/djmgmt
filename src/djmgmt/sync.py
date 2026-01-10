@@ -562,7 +562,8 @@ def sync_from_path(args: Namespace):
 def run_sync_mappings(mappings: list[FileMapping],
                       full_scan: bool = True,
                       sync_mode: str = Namespace.SYNC_MODE_REMOTE,
-                      end_date: str | None = None) -> None:
+                      end_date: str | None = None,
+                      dry_run: bool = False) -> SyncResult:
     # record initial run timestamp
     timestamp = time.time()
 
@@ -588,12 +589,13 @@ def run_sync_mappings(mappings: list[FileMapping],
 
     # initialize timing and run the sync
     try:
-        sync_mappings(mappings, full_scan, sync_mode)
+        batch_results = sync_mappings(mappings, full_scan, sync_mode, dry_run=dry_run)
     except Exception as e:
         logging.error(e)
         raise
     timestamp = time.time() - timestamp
     logging.info(f"sync duration: {format_timing(timestamp)}")
+    return SyncResult(mappings=mappings, batches=batch_results)
 
 # TODO add interactive mode to confirm sync state before any sync batch is possible
 if __name__ == '__main__':

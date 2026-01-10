@@ -383,6 +383,7 @@ class TestTransferFiles(unittest.TestCase):
         command = mock_subprocess_run.call_args[0][0]
         self.assertIn('--dry-run', command)
         self.assertEqual(return_code, 0)
+        self.assertEqual(output, process_mock.stdout)
 
     @patch('subprocess.run')
     def test_normal_no_dry_run_flag(self, mock_subprocess_run: MagicMock) -> None:
@@ -402,6 +403,7 @@ class TestTransferFiles(unittest.TestCase):
         command = mock_subprocess_run.call_args[0][0]
         self.assertNotIn('--dry-run', command)
         self.assertEqual(return_code, 0)
+        self.assertEqual(output, process_mock.stdout)
 
 class TestSyncMappings(unittest.TestCase):
     @patch('djmgmt.sync.sync_batch')
@@ -626,7 +628,7 @@ class TestRunSyncMappings(unittest.TestCase):
         sync.run_sync_mappings(mock_mappings, mock_full_scan)
         
         # Assert expectations
-        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
         mock_rsync_healthcheck.assert_called_once()
     
     @patch('djmgmt.sync.rsync_healthcheck')
@@ -646,7 +648,7 @@ class TestRunSyncMappings(unittest.TestCase):
             self.assertEqual(e.msg, mock_error)
         
         # Assert expectations
-        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
         mock_rsync_healthcheck.assert_called_once()
         
     @patch('djmgmt.sync.rsync_healthcheck')
@@ -706,9 +708,74 @@ class TestRunSyncMappings(unittest.TestCase):
             ('/input/track1.aiff', '/output/2025/05 may/19/artist/album/track1.aiff'),
             ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
         ]
-        mock_sync_from_mappings.assert_called_once_with(expected_filtered_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE)
+        mock_sync_from_mappings.assert_called_once_with(expected_filtered_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
         mock_rsync_healthcheck.assert_called_once()
         self.assertEqual(mock_find_date_context.call_count, 6)
+
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
+    def test_dry_run_threaded_to_sync_mappings(self,
+                                                mock_sync_from_mappings: MagicMock,
+                                                mock_rsync_healthcheck: MagicMock) -> None:
+        '''Tests that dry_run parameter is threaded to sync_mappings call.'''
+        # Set up mocks
+        batch_result_1 = sync.SyncBatchResult('2025/05 may/20', 2, True)
+        batch_result_2 = sync.SyncBatchResult('2025/05 may/21', 1, True)
+        mock_sync_from_mappings.return_value = [batch_result_1, batch_result_2]
+
+        mock_mappings = [
+            ('/input/track1.aiff', '/output/2025/05 may/20/artist/album/track1.aiff'),
+            ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
+            ('/input/track3.aiff', '/output/2025/05 may/21/artist/album/track3.aiff'),
+        ]
+
+        # Call target function with dry_run=True
+        mock_full_scan = True
+        result = sync.run_sync_mappings(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+
+        # Assert expectations
+        # Verify dry_run was threaded to sync_mappings
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+        mock_rsync_healthcheck.assert_called_once()
+
+        # Verify SyncResult is returned with correct structure
+        self.assertIsInstance(result, sync.SyncResult)
+        self.assertEqual(result.mappings, mock_mappings)
+        self.assertEqual(len(result.batches), 2)
+        self.assertListEqual(result.batches, [batch_result_1, batch_result_2])
+
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.sync.sync_mappings')
+    def test_returns_sync_result_structure(self,
+                                           mock_sync_from_mappings: MagicMock,
+                                           mock_rsync_healthcheck: MagicMock) -> None:
+        '''Tests that SyncResult is returned with correct structure in normal mode.'''
+        # Set up mocks
+        batch_result = sync.SyncBatchResult('2025/05 may/20', 3, True)
+        mock_sync_from_mappings.return_value = [batch_result]
+
+        mock_mappings = [
+            ('/input/track1.aiff', '/output/2025/05 may/20/artist/album/track1.aiff'),
+            ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
+            ('/input/track3.aiff', '/output/2025/05 may/20/artist/album/track3.aiff'),
+        ]
+
+        # Call target function (normal mode, dry_run defaults to False)
+        mock_full_scan = False
+        result = sync.run_sync_mappings(mock_mappings, mock_full_scan)
+
+        # Assert expectations
+        # Verify sync_mappings was called with dry_run=False (default)
+        mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
+
+        # Verify SyncResult structure
+        self.assertIsInstance(result, sync.SyncResult)
+        self.assertEqual(result.mappings, mock_mappings)
+        self.assertEqual(len(result.batches), 1)
+        self.assertEqual(result.batches[0], batch_result)
+
+        # Verify backward compatibility - normal mode still works
+        self.assertTrue(result.batches[0].success)
 
 class TestCreateSyncMappings(unittest.TestCase):
     @patch('djmgmt.sync.SavedDateContext.is_processed')
