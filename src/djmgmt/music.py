@@ -721,7 +721,7 @@ def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
     '''CLI wrapper for the core prune_non_music function.'''
     prune_non_music(args.input, valid_extensions, args.interactive)
 
-def process(source: str, output: str, interactive: bool, valid_extensions: set[str], prefix_hints: set[str]) -> ProcessResults:
+def process(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> ProcessResults:
     '''Performs the following, in sequence:
         1. Sweeps all music files and archives from the `source` directory into the `output` directory.
         2. Extracts all zip archives within the `output` directory.
@@ -751,7 +751,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
             file_to_source_path[filename_no_ext] = source_path
 
         # track extracted archives and map extracted files to their archive origin
-        extracted = extract(processing_dir, processing_dir, interactive)
+        extracted = extract(processing_dir, processing_dir, dry_run=dry_run)
         for archive_path, extracted_files in extracted:
             # get the original archive source path
             archive_name_no_ext = os.path.splitext(os.path.basename(archive_path))[0]
@@ -768,12 +768,12 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
                     logging.error(f"Duplicate filename detected: '{extracted_name_no_ext}' from '{archive_relative_source}' and '{file_to_source_path[extracted_name_no_ext]}'")
                 file_to_source_path[extracted_name_no_ext] = archive_relative_source
 
-        flatten_hierarchy(processing_dir, processing_dir, interactive)
+        flatten_hierarchy(processing_dir, processing_dir, dry_run=dry_run)
 
         # track encoded files and prune the processing directory
-        encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, interactive)
-        prune_non_music(processing_dir, valid_extensions, interactive)
-        prune_non_user_dirs(processing_dir, interactive)
+        encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, dry_run=dry_run)
+        prune_non_music(processing_dir, valid_extensions, dry_run=dry_run)
+        prune_non_user_dirs(processing_dir, dry_run=dry_run)
 
         # final sweep: processing → output
         final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints)
@@ -787,7 +787,10 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
 
     # Find missing art
     missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
-    common.write_paths(missing, constants.MISSING_ART_PATH)
+    if dry_run:
+        common.log_dry_run('write paths', constants.MISSING_ART_PATH)
+    else:
+        common.write_paths(missing, constants.MISSING_ART_PATH)
 
     return ProcessResults(
         processed_files=processed_files,
@@ -798,7 +801,7 @@ def process(source: str, output: str, interactive: bool, valid_extensions: set[s
 
 def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core `process` function.'''
-    process(args.input, args.output, args.interactive, valid_extensions, prefix_hints)
+    process(args.input, args.output, valid_extensions, prefix_hints)
 
 # TODO: implement merge XML function
 '''

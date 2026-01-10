@@ -1882,10 +1882,9 @@ class TestProcess(unittest.TestCase):
         mock_write_paths.side_effect = lambda *_, **__: (mock_call_container.write_paths(), None)[1]
 
         # Call target function
-        mock_interactive = False
         mock_valid_extensions = {'a'}
         mock_prefix_hints = {'b'}
-        result = music.process(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, mock_interactive, mock_valid_extensions, mock_prefix_hints)
+        result = music.process(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, mock_valid_extensions, mock_prefix_hints)
 
         # Assert that the primary dependent functions are called in the correct order
         self.assertEqual(mock_call_container.mock_calls[0], call.sweep())
@@ -1923,6 +1922,110 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(result.files_encoded, 1)
         self.assertEqual(len(result.missing_art_paths), 1)
         self.assertIn('/output/track1.mp3', result.missing_art_paths)
+    
+    @patch('djmgmt.common.write_paths')
+    @patch('djmgmt.encode.find_missing_art_os')
+    @patch('djmgmt.music.standardize_lossless')
+    @patch('djmgmt.music.prune_non_music')
+    @patch('djmgmt.music.prune_non_user_dirs')
+    @patch('djmgmt.music.flatten_hierarchy')
+    @patch('djmgmt.music.extract')
+    @patch('djmgmt.music.sweep')
+    def test_dry_run(self,
+                     mock_sweep: MagicMock,
+                     mock_extract: MagicMock,
+                     mock_flatten: MagicMock,
+                     mock_prune_empty: MagicMock,
+                     mock_prune_non_music: MagicMock,
+                     mock_standardize_lossless: MagicMock,
+                     mock_find_missing_art_os: MagicMock,
+                     mock_write_paths: MagicMock) -> None:
+        '''Test that dry_run=True is threaded to all helper functions and skips write_paths.'''
+        # Configure sweep to return realistic data for both calls
+        def sweep_side_effect(*args: object, **kwargs: object) -> list[FileMapping]:
+            # Return different data for first and second calls
+            if mock_sweep.call_count == 1:
+                # First sweep: source → temp
+                return [
+                    ('/source/track1.mp3', '/tmp/xyz/track1.mp3'),
+                    ('/source/track2.wav', '/tmp/xyz/track2.wav')
+                ]
+            else:
+                # Second sweep: temp → output
+                return [
+                    ('/tmp/xyz/track1.mp3', '/output/track1.mp3'),
+                    ('/tmp/xyz/track2.aiff', '/output/track2.aiff')
+                ]
+
+        # Configure return values
+        standardize_result = [
+            ('/tmp/xyz/track2.wav', '/tmp/xyz/track2.aiff')
+        ]
+        missing_art_result = ['/output/track1.mp3']
+
+        mock_sweep.side_effect = sweep_side_effect
+        mock_extract.return_value = []
+        mock_flatten.return_value = []
+        mock_prune_empty.return_value = []
+        mock_prune_non_music.return_value = []
+        mock_standardize_lossless.return_value = standardize_result
+        mock_find_missing_art_os.return_value = missing_art_result
+
+        # Call target function with dry_run=True
+        mock_valid_extensions = {'.mp3', '.wav'}
+        mock_prefix_hints = {'prefix'}
+        with self.assertLogs(level='INFO') as log_context:
+            result = music.process(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, mock_valid_extensions, mock_prefix_hints, dry_run=True)
+
+        ## Assert expectations
+
+        ## All helper functions called with dry_run=True
+        # Check sweep calls (should NOT have dry_run, it doesn't support it)
+        self.assertEqual(mock_sweep.call_count, 2)
+
+        # Check extract call
+        mock_extract.assert_called_once()
+        self.assertEqual(mock_extract.call_args.kwargs.get('dry_run'), True)
+
+        # Check flatten_hierarchy call
+        mock_flatten.assert_called_once()
+        self.assertEqual(mock_flatten.call_args.kwargs.get('dry_run'), True)
+
+        # Check standardize_lossless call
+        mock_standardize_lossless.assert_called_once()
+        self.assertEqual(mock_standardize_lossless.call_args.kwargs.get('dry_run'), True)
+
+        # Check prune_non_music call
+        mock_prune_non_music.assert_called_once()
+        self.assertEqual(mock_prune_non_music.call_args.kwargs.get('dry_run'), True)
+
+        # Check prune_non_user_dirs call
+        mock_prune_empty.assert_called_once()
+        self.assertEqual(mock_prune_empty.call_args.kwargs.get('dry_run'), True)
+
+        ## write_paths NOT called in dry-run mode
+        mock_write_paths.assert_not_called()
+
+        ## Verify dry-run log for write_paths
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        write_paths_logs = [log for log in dry_run_logs if 'write paths' in log]
+        self.assertEqual(len(write_paths_logs), 1)
+        self.assertIn(constants.MISSING_ART_PATH, write_paths_logs[0])
+
+        ## Return value contains expected data
+        self.assertIsInstance(result, music.ProcessResults)
+
+        # Use assertListEqual for list fields
+        expected_processed_files = [
+            ('/source/track1.mp3', '/output/track1.mp3'),
+            ('/source/track2.wav', '/output/track2.aiff')
+        ]
+        self.assertListEqual(result.processed_files, expected_processed_files)
+        self.assertListEqual(result.missing_art_paths, missing_art_result)
+
+        # Use assertEqual for scalar fields
+        self.assertEqual(result.archives_extracted, 0)
+        self.assertEqual(result.files_encoded, 1)
 
 class TestProcessCLI(unittest.TestCase):
     @patch('djmgmt.music.process')
