@@ -1553,7 +1553,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/mock_file.foo']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_called_once_with('/mock/source/mock_file.foo')
@@ -1573,7 +1573,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/mock_music.mp3']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_not_called()
@@ -1593,7 +1593,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/mock_music.mp3']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_not_called()
@@ -1613,7 +1613,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/mock/dir/0/mock_file.foo']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_called_once_with('/mock/source/mock/dir/0/mock_file.foo')
@@ -1633,7 +1633,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/.mock_hidden']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_called_once_with('/mock/source/.mock_hidden')
@@ -1653,7 +1653,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/mock.zip']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_called_once_with('/mock/source/mock.zip')
@@ -1665,7 +1665,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
     @patch('os.remove')
     @patch('os.path.isdir')
     @patch('djmgmt.common.collect_paths')
-    def test_success_remove_dir(self,
+    def test_success_remove_app(self,
                                 mock_collect_paths: MagicMock,
                                 mock_isdir: MagicMock,
                                 mock_os_remove: MagicMock,
@@ -1676,7 +1676,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_isdir.return_value = True
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_not_called()
@@ -1696,7 +1696,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/.mock_hidden_dir/mock_music.mp3']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_not_called()
@@ -1716,7 +1716,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         mock_collect_paths.return_value = ['/mock/source/.mock_hidden_dir/mock.foo']
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, False)
+        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
         mock_os_remove.assert_called_once_with('/mock/source/.mock_hidden_dir/mock.foo')
@@ -1725,53 +1725,61 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         self.assertListEqual(actual, mock_collect_paths.return_value)
     
     @patch('shutil.rmtree')
-    @patch('builtins.input')
     @patch('os.remove')
     @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_skip(self,
-                                      mock_collect_paths: MagicMock,
-                                      mock_os_remove: MagicMock,
-                                      mock_input: MagicMock,
-                                      mock_rmtree: MagicMock) -> None:
-        '''Tests that an interactive prune prompts the user to remove the non-music file and skips removal.'''
+    def test_success_dry_run_file(self,
+                                  mock_collect_paths: MagicMock,
+                                  mock_os_remove: MagicMock,
+                                  mock_rmtree: MagicMock) -> None:
+        '''Tests that non-music files are removed.'''
         # Setup mocks
         mock_collect_paths.return_value = ['/mock/source/mock_file.foo']
-        mock_input.return_value = 'N'
         
         # Call target function and assert expectations
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, True)
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, dry_run=True)
         
         mock_collect_paths.assert_called_once_with('/mock/source/')
-        mock_input.assert_called()
         mock_os_remove.assert_not_called()
-        mock_rmtree.assert_not_called()
-        
-        self.assertListEqual(actual, [])
-        
-    @patch('shutil.rmtree')
-    @patch('builtins.input')
-    @patch('os.remove')
-    @patch('djmgmt.common.collect_paths')
-    def test_success_interactive_remove(self,
-                                        mock_collect_paths: MagicMock,
-                                        mock_os_remove: MagicMock,
-                                        mock_input: MagicMock,
-                                        mock_rmtree: MagicMock) -> None:
-        '''Tests that an interactive prune prompts the user to remove the non-music file and performs removal.'''
-        # Setup mocks
-        mock_collect_paths.return_value = ['/mock/source/mock_file.foo']
-        mock_input.return_value = 'y'
-        
-        # Call target function and assert expectations        
-        actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, True)
-        
-        mock_collect_paths.assert_called_once_with('/mock/source/')
-        mock_input.assert_called()
-        mock_os_remove.assert_called_once()
         mock_rmtree.assert_not_called()
         
         self.assertListEqual(actual, mock_collect_paths.return_value)
         
+        # Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 1)
+        self.assertIn('remove', dry_run_logs[0])
+
+    @patch('shutil.rmtree')
+    @patch('os.remove')
+    @patch('os.path.isdir')
+    @patch('djmgmt.common.collect_paths')
+    def test_success_dry_run_directory(self,
+                                       mock_collect_paths: MagicMock,
+                                       mock_isdir: MagicMock,
+                                       mock_os_remove: MagicMock,
+                                       mock_rmtree: MagicMock) -> None:
+        '''Tests that non-music files are removed.'''
+        # Setup mocks
+        mock_collect_paths.return_value = ['/mock/source/mock_file.foo']
+        mock_isdir.return_value = True
+        
+        # Call target function and assert expectations
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.prune_non_music('/mock/source/', constants.EXTENSIONS, dry_run=True)
+        
+        mock_collect_paths.assert_called_once_with('/mock/source/')
+        mock_isdir.assert_called_once()
+        mock_os_remove.assert_not_called()
+        mock_rmtree.assert_not_called()
+        
+        self.assertListEqual(actual, mock_collect_paths.return_value)
+        
+        # Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 1)
+        self.assertIn('rmtree', dry_run_logs[0])
+    
     @patch('djmgmt.music.prune_non_music')
     def test_success_cli(self, mock_prune_non_music: MagicMock) -> None:
         '''Tests that the CLI wrapper function exists and is called properly.'''

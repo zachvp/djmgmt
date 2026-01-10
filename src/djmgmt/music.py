@@ -677,7 +677,7 @@ def prune_non_user_dirs_cli(args: Namespace) -> None:
     '''CLI wrapper for the core `prune_non_user_dirs` function.'''
     prune_non_user_dirs(args.input, args.interactive)
     
-def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) -> list[str]:
+def prune_non_music(source: str, valid_extensions: set[str], dry_run: bool = False) -> list[str]:
     '''Removes all files that don't have a valid music extension from the given directory.
 
     Args:
@@ -699,20 +699,20 @@ def prune_non_music(source: str, valid_extensions: set[str], interactive: bool) 
         # check extension
         if extension not in valid_extensions:
             logging.info(f"non-music file found: '{input_path}'")
-            
-            # check interactive mode
-            if interactive:
-                choice = input("continue? [y/N]")
-                if choice != 'y':
-                    logging.info('skip: user skipped')
-                    continue
+
             # try to remove the file/dir
             try:
                 if os.path.isdir(input_path):
-                    shutil.rmtree(input_path)
+                    if dry_run:
+                        common.log_dry_run('rmtree', f"{input_path}")
+                    else:
+                        shutil.rmtree(input_path)
                     pruned.append(input_path)
                 else:
-                    os.remove(input_path)
+                    if dry_run:
+                        common.log_dry_run('remove', f"{input_path}")
+                    else:
+                        os.remove(input_path)
                     pruned.append(input_path)
                 logging.info(f"removed: '{input_path}'")
             except OSError as e:
