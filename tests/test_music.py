@@ -1497,8 +1497,8 @@ class TestPruneNonUserDirs(unittest.TestCase):
         mock_get_dirs.return_value = ['mock_empty_dir']
         
         # Call target function
-        actual = music.prune_non_user_dirs('/mock/source/', False)
-        
+        actual = music.prune_non_user_dirs('/mock/source/')
+
         ## Assert expectations
         ## Check calls
         expected_path = '/mock/source/mock_empty_dir'
@@ -1522,8 +1522,8 @@ class TestPruneNonUserDirs(unittest.TestCase):
         mock_is_empty_dir.return_value = False
         
         # Call target function
-        actual = music.prune_non_user_dirs('/mock/source/', False)
-        
+        actual = music.prune_non_user_dirs('/mock/source/')
+
         ## Assert expectations
         ## Check calls
         mock_get_dirs.assert_called()
@@ -1533,12 +1533,45 @@ class TestPruneNonUserDirs(unittest.TestCase):
         ## Check output
         self.assertListEqual(actual, [])
         
+    @patch('shutil.rmtree')
+    @patch('djmgmt.music.has_no_user_files')
+    @patch('djmgmt.music.get_dirs')
+    def test_dry_run(self,
+                     mock_get_dirs: MagicMock,
+                     mock_is_empty_dir: MagicMock,
+                     mock_rmtree: MagicMock) -> None:
+        '''Test that dry_run=True skips directory removal and logs operations.'''
+        # Setup mocks
+        mock_get_dirs.return_value = ['mock_empty_dir']
+        mock_is_empty_dir.return_value = True
+
+        # Call target function with dry_run=True
+        with self.assertLogs(level='INFO') as log_context:
+            actual = music.prune_non_user_dirs('/mock/source/', dry_run=True)
+
+        ## Assert expectations
+        expected_path = '/mock/source/mock_empty_dir'
+
+        ## Directory identified but NOT removed in dry-run mode
+        mock_get_dirs.assert_called()
+        mock_is_empty_dir.assert_called()
+        mock_rmtree.assert_not_called()
+
+        ## Return value still contains expected paths
+        self.assertListEqual(actual, [expected_path])
+
+        ## Verify dry-run logs
+        dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
+        self.assertEqual(len(dry_run_logs), 1)
+        self.assertIn('remove directory', dry_run_logs[0])
+        self.assertIn(expected_path, dry_run_logs[0])
+
     @patch('djmgmt.music.prune_non_user_dirs')
     def test_success_cli(self, mock_prune_empty: MagicMock) -> None:
         '''Tests that the CLI wrapper calls the correct function.'''
         args = Namespace(input=MOCK_INPUT_DIR, interactive=False)
         music.prune_non_user_dirs_cli(args) # type: ignore
-        
+
         mock_prune_empty.assert_called_once_with(MOCK_INPUT_DIR, False)
 
 class TestPruneNonMusicFiles(unittest.TestCase):
@@ -1779,7 +1812,7 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         # Verify dry-run logs
         dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
         self.assertEqual(len(dry_run_logs), 1)
-        self.assertIn('rmtree', dry_run_logs[0])
+        self.assertIn('remove directory', dry_run_logs[0])
     
     @patch('djmgmt.music.prune_non_music')
     def test_success_cli(self, mock_prune_non_music: MagicMock) -> None:

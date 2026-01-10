@@ -308,7 +308,7 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
         # remove all of the original non-standard files that have been encoded.
         for input_path, _ in result:
             if dry_run:
-                common.log_dry_run('remove', f"{input_path}")
+                common.log_dry_run('remove directory', f"{input_path}")
             else:
                 os.remove(input_path)
         # sweep all the encoded files from the temporary directory to the original source directory
@@ -632,7 +632,7 @@ def compress_all_cli(args: Namespace) -> None:
         for directory in directories:
             compress_dir(os.path.join(working_dir, directory), os.path.join(args.output, directory))
 
-def prune_non_user_dirs(source: str, interactive: bool) -> list[str]:
+def prune_non_user_dirs(source: str, dry_run: bool = False) -> list[str]:
     '''Removes all directories that pass the filter according to `has_no_user_files()`.
     Returns a list of all removed directories.'''
     search_dirs: list[str] = []
@@ -654,19 +654,15 @@ def prune_non_user_dirs(source: str, interactive: bool) -> list[str]:
 
     # remove the collected directories
     for path in pruned:
-        msg = f"will remove: '{path}'"
-        if interactive:
-            print(msg)
-            choice = input("continue? [y/N]")
-            if choice != 'y':
-                logging.info('skip: user skipped')
-                continue
-        logging.debug(msg)
-        try:
-            shutil.rmtree(path)
-        except OSError as e:
-            if e.errno == 39: # directory not empty
-                logging.warning(f"skip: non-empty dir {path}")
+        logging.debug(f"will remove: '{path}'")
+        if dry_run:
+            common.log_dry_run('remove directory', f"{path}")
+        else:
+            try:
+                shutil.rmtree(path)
+            except OSError as e:
+                if e.errno == 39: # directory not empty
+                    logging.warning(f"skip: non-empty dir {path}")
 
     # return the pruned directories
     result = list(pruned)
@@ -704,7 +700,7 @@ def prune_non_music(source: str, valid_extensions: set[str], dry_run: bool = Fal
             try:
                 if os.path.isdir(input_path):
                     if dry_run:
-                        common.log_dry_run('rmtree', f"{input_path}")
+                        common.log_dry_run('remove directory', f"{input_path}")
                     else:
                         shutil.rmtree(input_path)
                     pruned.append(input_path)
