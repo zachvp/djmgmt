@@ -1345,31 +1345,32 @@ class TestExtractAllNormalizedEncodings(unittest.TestCase):
     @patch('zipfile.ZipFile')
     def test_success_dry_run(self,
                             mock_zipfile: MagicMock) -> None:
-        '''Tests that an empty list is returned if there are no zip contents.'''
+        '''Tests that dry_run returns filenames without extracting.'''
         # Set up mocks
         mock_archive_path = f"{MOCK_INPUT_DIR}/archive.zip"
-        
+
+        mock_info_0 = MagicMock(spec=ZipInfo)
+        mock_info_0.filename = 'file_0'
+        mock_info_1 = MagicMock(spec=ZipInfo)
+        mock_info_1.filename = 'file_1'
+
         mock_archive = MagicMock()
-        mock_archive.infolist.return_value = [
-            MagicMock(filename='file_0', spec=ZipInfo),
-            MagicMock(filename='file_1', spec=ZipInfo),
-        ]
-        
+        mock_archive.infolist.return_value = [mock_info_0, mock_info_1]
+
         mock_zipfile.return_value.__enter__.return_value = mock_archive
-        
+
         # Call target function
         actual = music.extract_all_normalized_encodings(mock_archive_path, MOCK_OUTPUT_DIR, dry_run=True)
-        
+
         # Assert expectations
-        ## Dependent functions called
+        ## ZipFile opened
         mock_zipfile.assert_called_once_with(mock_archive_path, 'r')
-        
+
+        ## Returns correct structure
         self.assertEqual(actual, (mock_archive_path, ['file_0', 'file_1']))
-        
-        ## Extract NOT called for dry run
-        for info in mock_archive.infolist.return_value:
-            # info.assert_not_called
-            info.extract.assert_not_called() # TODO: CLAUDE: double check this is sufficient
+
+        ## Extract method NOT called on archive for any info object during dry run
+        mock_archive.extract.assert_not_called()
 
 class TestExtract(unittest.TestCase):
     @patch('djmgmt.music.extract_all_normalized_encodings')
