@@ -25,7 +25,7 @@ class Namespace(argparse.Namespace):
     SCRIPT_FUNCTIONS = {'move'}
 
 # helper functions
-def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
+def parse_args(functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -123,7 +123,8 @@ def batch_file_operation(args: Namespace) -> None:
 
 # Main
 if __name__ == '__main__':
-    script_args = parse_args(Namespace.SCRIPT_FUNCTIONS)
+    import sys
+    script_args = parse_args(Namespace.SCRIPT_FUNCTIONS, sys.argv[1:])
 
     if script_args.function == Namespace.FUNCTION_MOVE:
         batch_file_operation(script_args)

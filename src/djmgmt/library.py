@@ -55,7 +55,7 @@ class TrackMetadata:
     album: str
     path: str
 
-def parse_args(valid_functions: set[str], argv: list[str] | None = None) -> Namespace:
+def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -500,7 +500,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
 if __name__ == '__main__':
     # setup
     common.configure_log(level=logging.DEBUG, path=__file__)
-    script_args = parse_args(Namespace.FUNCTIONS)
+    script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
 
     if script_args.root_path:
         logging.info(f"args root path: '{script_args.root_path}'")

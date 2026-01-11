@@ -88,7 +88,7 @@ class Namespace(argparse.Namespace):
 
 # Helper functions
 def parse_args(valid_functions: set[str], single_arg_functions: set[str],
-               argv: list[str] | None = None) -> Namespace:
+               argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -914,12 +914,16 @@ def update_library(source: str,
                                sync_result=sync_result)
 
 if __name__ == '__main__':
+    import sys
+    
+    # log config
     common.configure_log(path=__file__)
 
     # parse arguments
-    script_args = parse_args(Namespace.FUNCTIONS, Namespace.FUNCTIONS_SINGLE_ARG)
+    script_args = parse_args(Namespace.FUNCTIONS, Namespace.FUNCTIONS_SINGLE_ARG, sys.argv[1:])
     logging.info(f"will execute: '{script_args.function}'")
 
+    # function dispatch
     if script_args.function == Namespace.FUNCTION_SWEEP:
         sweep_cli(script_args, constants.EXTENSIONS, PREFIX_HINTS)
     elif script_args.function == Namespace.FUNCTION_FLATTEN:

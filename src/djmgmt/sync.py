@@ -116,7 +116,7 @@ class SyncPreviewTrack:
     change_type: str  # 'new' or 'changed'
 
 def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str],
-               argv: list[str] | None = None) -> Namespace:
+               argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
 

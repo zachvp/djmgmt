@@ -48,7 +48,7 @@ class Namespace(argparse.Namespace):
     SCAN_MODES = {SCAN_MODE_XML, SCAN_MODE_OS}
 
 # helper functions
-def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
+def parse_args(functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -581,7 +581,7 @@ def missing_art_cli(args: Namespace) -> None:
 # Main
 if __name__ == '__main__':
     common.configure_log(level=logging.DEBUG, path=__file__)
-    script_args = parse_args(Namespace.FUNCTIONS)
+    script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
 
     if script_args.function == Namespace.FUNCTION_LOSSLESS:
         result = encode_lossless_cli(script_args)

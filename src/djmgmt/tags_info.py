@@ -30,7 +30,7 @@ class Namespace(argparse.Namespace):
     FUNCTION_COMPARE = 'compare'
     FUNCTIONS = {FUNCTION_LOG_DUPLICATES, FUNCTION_WRITE_IDENTIFIERS, FUNCTION_WRITE_PATHS, FUNCTION_COMPARE}
 
-def parse_args(functions: set[str], argv: list[str] | None = None) -> Namespace:
+def parse_args(functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
     Args:
@@ -206,10 +206,11 @@ def compare_tags_with_diff(source: str, comparison: str) -> list[tuple[str, str,
 
 # main
 if __name__ == '__main__':
+    import sys
     from . import common
     
     common.configure_log(level=logging.DEBUG, path=__file__)
-    args = parse_args(Namespace.FUNCTIONS)
+    args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
     
     logging.info(f"running function '{args.function}'")
     if args.function == Namespace.FUNCTION_LOG_DUPLICATES:
