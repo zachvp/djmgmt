@@ -526,7 +526,7 @@ def sync_from_path(args: Namespace):
     previous_date_context = ''
 
     # assign the action based on the given mode
-    action: Callable[[str, str], str] = shutil.copy
+    action = shutil.copy
     if args.function == Namespace.FUNCTION_MOVE:
         action = shutil.move
     elif args.function != Namespace.FUNCTION_COPY:

@@ -2115,16 +2115,14 @@ class TestProcessCLI(unittest.TestCase):
     def test_success(self, mock_process: MagicMock) -> None:
         '''Tests that the process function is called with the expected arguments.'''
         # Call target function
-        mock_interactive = False
         mock_valid_extensions = {'a'}
         mock_prefix_hints = {'b'}
-        args = Namespace(input=MOCK_INPUT_DIR, output=MOCK_OUTPUT_DIR, interactive=mock_interactive)
+        args = Namespace(input=MOCK_INPUT_DIR, output=MOCK_OUTPUT_DIR)
         music.process_cli(args, mock_valid_extensions, mock_prefix_hints) # type: ignore
         
         # Assert expectations
         mock_process.assert_called_once_with(MOCK_INPUT_DIR,
                                              MOCK_OUTPUT_DIR,
-                                             mock_interactive,
                                              mock_valid_extensions,
                                              mock_prefix_hints)
 
@@ -2144,12 +2142,12 @@ class TestUpdateLibrary(unittest.TestCase):
                      mock_run_sync_mappings: MagicMock) -> None:
         '''Tests that dependent functions are called with expected parameters.'''
         # Set up mocks
-        mock_collection = MagicMock()
+        mock_result = RecordResult(collection_root=ET.Element('collection'), tracks_added=2, tracks_updated=1)
         mock_mappings_changed = [self.create_mock_file_mapping(0), self.create_mock_file_mapping(1)]
         mock_mappings_created = [self.create_mock_file_mapping(2)]
         mock_mappings_filtered = [self.create_mock_file_mapping(0)]
 
-        mock_record_collection.return_value = mock_collection
+        mock_record_collection.return_value = mock_result
         mock_compare_tags.return_value = mock_mappings_changed.copy()
         mock_create_sync_mappings.return_value = mock_mappings_created.copy()
         mock_filter_mappings.return_value = mock_mappings_filtered.copy()
@@ -2157,19 +2155,17 @@ class TestUpdateLibrary(unittest.TestCase):
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
-        mock_interactive = False
         mock_extensions = {'.mock_ext'}
         mock_hints = {'mock_hint'}
         music.update_library(MOCK_INPUT_DIR,
                              mock_library,
                              mock_client_mirror,
-                             mock_interactive,
                              mock_extensions,
                              mock_hints)
 
         # Assert expectations
         ## Call parameters: process
-        mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_interactive, mock_extensions, mock_hints)
+        mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints)
 
         ## Call parameters: record_collection
         mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED)
@@ -2178,10 +2174,10 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
 
         ## Call parameters: create_sync_mappings
-        mock_create_sync_mappings.assert_called_once_with(mock_collection, mock_client_mirror)
+        mock_create_sync_mappings.assert_called_once_with(mock_result.collection_root, mock_client_mirror)
 
         ## Call: filter_path_mappings
-        mock_filter_mappings.assert_called_once_with(mock_mappings_changed, mock_collection, constants.XPATH_PRUNED)
+        mock_filter_mappings.assert_called_once_with(mock_mappings_changed, mock_result.collection_root, constants.XPATH_PRUNED)
 
         ## Call parameters: run_sync_mappings
         expected_mappings = mock_mappings_created + mock_mappings_filtered
@@ -2208,7 +2204,6 @@ class TestUpdateLibrary(unittest.TestCase):
         # Call target function
         mock_library = '/mock/library'
         mock_client_mirror = '/mock/client/mirror'
-        mock_interactive = False
         mock_extensions = {'.mock_ext'}
         mock_hints = {'mock_hint'}
 
@@ -2217,7 +2212,6 @@ class TestUpdateLibrary(unittest.TestCase):
             music.update_library(MOCK_INPUT_DIR,
                                  mock_library,
                                  mock_client_mirror,
-                                 mock_interactive,
                                  mock_extensions,
                                  mock_hints)
 

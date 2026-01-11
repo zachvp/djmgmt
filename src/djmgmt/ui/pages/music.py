@@ -67,7 +67,6 @@ if run_clicked:
                         results = music.process(
                             source=source_path,
                             output=output_path,
-                            interactive=False,
                             valid_extensions=constants.EXTENSIONS,
                             prefix_hints=music.PREFIX_HINTS
                         )
@@ -133,7 +132,6 @@ if run_clicked:
                             source=source_path,
                             library_path=output_path,
                             client_mirror_path=client_mirror_path,
-                            interactive=False,
                             valid_extensions=constants.EXTENSIONS,
                             prefix_hints=music.PREFIX_HINTS,
                             full_scan=full_scan

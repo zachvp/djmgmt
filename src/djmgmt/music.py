@@ -851,7 +851,6 @@ def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[s
 def update_library(source: str,
                    library_path: str,
                    client_mirror_path: str,
-                   interactive: bool,
                    valid_extensions: set[str],
                    prefix_hints: set[str],
                    full_scan: bool = True) -> None:
@@ -869,7 +868,6 @@ def update_library(source: str,
         source: Directory containing new music files to process (e.g., '/downloads/new_music')
         library_path: Main library directory with date structure (e.g., '/music/library')
         client_mirror_path: Local mirror of media server files (e.g., '/music/mirror')
-        interactive: If True, prompts for confirmation at various steps
         valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
         prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
         full_scan: If True, triggers full media server scan after sync
@@ -892,15 +890,15 @@ def update_library(source: str,
     from . import tags_info
     
     # process all of the source files into the library dir
-    process(source, library_path, interactive, valid_extensions, prefix_hints)
+    process(source, library_path, valid_extensions, prefix_hints)
 
     # update the processed collection according to any new files
-    collection = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED)
+    record_result = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
-    changed = library.filter_path_mappings(changed, collection, constants.XPATH_PRUNED)
-    mappings = sync.create_sync_mappings(collection, client_mirror_path)
+    changed = library.filter_path_mappings(changed, record_result.collection_root, constants.XPATH_PRUNED)
+    mappings = sync.create_sync_mappings(record_result.collection_root, client_mirror_path)
     if changed:
         mappings += changed
     
@@ -932,7 +930,6 @@ if __name__ == '__main__':
         update_library(script_args.input,
                        script_args.output,
                        script_args.client_mirror_path,
-                       script_args.interactive,
                        constants.EXTENSIONS,
                        PREFIX_HINTS)
 
