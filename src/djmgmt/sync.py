@@ -314,7 +314,11 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
     if transfer_path:
         logging.info(f"transferring files from {source}")
         returncode, _ = transfer_files(transfer_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=dry_run)
+        
         success = returncode == 0
+        # no actual paths are created in dry run mode, so rsync is unable to sync anything
+        if dry_run:
+            success = returncode == 23
 
         # check if file transfer succeeded
         if success:
@@ -628,7 +632,7 @@ if __name__ == '__main__':
             common.log_dry_run('sync', f"{len(sync_result.batches)} batches")
             logging.debug(f"batches:\n{sync_result.batches}")
             for batch in sync_result.batches:
-                print(f'    {batch.date_context}: {batch.files_processed} files')
+                logging.debug(f"{batch.date_context}: {batch.files_processed} files")
         
     elif script_args.function == Namespace.FUNCTION_PREVIEW_SYNC:
         from . import library
