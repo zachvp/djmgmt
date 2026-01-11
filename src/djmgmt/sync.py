@@ -58,6 +58,7 @@ class Namespace(argparse.Namespace):
     output: str
     scan_mode: str
     sync_mode: str
+    dry_run: bool
 
     # Function constants
     FUNCTION_COPY = 'copy'
@@ -132,10 +133,13 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
                        help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
 
     # Optional: all function parameters (alphabetical)
+    # TODO: condense these so more sharing across functions
     parser.add_argument('--client-mirror-path', '-m', type=str,
                        help="Client mirror path (for preview_sync)")
     parser.add_argument('--collection', '-c', type=str,
                        help="Rekordbox XML collection file path (for preview_sync)")
+    parser.add_argument('--dry-run', '-d', action='store_true',
+                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
     parser.add_argument('--end-date', type=str,
                        help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date")
     parser.add_argument('--input', '-i', type=str,
@@ -356,6 +360,10 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
     Returns:
         list[SyncBatchResult] containing results from each batch
     '''
+    # validation
+    if len(mappings) < 1:
+        return []
+    
     # core data
     batch: list[FileMapping] = []
     dest_previous = mappings[0][1]
@@ -599,9 +607,10 @@ def run_sync_mappings(mappings: list[FileMapping],
 
 # TODO add interactive mode to confirm sync state before any sync batch is possible
 if __name__ == '__main__':
+    import sys
     # setup
     common.configure_log(level=logging.DEBUG, path=__file__)
-    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES)
+    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES, sys.argv[1:])
 
     # run the given command
     logging.info(f"running function '{script_args.function}'")
@@ -612,7 +621,15 @@ if __name__ == '__main__':
         tree = library.load_collection(script_args.input)
         mappings = create_sync_mappings(tree, script_args.output)
         full_scan = script_args.scan_mode == Namespace.SCAN_FULL
-        run_sync_mappings(mappings, full_scan, script_args.sync_mode, script_args.end_date)
+        sync_result = run_sync_mappings(mappings, full_scan, script_args.sync_mode, script_args.end_date, dry_run=script_args.dry_run)
+        if script_args.dry_run:
+            common.log_dry_run('sync', f"{len(sync_result.mappings)} file mappings")
+            logging.debug(f"file mappings:\n{sync_result.mappings}")
+            common.log_dry_run('sync', f"{len(sync_result.batches)} batches")
+            logging.debug(f"batches:\n{sync_result.batches}")
+            for batch in sync_result.batches:
+                print(f'    {batch.date_context}: {batch.files_processed} files')
+        
     elif script_args.function == Namespace.FUNCTION_PREVIEW_SYNC:
         from . import library
 
