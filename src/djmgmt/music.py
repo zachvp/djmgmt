@@ -38,7 +38,7 @@ PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 
 # classes
 @dataclass
-class ProcessResults:
+class ProcessResult:
     '''Results from processing music files.'''
     processed_files: list[FileMapping]
     missing_art_paths: list[str]
@@ -55,9 +55,9 @@ class RecordResult:
 @dataclass
 class UpdateLibraryResult:
     '''Complete results from library update operation.'''
-    process_results: ProcessResults
-    record_results: RecordResult
-    sync_results: SyncResult
+    process_result: ProcessResult
+    record_result: RecordResult
+    sync_result: SyncResult
     changed_mappings: list[FileMapping]
 
 class Namespace(argparse.Namespace):
@@ -729,7 +729,7 @@ def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
     '''CLI wrapper for the core prune_non_music function.'''
     prune_non_music(args.input, valid_extensions, args.interactive)
 
-def process(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> ProcessResults:
+def process(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> ProcessResult:
     '''Performs the following, in sequence:
         1. Sweeps all music files and archives from the `source` directory into the `output` directory.
         2. Extracts all zip archives within the `output` directory.
@@ -800,7 +800,7 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
     else:
         common.write_paths(missing, constants.MISSING_ART_PATH)
 
-    return ProcessResults(
+    return ProcessResult(
         processed_files=processed_files,
         missing_art_paths=missing,
         archives_extracted=len(extracted),
@@ -853,7 +853,8 @@ def update_library(source: str,
                    client_mirror_path: str,
                    valid_extensions: set[str],
                    prefix_hints: set[str],
-                   full_scan: bool = True) -> None:
+                   full_scan: bool = True,
+                   dry_run: bool = False) -> UpdateLibraryResult:
     '''Processes music files into library and syncs to media server.
 
     Performs the following sequence:
@@ -870,6 +871,7 @@ def update_library(source: str,
         client_mirror_path: Local mirror of media server files (e.g., '/music/mirror')
         valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
         prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
+        dry_run: If True, skips all destructive operations, logging and returning what *would* be done.
         full_scan: If True, triggers full media server scan after sync
 
     Example:
@@ -880,7 +882,8 @@ def update_library(source: str,
         ...     False,
         ...     {'.mp3', '.aiff'},
         ...     {'beatport_tracks'},
-        ...     full_scan=True
+        ...     full_scan=True,
+        ...     dry_run=True
         ... )
 
     Note:
@@ -890,10 +893,10 @@ def update_library(source: str,
     from . import tags_info
     
     # process all of the source files into the library dir
-    process(source, library_path, valid_extensions, prefix_hints)
+    process_result = process(source, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
-    record_result = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED)
+    record_result = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
@@ -903,7 +906,12 @@ def update_library(source: str,
         mappings += changed
     
     # run the sync
-    sync.run_sync_mappings(mappings, full_scan=full_scan)
+    sync_result = sync.run_sync_mappings(mappings, full_scan=full_scan, dry_run=dry_run)
+    
+    return UpdateLibraryResult(process_result=process_result,
+                               record_result=record_result,
+                               changed_mappings=changed,
+                               sync_result=sync_result)
 
 if __name__ == '__main__':
     common.configure_log(path=__file__)
