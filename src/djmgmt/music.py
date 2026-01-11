@@ -317,10 +317,10 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
 
 # TODO: move to library module
 # TODO: extend to save backup of previous X versions
-def record_collection(source: str, collection_path: str) -> ET.Element:
+def record_collection(source: str, collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
     with all music files in the `source` directory.
-    Returns the XML collection root.'''
+    Returns RecordResult with collection root, tracks added count, and tracks updated count.'''
     # load XML references
     xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_PATH_TEMPLATE
     root          = library.load_collection(xml_path)
@@ -399,11 +399,19 @@ def record_collection(source: str, collection_path: str) -> ET.Element:
     playlist_root.set('Count', str(root_node_children))
     
     # write the tree to the XML file
-    tree = ET.ElementTree(root)
-    tree.write(collection_path, encoding='UTF-8', xml_declaration=True)
+    if dry_run:
+        common.log_dry_run('write collection', collection_path)
+    else:
+        tree = ET.ElementTree(root)
+        tree.write(collection_path, encoding='UTF-8', xml_declaration=True)
+
     logging.info(f"Collection updated: {new_tracks} new tracks, {updated_tracks} updated tracks at {collection_path}")
-    
-    return root
+
+    return RecordResult(
+        collection_root=root,
+        tracks_added=new_tracks,
+        tracks_updated=updated_tracks
+    )
 
 # Primary functions
 def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
