@@ -151,14 +151,12 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, si
     if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
         if not args.client_mirror_path:
             parser.error(f"'{args.function}' requires --client-mirror-path")
-        if not args.collection_backup_directory:
-            parser.error(f"'{args.function}' requires --collection-backup-directory")
+        # if not args.collection_backup_directory:
+        #     parser.error(f"'{args.function}' requires --collection-backup-directory")
 
         # Validate paths exist
         if not os.path.exists(args.client_mirror_path):
             parser.error(f"--client-mirror-path '{args.client_mirror_path}' does not exist")
-        if not os.path.exists(args.collection_backup_directory):
-            parser.error(f"--collection-backup-directory '{args.collection_backup_directory}' does not exist")
 
 def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
     '''Compresses all files in a directory into a zip archive.
@@ -318,6 +316,42 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
 
 # TODO: move to library module
 # TODO: extend to save backup of previous X versions
+# TODO: implement merge XML function
+'''
+# Determine which file has the more recent modify time
+
+# Create merged tree
+
+# Merge collection tracks
+    Collect all track nodes from A
+    Collect all track nodes from B
+    For each track node in A
+        Create merged node as copy of node
+        If node.path exists in B
+            Use node attributes from more recently modified file for merged node
+        If merged node ID exists in merged tree collection
+            Generate new ID for merged node
+            Update entry in _pruned with new ID
+        Add merged node to merged tree collection
+    For each track node in B
+        Create merged node as copy of node
+        If node.path exists in A
+            Skip
+        If merged node ID exists in merged tree collection
+            Generate new ID for merged node
+            Update entry in _pruned with new ID
+        Add merged node to merged tree collection
+
+# Merge playlists
+    Exclude the 'dynamic' folder
+    Create merged _pruned node
+    Collect all _pruned track IDs from A into merged _pruned
+    For each track in B
+        If track.id does not exist in merged _pruned
+            Add track.id to merged _pruned
+
+# Write the merged tree to the dynamic collection file
+'''
 def record_collection(source: str, collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
     with all music files in the `source` directory.
@@ -751,7 +785,7 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
     # process all files in a temporary directory, then move the processed files to the output directory
     with TemporaryDirectory() as processing_dir:
         # first sweep: source → processing
-        initial_sweep = sweep(source, processing_dir, valid_extensions, prefix_hints)
+        initial_sweep = sweep(source, processing_dir, valid_extensions, prefix_hints, dry_run=dry_run)
         # track for correlation
         for source_path, _ in initial_sweep:
             filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
@@ -785,7 +819,7 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         prune_non_user_dirs(processing_dir, dry_run=dry_run)
 
         # final sweep: processing → output
-        final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints)
+        final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints, dry_run=True)
 
     # map final output back to original source using filename without extension
     processed_files: list[FileMapping] = []
@@ -811,43 +845,6 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
 def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
     '''CLI wrapper for the core `process` function.'''
     process(args.input, args.output, valid_extensions, prefix_hints)
-
-# TODO: implement merge XML function
-'''
-# Determine which file has the more recent modify time
-
-# Create merged tree
-
-# Merge collection tracks
-    Collect all track nodes from A
-    Collect all track nodes from B
-    For each track node in A
-        Create merged node as copy of node
-        If node.path exists in B
-            Use node attributes from more recently modified file for merged node
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-    For each track node in B
-        Create merged node as copy of node
-        If node.path exists in A
-            Skip
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-
-# Merge playlists
-    Exclude the 'dynamic' folder
-    Create merged _pruned node
-    Collect all _pruned track IDs from A into merged _pruned
-    For each track in B
-        If track.id does not exist in merged _pruned
-            Add track.id to merged _pruned
-
-# Write the merged tree to the dynamic collection file
-'''
 
 def update_library(source: str,
                    library_path: str,
@@ -953,7 +950,7 @@ if __name__ == '__main__':
             common.log_dry_run('encode', f"{result.process_result.files_encoded} lossless files")
             common.log_dry_run_data('process_result', result.process_result)
             
-            common.log_dry_run('record_collection', f"to {script_args.output}")
+            common.log_dry_run('record_collection', f"for {script_args.output} files")
             common.log_dry_run_data('record_result', result.record_result)
             
             common.log_dry_run('sync', f"to server")
