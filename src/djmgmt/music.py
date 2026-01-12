@@ -48,6 +48,7 @@ class ProcessResult:
 @dataclass
 class RecordResult:
     '''Results from recording tracks to XML collection.'''
+    # TODO: include XML collection path, remove collection_root
     collection_root: ET.Element
     tracks_added: int
     tracks_updated: int
@@ -69,8 +70,8 @@ class Namespace(argparse.Namespace):
     # Optional (alphabetical)
     client_mirror_path: str
     collection_backup_directory: str
+    dry_run: bool
     input: str
-    interactive: bool
     output: str
 
     # Function constants
@@ -107,10 +108,10 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
                        help='Client mirror path for media sync')
     parser.add_argument('--collection-backup-directory', '-b', type=str,
                        help='Directory containing backup XML files')
+    parser.add_argument('--dry-run', '-d', action='store_true',
+                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
     parser.add_argument('--input', '-i', type=str,
                        help='Input directory or file path')
-    parser.add_argument('--interactive', action='store_true',
-                       help='Run script in interactive mode')
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory or file path')
 
@@ -939,9 +940,25 @@ if __name__ == '__main__':
     elif script_args.function == Namespace.FUNCTION_PROCESS:
         process_cli(script_args, constants.EXTENSIONS, PREFIX_HINTS)
     elif script_args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
-        update_library(script_args.input,
-                       script_args.output,
-                       script_args.client_mirror_path,
-                       constants.EXTENSIONS,
-                       PREFIX_HINTS)
+        result = update_library(script_args.input,
+                                script_args.output,
+                                script_args.client_mirror_path,
+                                constants.EXTENSIONS,
+                                PREFIX_HINTS,
+                                dry_run=script_args.dry_run)
+        if script_args.dry_run:
+            common.log_dry_run('process', f"{len(result.process_result.processed_files)} files")
+            common.log_dry_run('write', f"{len(result.process_result.missing_art_paths)} missing art files")
+            common.log_dry_run('extract', f"{result.process_result.archives_extracted} archives")
+            common.log_dry_run('encode', f"{result.process_result.files_encoded} lossless files")
+            common.log_dry_run_data('process_result', result.process_result)
+            
+            common.log_dry_run('record_collection', f"to {script_args.output}")
+            common.log_dry_run_data('record_result', result.record_result)
+            
+            common.log_dry_run('sync', f"to server")
+            common.log_dry_run_data('sync_result', result.sync_result)
+            
+            common.log_dry_run('sync', f"{len(result.changed_mappings)} changed mappings")
+            common.log_dry_run_data('changed_mappings', result.changed_mappings)
 

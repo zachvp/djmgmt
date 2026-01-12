@@ -2318,7 +2318,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.function, 'flatten')
         self.assertEqual(args.input, '/mock/input')
         self.assertEqual(args.output, '/mock/input')  # output defaults to input for single-arg functions
-        self.assertFalse(args.interactive)
 
     def test_valid_multi_arg_function(self) -> None:
         '''Tests that multi-arg functions require --input and --output.'''
@@ -2328,7 +2327,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.function, 'sweep')
         self.assertEqual(args.input, '/src')
         self.assertEqual(args.output, '/dst')
-        self.assertFalse(args.interactive)
 
     def test_valid_process(self) -> None:
         '''Tests that process function works with required args.'''
@@ -2351,13 +2349,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.output, '/lib')
         self.assertEqual(args.client_mirror_path, '/mirror')
         self.assertEqual(args.collection_backup_directory, '/backup')
-
-    def test_valid_with_interactive(self) -> None:
-        '''Tests that --interactive flag works.'''
-        argv = ['sweep', '--input', '/in', '--output', '/out', '--interactive']
-        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
-
-        self.assertTrue(args.interactive)
 
     @patch('sys.exit')
     def test_missing_input(self, mock_exit: MagicMock) -> None:
@@ -2412,3 +2403,49 @@ class TestParseArgs(unittest.TestCase):
         music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         mock_exit.assert_called_with(2)
+
+    def test_dry_run_default(self) -> None:
+        '''Tests that dry_run defaults to False when not provided.'''
+        argv = ['process', '--input', '/in', '--output', '/out']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertFalse(args.dry_run)
+
+    def test_dry_run_enabled(self) -> None:
+        '''Tests that --dry-run flag sets dry_run to True.'''
+        argv = ['process', '--input', '/in', '--output', '/out', '--dry-run']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertTrue(args.dry_run)
+
+    def test_dry_run_short_flag(self) -> None:
+        '''Tests that -d short flag sets dry_run to True.'''
+        argv = ['process', '--input', '/in', '--output', '/out', '-d']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertTrue(args.dry_run)
+
+    @patch('os.path.exists', return_value=True)
+    def test_dry_run_with_update_library(self, mock_exists: MagicMock) -> None:
+        '''Tests that dry_run works with update_library and all its required arguments.'''
+        argv = ['update_library', '--input', '/in', '--output', '/lib',
+                '--client-mirror-path', '/mirror', '--collection-backup-directory', '/backup',
+                '--dry-run']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'update_library')
+        self.assertEqual(args.input, '/in')
+        self.assertEqual(args.output, '/lib')
+        self.assertEqual(args.client_mirror_path, '/mirror')
+        self.assertEqual(args.collection_backup_directory, '/backup')
+        self.assertTrue(args.dry_run)
+
+    def test_dry_run_with_single_arg_function(self) -> None:
+        '''Tests that dry_run works with single-arg functions.'''
+        argv = ['flatten', '--input', '/in', '--dry-run']
+        args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        self.assertEqual(args.function, 'flatten')
+        self.assertEqual(args.input, '/in')
+        self.assertEqual(args.output, '/in')  # output defaults to input for single-arg functions
+        self.assertTrue(args.dry_run)
