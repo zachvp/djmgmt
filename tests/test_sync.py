@@ -38,7 +38,7 @@ COLLECTION_XML = f'''
 </DJ_PLAYLISTS>
 '''.strip()
 
-# Primary test clas
+# Primary test classes
 class TestIsProcessed(unittest.TestCase):
     # Past dates
     @patch('djmgmt.sync.SavedDateContext.load')
@@ -1113,3 +1113,38 @@ class TestParseArgs(unittest.TestCase):
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertEqual(args.sync_mode, 'remote')
+
+    def test_dry_run_default(self) -> None:
+        '''Tests that dry_run defaults to False when not provided.'''
+        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertFalse(args.dry_run)
+
+    def test_dry_run_enabled(self) -> None:
+        '''Tests that --dry-run flag sets dry_run to True.'''
+        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '--dry-run']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertTrue(args.dry_run)
+
+    def test_dry_run_short_flag(self) -> None:
+        '''Tests that -d short flag sets dry_run to True.'''
+        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '-d']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertTrue(args.dry_run)
+
+    def test_dry_run_with_all_options(self) -> None:
+        '''Tests that dry_run works with all other optional arguments.'''
+        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'full',
+                '--sync-mode', 'local', '--end-date', '2025/10 october/09', '--dry-run']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertEqual(args.function, 'sync')
+        self.assertEqual(args.input, '/in')
+        self.assertEqual(args.output, '/out')
+        self.assertEqual(args.scan_mode, 'full')
+        self.assertEqual(args.sync_mode, 'local')
+        self.assertEqual(args.end_date, '2025/10 october/09')
+        self.assertTrue(args.dry_run)

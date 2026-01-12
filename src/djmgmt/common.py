@@ -209,3 +209,12 @@ def log_dry_run(operation: str, target: str) -> None:
         target: Target of the operation (e.g., file path, directory)
     '''
     logging.info(f'[DRY-RUN] Would {operation}: {target}')
+
+def log_dry_run_data(name: str, data: object) -> None:
+    '''Logs data objects as DEBUG logs during dry-run mode.
+    
+    Args:
+        name: Human-readable name of the data (e.g., 'file_mappings', 'paths')
+        data: The data to log (e.g., list, dict, object).
+    '''
+    logging.debug(f"[DRY-RUN] {name} data:\n{data}")
