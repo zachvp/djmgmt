@@ -362,7 +362,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
         dry_run: If True, skip state file writes
 
     Returns:
-        list[SyncBatchResult] containing results from each batch
+        list[SyncBatchResult] containing results from each batch, or an empty list if no mappings were synced
     '''
     # validation
     if len(mappings) < 1:

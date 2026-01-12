@@ -213,7 +213,7 @@ class TestSyncBatch(unittest.TestCase):
 
         # Configure mocks
         mock_transform.return_value = '/dest/./2023/01 january/01/'
-        mock_transfer.return_value = (0, 'dry run output')
+        mock_transfer.return_value = (23, 'dry run output')
 
         # Call the function with dry_run=True
         result = sync.sync_batch(batch, date_context, dest, full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
@@ -476,13 +476,12 @@ class TestSyncMappings(unittest.TestCase):
                                   mock_load: MagicMock,
                                   mock_save: MagicMock,
                                   mock_sync_batch: MagicMock) -> None:
-        '''Tests that nothing is synced for an empty mappings list and error is raised.'''
+        '''Tests that nothing is synced for an empty mappings list and no error is raised.'''
         # Set up call input
         mappings = []
         
         # Target function
-        with self.assertRaises(IndexError):
-            sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
         
         # Assert expectations
         mock_sync_batch.assert_not_called()
