@@ -2343,14 +2343,13 @@ class TestParseArgs(unittest.TestCase):
     def test_valid_update_library(self, mock_exists: MagicMock) -> None:
         '''Tests that update_library works with all required arguments.'''
         argv = ['update_library', '--input', '/in', '--output', '/lib',
-                '--client-mirror-path', '/mirror', '--collection-backup-directory', '/backup']
+                '--client-mirror-path', '/mirror']
         args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         self.assertEqual(args.function, 'update_library')
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/lib')
         self.assertEqual(args.client_mirror_path, '/mirror')
-        self.assertEqual(args.collection_backup_directory, '/backup')
 
     @patch('sys.exit')
     def test_missing_input(self, mock_exit: MagicMock) -> None:
@@ -2372,21 +2371,10 @@ class TestParseArgs(unittest.TestCase):
     @patch('os.path.exists', return_value=True)
     def test_update_library_missing_client_mirror(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
         '''Tests that update_library requires --client-mirror-path.'''
-        argv = ['update_library', '--input', '/in', '--output', '/out',
-                '--collection-backup-directory', '/backup']
+        argv = ['update_library', '--input', '/in', '--output', '/out']
         music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         mock_exit.assert_called_with(2)
-
-    # @patch('sys.exit')
-    # @patch('os.path.exists', return_value=True)
-    # def test_update_library_missing_collection_backup(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
-    #     '''Tests that update_library requires --collection-backup-directory.'''
-    #     argv = ['update_library', '--input', '/in', '--output', '/out',
-    #             '--client-mirror-path', '/mirror']
-    #     music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
-
-    #     mock_exit.assert_called_with(2)
 
     @patch('sys.exit')
     @patch('os.path.exists', return_value=False)
@@ -2394,7 +2382,7 @@ class TestParseArgs(unittest.TestCase):
     def test_update_library_invalid_client_mirror_path(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
         '''Tests that update_library validates client_mirror_path exists.'''
         argv = ['update_library', '--input', '/in', '--output', '/out',
-                '--client-mirror-path', '/nonexistent', '--collection-backup-directory', '/backup']
+                '--client-mirror-path', '/nonexistent']
         music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         mock_exit.assert_called_with(2)
@@ -2432,7 +2420,7 @@ class TestParseArgs(unittest.TestCase):
     def test_dry_run_with_update_library(self, mock_exists: MagicMock) -> None:
         '''Tests that dry_run works with update_library and all its required arguments.'''
         argv = ['update_library', '--input', '/in', '--output', '/lib',
-                '--client-mirror-path', '/mirror', '--collection-backup-directory', '/backup',
+                '--client-mirror-path', '/mirror',
                 '--dry-run']
         args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
@@ -2440,7 +2428,6 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/lib')
         self.assertEqual(args.client_mirror_path, '/mirror')
-        self.assertEqual(args.collection_backup_directory, '/backup')
         self.assertTrue(args.dry_run)
 
     def test_dry_run_with_single_arg_function(self) -> None:

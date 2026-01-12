@@ -69,7 +69,6 @@ class Namespace(argparse.Namespace):
 
     # Optional (alphabetical)
     client_mirror_path: str
-    collection_backup_directory: str
     dry_run: bool
     input: str
     output: str
@@ -106,8 +105,6 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
     # Optional: all function parameters (alphabetical)
     parser.add_argument('--client-mirror-path', '-m', type=str,
                        help='Client mirror path for media sync')
-    parser.add_argument('--collection-backup-directory', '-b', type=str,
-                       help='Directory containing backup XML files')
     parser.add_argument('--dry-run', '-d', action='store_true',
                        help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
     parser.add_argument('--input', '-i', type=str,
@@ -119,7 +116,7 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
     args = parser.parse_args(argv, namespace=Namespace())
 
     # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path', 'collection_backup_directory'])
+    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path'])
 
     # Validate function
     if args.function not in valid_functions:
@@ -151,8 +148,6 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, si
     if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
         if not args.client_mirror_path:
             parser.error(f"'{args.function}' requires --client-mirror-path")
-        # if not args.collection_backup_directory:
-        #     parser.error(f"'{args.function}' requires --collection-backup-directory")
 
         # Validate paths exist
         if not os.path.exists(args.client_mirror_path):
