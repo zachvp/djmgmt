@@ -444,7 +444,7 @@ def record_collection(source: str, collection_path: str, dry_run: bool = False) 
     )
 
 # Primary functions
-def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
+def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False, copy_instead_of_move: bool = False) -> list[FileMapping]:
     '''Moves all music files and valid archives from source to output directory.
 
     Validates archives by inspecting contents - archives must contain music files and not contain .app files.
@@ -455,6 +455,8 @@ def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: se
         output: Destination directory (e.g., '/music/staging')
         valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
         prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
+        dry_run: If True, logs actions without performing them
+        copy_instead_of_move: If True, copies files instead of moving them (preserves source files)
 
     Returns:
         List of (source_path, destination_path) tuples for all moved files
@@ -507,14 +509,19 @@ def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: se
                 is_valid_archive &= valid_files > 0
                 logging.debug(f"archive '{input_path}' valid = '{is_valid_archive}'")
 
-        # move input file if it has a supported extension or is a valid archive
+        # move or copy input file if it has a supported extension or is a valid archive
         if name_split[1] in valid_extensions or is_valid_archive:
             logging.debug(f"filter matched file '{input_path}'")
-            logging.debug(f"move from '{input_path}' to '{output_path}'")
+            operation = 'copy' if copy_instead_of_move else 'move'
+
             if dry_run:
-                common.log_dry_run('move', f"{input_path} -> {output_path}")
+                common.log_dry_run(operation, f"{input_path} -> {output_path}")
             else:
-                shutil.move(input_path, output_path)
+                if copy_instead_of_move:
+                    shutil.copy2(input_path, output_path)
+                else:
+                    shutil.move(input_path, output_path)
+                logging.debug(f"{operation} from '{input_path}' to '{output_path}'")
             swept.append((input_path, output_path))
     logging.info(f"swept all files ({len(swept)})\n{swept}")
     return swept    
@@ -780,7 +787,9 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
     # process all files in a temporary directory, then move the processed files to the output directory
     with TemporaryDirectory() as processing_dir:
         # first sweep: source → processing
-        initial_sweep = sweep(source, processing_dir, valid_extensions, prefix_hints, dry_run=dry_run)
+        # In dry-run mode: copy files (don't modify source directory)
+        # In normal mode: move files (destructive operation on source)
+        initial_sweep = sweep(source, processing_dir, valid_extensions, prefix_hints, dry_run=False, copy_instead_of_move=dry_run)
         # track for correlation
         for source_path, _ in initial_sweep:
             filename_no_ext = os.path.splitext(os.path.basename(source_path))[0]
@@ -788,8 +797,8 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
                 logging.error(f"Duplicate filename detected: '{filename_no_ext}' from '{source_path}' and '{file_to_source_path[filename_no_ext]}'")
             file_to_source_path[filename_no_ext] = source_path
 
-        # track extracted archives and map extracted files to their archive origin
-        extracted = extract(processing_dir, processing_dir, dry_run=dry_run)
+        # track extracted archives and map extracted files to their archive origin (always execute - temp dir is isolated)
+        extracted = extract(processing_dir, processing_dir, dry_run=False)
         for archive_path, extracted_files in extracted:
             # get the original archive source path
             archive_name_no_ext = os.path.splitext(os.path.basename(archive_path))[0]
@@ -799,21 +808,22 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
             for extracted_file in extracted_files:
                 extracted_basename = os.path.basename(extracted_file)
                 extracted_name_no_ext = os.path.splitext(extracted_basename)[0]
-                
+
                 # build source path as: original_archive.zip/extracted_file.ext
                 archive_relative_source = os.path.join(original_archive_source, extracted_basename)
                 if extracted_name_no_ext in file_to_source_path:
                     logging.error(f"Duplicate filename detected: '{extracted_name_no_ext}' from '{archive_relative_source}' and '{file_to_source_path[extracted_name_no_ext]}'")
                 file_to_source_path[extracted_name_no_ext] = archive_relative_source
 
-        flatten_hierarchy(processing_dir, processing_dir, dry_run=dry_run)
+        # always execute - temp dir is isolated
+        flatten_hierarchy(processing_dir, processing_dir, dry_run=False)
 
-        # track encoded files and prune the processing directory
-        encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, dry_run=dry_run)
-        prune_non_music(processing_dir, valid_extensions, dry_run=dry_run)
-        prune_non_user_dirs(processing_dir, dry_run=dry_run)
+        # track encoded files and prune the processing directory (always execute - temp dir is isolated)
+        encoded = standardize_lossless(processing_dir, valid_extensions, prefix_hints, dry_run=False)
+        prune_non_music(processing_dir, valid_extensions, dry_run=False)
+        prune_non_user_dirs(processing_dir, dry_run=False)
 
-        # final sweep: processing → output
+        # final sweep: processing → output (respect dry_run - affects actual output)
         final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # map final output back to original source using filename without extension
