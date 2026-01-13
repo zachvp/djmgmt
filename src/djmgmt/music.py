@@ -814,7 +814,7 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         prune_non_user_dirs(processing_dir, dry_run=dry_run)
 
         # final sweep: processing → output
-        final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints, dry_run=True)
+        final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # map final output back to original source using filename without extension
     processed_files: list[FileMapping] = []
