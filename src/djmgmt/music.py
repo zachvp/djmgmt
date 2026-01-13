@@ -823,6 +823,10 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         prune_non_music(processing_dir, valid_extensions, dry_run=False)
         prune_non_user_dirs(processing_dir, dry_run=False)
 
+        # Find missing art before leaving temp directory context
+        # Scan processing_dir since files are there regardless of dry_run mode
+        missing = asyncio.run(encode.find_missing_art_os(processing_dir, threads=72))
+
         # final sweep: processing → output (respect dry_run - affects actual output)
         final_sweep = sweep(processing_dir, output, valid_extensions, prefix_hints, dry_run=dry_run)
 
@@ -832,9 +836,6 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         filename_no_ext = os.path.splitext(os.path.basename(output_path))[0]
         original_source = file_to_source_path.get(filename_no_ext, processing_path)
         processed_files.append((original_source, output_path))
-
-    # Find missing art
-    missing = asyncio.run(encode.find_missing_art_os(output, threads=72))
     if dry_run:
         common.log_dry_run('write paths', constants.MISSING_ART_PATH)
     else:

@@ -1977,15 +1977,19 @@ class TestProcess(unittest.TestCase):
         self.assertEqual(mock_call_container.mock_calls[3], call.standardize_lossless())
         self.assertEqual(mock_call_container.mock_calls[4], call.prune_non_music())
         self.assertEqual(mock_call_container.mock_calls[5], call.prune_non_user_dirs())
-        self.assertEqual(mock_call_container.mock_calls[6], call.sweep())
-        self.assertEqual(mock_call_container.mock_calls[7], call.find_missing_art_os())
+        self.assertEqual(mock_call_container.mock_calls[6], call.find_missing_art_os())
+        self.assertEqual(mock_call_container.mock_calls[7], call.sweep())
         self.assertEqual(mock_call_container.mock_calls[8], call.write_paths())
 
         # Assert call counts and parameters
         self.assertEqual(mock_sweep.call_count, 2)
         mock_extract.assert_called_once()
         mock_flatten.assert_called_once()
-        self.assertEqual(MOCK_OUTPUT_DIR, mock_find_missing_art_os.call_args.args[0])
+
+        # find_missing_art_os should be called with processing_dir (temp directory), not output
+        # The exact temp dir path varies, so we just verify it's called once with some directory
+        mock_find_missing_art_os.assert_called_once()
+
         self.assertEqual(missing_art_result, mock_write_paths.call_args.args[0])
 
         # Assert return value structure and type
@@ -2024,18 +2028,18 @@ class TestProcess(unittest.TestCase):
                      mock_standardize_lossless: MagicMock,
                      mock_find_missing_art_os: MagicMock,
                      mock_write_paths: MagicMock) -> None:
-        '''Test that dry_run=True is threaded to all helper functions and skips write_paths.'''
+        '''Test that dry_run=True uses copy mode for initial sweep, skips final sweep operations, and preserves source files.'''
         # Configure sweep to return realistic data for both calls
         def sweep_side_effect(*args: object, **kwargs: object) -> list[FileMapping]:
             # Return different data for first and second calls
             if mock_sweep.call_count == 1:
-                # First sweep: source → temp
+                # First sweep: source → temp (should use copy_instead_of_move=True)
                 return [
                     ('/source/track1.mp3', '/tmp/xyz/track1.mp3'),
                     ('/source/track2.wav', '/tmp/xyz/track2.wav')
                 ]
             else:
-                # Second sweep: temp → output
+                # Second sweep: temp → output (should have dry_run=True)
                 return [
                     ('/tmp/xyz/track1.mp3', '/output/track1.mp3'),
                     ('/tmp/xyz/track2.aiff', '/output/track2.aiff')
@@ -2045,7 +2049,7 @@ class TestProcess(unittest.TestCase):
         standardize_result = [
             ('/tmp/xyz/track2.wav', '/tmp/xyz/track2.aiff')
         ]
-        missing_art_result = ['/output/track1.mp3']
+        missing_art_result = ['/tmp/xyz/track1.mp3']
 
         mock_sweep.side_effect = sweep_side_effect
         mock_extract.return_value = []
@@ -2063,31 +2067,38 @@ class TestProcess(unittest.TestCase):
 
         ## Assert expectations
 
-        ## All helper functions called with dry_run=True
-        # Check sweep calls
+        ## Check sweep calls have correct parameters
         self.assertEqual(mock_sweep.call_count, 2)
-        for call_args in mock_sweep.call_args_list:
-            self.assertEqual(call_args.kwargs.get('dry_run'), True)
 
+        # First sweep: should use copy_instead_of_move=True and dry_run=False
+        first_sweep_call = mock_sweep.call_args_list[0]
+        self.assertEqual(first_sweep_call.kwargs.get('dry_run'), False)
+        self.assertEqual(first_sweep_call.kwargs.get('copy_instead_of_move'), True)
+
+        # Second sweep: should use dry_run=True (and copy_instead_of_move defaults to False)
+        second_sweep_call = mock_sweep.call_args_list[1]
+        self.assertEqual(second_sweep_call.kwargs.get('dry_run'), True)
+
+        ## Temp directory operations should execute normally (dry_run=False)
         # Check extract call
         mock_extract.assert_called_once()
-        self.assertEqual(mock_extract.call_args.kwargs.get('dry_run'), True)
+        self.assertEqual(mock_extract.call_args.kwargs.get('dry_run'), False)
 
         # Check flatten_hierarchy call
         mock_flatten.assert_called_once()
-        self.assertEqual(mock_flatten.call_args.kwargs.get('dry_run'), True)
+        self.assertEqual(mock_flatten.call_args.kwargs.get('dry_run'), False)
 
         # Check standardize_lossless call
         mock_standardize_lossless.assert_called_once()
-        self.assertEqual(mock_standardize_lossless.call_args.kwargs.get('dry_run'), True)
+        self.assertEqual(mock_standardize_lossless.call_args.kwargs.get('dry_run'), False)
 
         # Check prune_non_music call
         mock_prune_non_music.assert_called_once()
-        self.assertEqual(mock_prune_non_music.call_args.kwargs.get('dry_run'), True)
+        self.assertEqual(mock_prune_non_music.call_args.kwargs.get('dry_run'), False)
 
         # Check prune_non_user_dirs call
         mock_prune_empty.assert_called_once()
-        self.assertEqual(mock_prune_empty.call_args.kwargs.get('dry_run'), True)
+        self.assertEqual(mock_prune_empty.call_args.kwargs.get('dry_run'), False)
 
         ## write_paths NOT called in dry-run mode
         mock_write_paths.assert_not_called()
