@@ -4,8 +4,6 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## General Instructions
 
-**Communication Style**: Do not provide summaries of work completed unless explicitly requested by the user.
-
 **Persisted Investigation Notes**: If information needs to be persisted across sessions, always store investigation findings, research notes, and session-specific documentation in the `claude/` directory (which is gitignored).
 
 **Code Reuse**: Use existing utility functions from `common.py` and other modules before creating new ones. Check for functions like `find_date_context()`, `collect_paths()`, and `configure_log()` that may already provide the needed functionality.
@@ -96,16 +94,13 @@ This is a DJ management toolkit for organizing, encoding, tagging, and syncing m
 
 ```bash
 # Run all tests
-python3 -m unittest discover -s test -p "test_*.py"
+python3 -m unittest discover -s ./tests -p "test_*.py" -qq
 
 # Run a specific test file
-python3 -m unittest test.test_common
+python3 -m unittest test.test_common -qq
 
 # Run a specific test case
-python3 -m unittest test.test_common.TestCollectPaths
-
-# Run with verbose output
-python3 -m unittest discover -s test -p "test_*.py" -v
+python3 -m unittest test.test_common.TestCollectPaths -qq
 ```
 
 ## Running Scripts
