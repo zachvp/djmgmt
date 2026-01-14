@@ -103,34 +103,6 @@ python3 -m unittest test.test_common -qq
 python3 -m unittest test.test_common.TestCollectPaths -qq
 ```
 
-## Running Scripts
-
-All scripts are Python modules meant to be run from the project root:
-
-```bash
-# Process music files (sweep, extract, flatten, encode, prune)
-python3 -m src.music process <input_dir> <output_dir> [--interactive]
-
-# Update library: process files and sync to media server
-python3 -m src.music update_library <source_dir> <library_path> \
-  --client-mirror-path <mirror_path> \
-  --collection-backup-directory <backup_dir>
-
-# Organize library files by date added
-python3 -m src.library date_paths <collection.xml> --root-path <path> [--metadata-path]
-
-# Sync library to media server
-python3 -m src.sync sync <collection.xml> <output_dir>
-
-# Encode tracks (lossless or lossy)
-python3 -m src.encode lossless <input_dir> <output_dir> --extension .aiff
-python3 -m src.encode lossy <input_dir> <output_dir> --extension .mp3
-
-# Find tracks missing cover art
-python3 -m src.encode missing_art <input_path> <output_file> --scan-mode xml
-python3 -m src.encode missing_art <input_dir> <output_file> --scan-mode os
-```
-
 ## Type Checking
 
 The project uses Pyright for type checking:
