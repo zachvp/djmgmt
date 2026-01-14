@@ -19,19 +19,15 @@ import shutil
 import zipfile
 import logging
 
-import uuid
-import xml.etree.ElementTree as ET
 from dataclasses import dataclass
-from datetime import datetime
-from urllib.parse import quote
 
 from . import constants
 from . import common
 from . import encode
 from . import library
-from .tags import Tags
 from .common import FileMapping
 from .sync import SyncResult
+from .library import RecordResult
 
 # constants
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
@@ -44,14 +40,6 @@ class ProcessResult:
     missing_art_paths: list[str]
     archives_extracted: int
     files_encoded: int
-
-@dataclass
-class RecordResult:
-    '''Results from recording tracks to XML collection.'''
-    # TODO: include XML collection path, remove collection_root
-    collection_root: ET.Element
-    tracks_added: int
-    tracks_updated: int
 
 @dataclass
 class UpdateLibraryResult:
@@ -308,140 +296,6 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
         # sweep all the encoded files from the temporary directory to the original source directory
         sweep(temp_dir, source, valid_extensions, prefix_hints, dry_run=dry_run)
         return result
-
-# TODO: move to library module
-# TODO: extend to save backup of previous X versions
-# TODO: implement merge XML function
-'''
-# Determine which file has the more recent modify time
-
-# Create merged tree
-
-# Merge collection tracks
-    Collect all track nodes from A
-    Collect all track nodes from B
-    For each track node in A
-        Create merged node as copy of node
-        If node.path exists in B
-            Use node attributes from more recently modified file for merged node
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-    For each track node in B
-        Create merged node as copy of node
-        If node.path exists in A
-            Skip
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-
-# Merge playlists
-    Exclude the 'dynamic' folder
-    Create merged _pruned node
-    Collect all _pruned track IDs from A into merged _pruned
-    For each track in B
-        If track.id does not exist in merged _pruned
-            Add track.id to merged _pruned
-
-# Write the merged tree to the dynamic collection file
-'''
-def record_collection(source: str, collection_path: str, dry_run: bool = False) -> RecordResult:
-    '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
-    with all music files in the `source` directory.
-    Returns RecordResult with collection root, tracks added count, and tracks updated count.'''
-    # load XML references
-    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_PATH_TEMPLATE
-    root          = library.load_collection(xml_path)
-    collection    = library.find_node(root, constants.XPATH_COLLECTION)
-    playlist_root = library.find_node(root, constants.XPATH_PLAYLISTS)
-    pruned        = library.find_node(root, constants.XPATH_PRUNED)
-    
-    # count existing tracks
-    existing_tracks = len(collection.findall(constants.TAG_TRACK))
-    new_tracks = 0
-    updated_tracks = 0
-    
-    # process all music files in the source directory
-    paths = common.collect_paths(source)
-    for file_path in paths:
-        extension = os.path.splitext(file_path)[1]
-        
-        # only process music files
-        if extension and extension in constants.EXTENSIONS:
-            file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe='()/')}"
-            
-            # check if track already exists
-            existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
-            
-            # load metadata Tags
-            tags = Tags.load(file_path)
-            if not tags:
-                continue
-            
-            # map the XML attributes to the file metadata
-            today = datetime.now().strftime('%Y-%m-%d')
-            fallback_value = ''
-            track_attrs = {
-                constants.ATTR_TITLE  : tags.title or fallback_value,
-                constants.ATTR_ARTIST : tags.artist or fallback_value,
-                constants.ATTR_ALBUM  : tags.album or fallback_value,
-                constants.ATTR_GENRE  : tags.genre or fallback_value,
-                constants.ATTR_KEY    : tags.key or fallback_value,
-                constants.ATTR_PATH   : file_url
-            }
-            
-            # check for existing track
-            if existing_track is not None:
-                # keep original date added if it exists
-                original_date = existing_track.get(constants.ATTR_DATE_ADDED)
-                if original_date:
-                    track_attrs[constants.ATTR_DATE_ADDED] = original_date
-                else:
-                    track_attrs[constants.ATTR_DATE_ADDED] = today
-                    logging.warning(f"No date present for existing track: '{file_path}', using '{today}'")
-                
-                # update all track attributes
-                for attr_name, attr_value in track_attrs.items():
-                    existing_track.set(attr_name, attr_value)
-                updated_tracks += 1
-                logging.debug(f"Updated existing track: '{file_path}'")
-            else:
-                # create new track
-                track_id = str(uuid.uuid4().int)[:9]
-                track_attrs[constants.ATTR_TRACK_ID] = track_id
-                track_attrs[constants.ATTR_DATE_ADDED] = today
-                
-                ET.SubElement(collection, constants.TAG_TRACK, track_attrs)
-                new_tracks += 1
-                logging.debug(f"Added new track: '{file_path}'")
-                
-                # add to pruned playlist
-                ET.SubElement(pruned, constants.TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
-    
-    # update the 'Entries' attributes
-    collection.set('Entries', str(existing_tracks + new_tracks))
-    pruned.set('Entries', str(len(pruned.findall(constants.TAG_TRACK))))
-    
-    # update ROOT node's Count based on its child nodes
-    root_node_children = len(playlist_root.findall(constants.TAG_NODE))
-    playlist_root.set('Count', str(root_node_children))
-    
-    # write the tree to the XML file
-    if dry_run:
-        common.log_dry_run('write collection', collection_path)
-    else:
-        tree = ET.ElementTree(root)
-        tree.write(collection_path, encoding='UTF-8', xml_declaration=True)
-
-    logging.info(f"Collection updated: {new_tracks} new tracks, {updated_tracks} updated tracks at {collection_path}")
-
-    return RecordResult(
-        collection_root=root,
-        tracks_added=new_tracks,
-        tracks_updated=updated_tracks
-    )
 
 # Primary functions
 def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False, copy_instead_of_move: bool = False) -> list[FileMapping]:
@@ -900,7 +754,7 @@ def update_library(source: str,
     process_result = process(source, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
-    record_result = record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
+    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
