@@ -1786,3 +1786,341 @@ class TestExtractTrackMetadata(unittest.TestCase):
         assert result
         self.assertEqual(result.title, 'Test Track')
         self.assertEqual(result.path, source_path)
+
+
+class TestBuildTrackIndex(unittest.TestCase):
+    '''Tests for library._build_track_index.'''
+
+    def test_success_single_track(self) -> None:
+        '''Tests that a single track is indexed by its Location attribute.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="1">
+                <TRACK
+                    TrackID="1"
+                    Name="Test Track"
+                    Location="file://localhost/path/to/track.aiff">
+                </TRACK>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_index(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 1)
+        self.assertIn('file://localhost/path/to/track.aiff', result)
+        self.assertEqual(result['file://localhost/path/to/track.aiff'].get('TrackID'), '1')
+
+    def test_success_multiple_tracks(self) -> None:
+        '''Tests that multiple tracks are indexed correctly.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="3">
+                <TRACK TrackID="1" Name="Track 1" Location="file://localhost/path/track1.aiff"/>
+                <TRACK TrackID="2" Name="Track 2" Location="file://localhost/path/track2.aiff"/>
+                <TRACK TrackID="3" Name="Track 3" Location="file://localhost/path/track3.aiff"/>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_index(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result['file://localhost/path/track1.aiff'].get('TrackID'), '1')
+        self.assertEqual(result['file://localhost/path/track2.aiff'].get('TrackID'), '2')
+        self.assertEqual(result['file://localhost/path/track3.aiff'].get('TrackID'), '3')
+
+    def test_success_empty_collection(self) -> None:
+        '''Tests that an empty collection returns an empty index.'''
+        # Setup
+        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_index(collection)
+
+        # Assertions
+        self.assertDictEqual(result, {})
+
+    def test_success_track_without_location(self) -> None:
+        '''Tests that tracks without Location attribute are skipped.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="2">
+                <TRACK TrackID="1" Name="Track With Location" Location="file://localhost/path/track.aiff"/>
+                <TRACK TrackID="2" Name="Track Without Location"/>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_index(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 1)
+        self.assertIn('file://localhost/path/track.aiff', result)
+
+
+class TestMergeCollections(unittest.TestCase):
+    '''Tests for library.merge_collections.'''
+
+    # XML templates for testing
+    XML_PRIMARY = '''
+    <?xml version="1.0" encoding="UTF-8"?>
+    <DJ_PLAYLISTS Version="1.0.0">
+        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+        <COLLECTION Entries="2">
+            <TRACK TrackID="1" Name="Track A" Artist="Artist A" Location="file://localhost/path/trackA.aiff"/>
+            <TRACK TrackID="2" Name="Track B" Artist="Artist B" Location="file://localhost/path/trackB.aiff"/>
+        </COLLECTION>
+        <PLAYLISTS>
+            <NODE Type="0" Name="ROOT" Count="1">
+                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+            </NODE>
+        </PLAYLISTS>
+    </DJ_PLAYLISTS>
+    '''.strip()
+
+    XML_SECONDARY = '''
+    <?xml version="1.0" encoding="UTF-8"?>
+    <DJ_PLAYLISTS Version="1.0.0">
+        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+        <COLLECTION Entries="2">
+            <TRACK TrackID="3" Name="Track C" Artist="Artist C" Location="file://localhost/path/trackC.aiff"/>
+            <TRACK TrackID="4" Name="Track D" Artist="Artist D" Location="file://localhost/path/trackD.aiff"/>
+        </COLLECTION>
+        <PLAYLISTS>
+            <NODE Type="0" Name="ROOT" Count="1">
+                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+            </NODE>
+        </PLAYLISTS>
+    </DJ_PLAYLISTS>
+    '''.strip()
+
+    XML_OVERLAPPING = '''
+    <?xml version="1.0" encoding="UTF-8"?>
+    <DJ_PLAYLISTS Version="1.0.0">
+        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+        <COLLECTION Entries="2">
+            <TRACK TrackID="5" Name="Track A Updated" Artist="Artist A Updated" Location="file://localhost/path/trackA.aiff"/>
+            <TRACK TrackID="6" Name="Track E" Artist="Artist E" Location="file://localhost/path/trackE.aiff"/>
+        </COLLECTION>
+        <PLAYLISTS>
+            <NODE Type="0" Name="ROOT" Count="1">
+                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+            </NODE>
+        </PLAYLISTS>
+    </DJ_PLAYLISTS>
+    '''.strip()
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_disjoint_collections(self,
+                                          mock_getmtime: MagicMock,
+                                          mock_load_collection: MagicMock) -> None:
+        '''Tests merging two collections with no overlapping tracks.'''
+        # Setup mocks
+        mock_load_collection.side_effect = [
+            ET.fromstring(TestMergeCollections.XML_PRIMARY),
+            ET.fromstring(TestMergeCollections.XML_SECONDARY),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [1000.0, 500.0]  # primary is newer
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 4)
+        self.assertEqual(collection.get('Entries'), '4')
+
+        # Verify all tracks are present
+        locations = {track.get('Location') for track in tracks}
+        self.assertIn('file://localhost/path/trackA.aiff', locations)
+        self.assertIn('file://localhost/path/trackB.aiff', locations)
+        self.assertIn('file://localhost/path/trackC.aiff', locations)
+        self.assertIn('file://localhost/path/trackD.aiff', locations)
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_overlapping_newer_primary(self,
+                                               mock_getmtime: MagicMock,
+                                               mock_load_collection: MagicMock) -> None:
+        '''Tests that overlapping tracks use metadata from newer file (primary).'''
+        # Setup mocks
+        mock_load_collection.side_effect = [
+            ET.fromstring(TestMergeCollections.XML_PRIMARY),
+            ET.fromstring(TestMergeCollections.XML_OVERLAPPING),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [1000.0, 500.0]  # primary is newer
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 3)  # trackA, trackB from primary + trackE from secondary
+
+        # Verify trackA uses primary metadata (newer)
+        track_a = None
+        for track in tracks:
+            if track.get('Location') == 'file://localhost/path/trackA.aiff':
+                track_a = track
+                break
+        assert track_a is not None
+        self.assertEqual(track_a.get('Name'), 'Track A')  # from primary (newer)
+        self.assertEqual(track_a.get('Artist'), 'Artist A')  # from primary (newer)
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_overlapping_newer_secondary(self,
+                                                 mock_getmtime: MagicMock,
+                                                 mock_load_collection: MagicMock) -> None:
+        '''Tests that overlapping tracks use metadata from newer file (secondary).'''
+        # Setup mocks
+        mock_load_collection.side_effect = [
+            ET.fromstring(TestMergeCollections.XML_PRIMARY),
+            ET.fromstring(TestMergeCollections.XML_OVERLAPPING),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [500.0, 1000.0]  # secondary is newer
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 3)  # trackA (updated), trackB, trackE
+
+        # Verify trackA uses secondary metadata (newer)
+        track_a = None
+        for track in tracks:
+            if track.get('Location') == 'file://localhost/path/trackA.aiff':
+                track_a = track
+                break
+        assert track_a is not None
+        self.assertEqual(track_a.get('Name'), 'Track A Updated')  # from secondary (newer)
+        self.assertEqual(track_a.get('Artist'), 'Artist A Updated')  # from secondary (newer)
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_empty_primary(self,
+                                   mock_getmtime: MagicMock,
+                                   mock_load_collection: MagicMock) -> None:
+        '''Tests merging when primary collection is empty.'''
+        # Setup
+        empty_xml = '''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <DJ_PLAYLISTS Version="1.0.0">
+            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+            <COLLECTION Entries="0"></COLLECTION>
+            <PLAYLISTS>
+                <NODE Type="0" Name="ROOT" Count="1">
+                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+                </NODE>
+            </PLAYLISTS>
+        </DJ_PLAYLISTS>
+        '''.strip()
+
+        mock_load_collection.side_effect = [
+            ET.fromstring(empty_xml),
+            ET.fromstring(TestMergeCollections.XML_SECONDARY),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [1000.0, 500.0]
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 2)  # only secondary tracks
+        self.assertEqual(collection.get('Entries'), '2')
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_empty_secondary(self,
+                                     mock_getmtime: MagicMock,
+                                     mock_load_collection: MagicMock) -> None:
+        '''Tests merging when secondary collection is empty.'''
+        # Setup
+        empty_xml = '''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <DJ_PLAYLISTS Version="1.0.0">
+            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+            <COLLECTION Entries="0"></COLLECTION>
+            <PLAYLISTS>
+                <NODE Type="0" Name="ROOT" Count="1">
+                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+                </NODE>
+            </PLAYLISTS>
+        </DJ_PLAYLISTS>
+        '''.strip()
+
+        mock_load_collection.side_effect = [
+            ET.fromstring(TestMergeCollections.XML_PRIMARY),
+            ET.fromstring(empty_xml),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [1000.0, 500.0]
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 2)  # only primary tracks
+        self.assertEqual(collection.get('Entries'), '2')
+
+    @patch('djmgmt.library.load_collection')
+    @patch('os.path.getmtime')
+    def test_success_both_empty(self,
+                                mock_getmtime: MagicMock,
+                                mock_load_collection: MagicMock) -> None:
+        '''Tests merging when both collections are empty.'''
+        # Setup
+        empty_xml = '''
+        <?xml version="1.0" encoding="UTF-8"?>
+        <DJ_PLAYLISTS Version="1.0.0">
+            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+            <COLLECTION Entries="0"></COLLECTION>
+            <PLAYLISTS>
+                <NODE Type="0" Name="ROOT" Count="1">
+                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+                </NODE>
+            </PLAYLISTS>
+        </DJ_PLAYLISTS>
+        '''.strip()
+
+        mock_load_collection.side_effect = [
+            ET.fromstring(empty_xml),
+            ET.fromstring(empty_xml),
+            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+        ]
+        mock_getmtime.side_effect = [1000.0, 500.0]
+
+        # Call function
+        result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        # Assertions
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 0)
+        self.assertEqual(collection.get('Entries'), '0')

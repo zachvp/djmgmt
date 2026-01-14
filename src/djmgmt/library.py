@@ -474,41 +474,6 @@ def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) ->
 # TODO: move to library module
 # TODO: extend to save backup of previous X versions
 # TODO: implement merge XML function
-'''
-# Determine which file has the more recent modify time
-
-# Create merged tree
-
-# Merge collection tracks
-    Collect all track nodes from A
-    Collect all track nodes from B
-    For each track node in A
-        Create merged node as copy of node
-        If node.path exists in B
-            Use node attributes from more recently modified file for merged node
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-    For each track node in B
-        Create merged node as copy of node
-        If node.path exists in A
-            Skip
-        If merged node ID exists in merged tree collection
-            Generate new ID for merged node
-            Update entry in _pruned with new ID
-        Add merged node to merged tree collection
-
-# Merge playlists
-    Exclude the 'dynamic' folder
-    Create merged _pruned node
-    Collect all _pruned track IDs from A into merged _pruned
-    For each track in B
-        If track.id does not exist in merged _pruned
-            Add track.id to merged _pruned
-
-# Write the merged tree to the dynamic collection file
-'''
 def record_collection(source: str, base_collection_path: str, output_collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
     with all music files in the `source` directory.
@@ -605,7 +570,6 @@ def record_collection(source: str, base_collection_path: str, output_collection_
         tracks_updated=updated_tracks
     )
 
-
 # TODO: update to use latest collection at known path if no input path provided
 # TODO: update to write to dynamic path defined as constant if output path not provided
 # TODO: ^ requires arg parsing refactor.
@@ -640,6 +604,79 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
 
     return base_root
+
+
+def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
+    '''Builds a mapping from Location attribute to TRACK element.
+
+    Args:
+        collection: The COLLECTION node containing TRACK elements
+
+    Returns:
+        Dict mapping Location URL to TRACK element
+    '''
+    index: dict[str, ET.Element] = {}
+    for track in collection:
+        location = track.get(constants.ATTR_PATH)
+        if location:
+            index[location] = track
+        else:
+            logging.warning(f"No location exists for track {track.get(constants.ATTR_TRACK_ID)}")
+    return index
+
+
+def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
+    '''Merges two Rekordbox XML collections into a single root element.
+
+    Combines COLLECTION tracks from both files. When the same track (by Location)
+    exists in both, uses metadata from the file with the newer modification time.
+
+    Args:
+        primary_path: Path to first XML collection file
+        secondary_path: Path to second XML collection file
+
+    Returns:
+        Merged ET.Element root with combined COLLECTION tracks
+    '''
+    # load both XML files
+    primary_root = load_collection(primary_path)
+    secondary_root = load_collection(secondary_path)
+    primary_collection = find_node(primary_root, constants.XPATH_COLLECTION)
+    secondary_collection = find_node(secondary_root, constants.XPATH_COLLECTION)
+
+    # determine which file is newer (source of truth for conflicts)
+    primary_mtime = os.path.getmtime(primary_path)
+    secondary_mtime = os.path.getmtime(secondary_path)
+
+    if primary_mtime >= secondary_mtime:
+        newer_collection = primary_collection
+        older_collection = secondary_collection
+    else:
+        newer_collection = secondary_collection
+        older_collection = primary_collection
+
+    # start with a fresh template
+    output_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
+    output_collection = find_node(output_root, constants.XPATH_COLLECTION)
+
+    # build index from older collection first
+    track_index = _build_track_index(older_collection)
+
+    # overwrite with newer collection tracks (newer wins on conflict)
+    for track in newer_collection:
+        location = track.get(constants.ATTR_PATH)
+        if location:
+            track_index[location] = track
+
+    # copy all tracks to output collection
+    for track in track_index.values():
+        output_collection.append(track)
+
+    # update Entries count
+    output_collection.set('Entries', str(len(track_index)))
+
+    logging.info(f"Merged collections: {len(track_index)} total tracks")
+    return output_root
 
 
 # Main
