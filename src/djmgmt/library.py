@@ -509,12 +509,12 @@ def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) ->
 
 # Write the merged tree to the dynamic collection file
 '''
-def record_collection(source: str, collection_path: str, dry_run: bool = False) -> RecordResult:
+def record_collection(source: str, base_collection_path: str, output_collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
     with all music files in the `source` directory.
     Returns RecordResult with collection root, tracks added count, and tracks updated count.'''
     # load XML references
-    xml_path      = collection_path if os.path.exists(collection_path) else constants.COLLECTION_PATH_TEMPLATE
+    xml_path      = base_collection_path if os.path.exists(base_collection_path) else constants.COLLECTION_PATH_TEMPLATE
     root          = load_collection(xml_path)
     collection    = find_node(root, constants.XPATH_COLLECTION)
     playlist_root = find_node(root, constants.XPATH_PLAYLISTS)
@@ -592,12 +592,12 @@ def record_collection(source: str, collection_path: str, dry_run: bool = False) 
     
     # write the tree to the XML file
     if dry_run:
-        common.log_dry_run('write collection', collection_path)
+        common.log_dry_run('write collection', base_collection_path)
     else:
         tree = ET.ElementTree(root)
-        tree.write(collection_path, encoding='UTF-8', xml_declaration=True)
+        tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
 
-    logging.info(f"Collection updated: {new_tracks} new tracks, {updated_tracks} updated tracks at {collection_path}")
+    logging.info(f"Collection updated: {new_tracks} new tracks, {updated_tracks} updated tracks at {base_collection_path}")
 
     return RecordResult(
         collection_root=root,

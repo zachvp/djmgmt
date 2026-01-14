@@ -44,15 +44,16 @@ XML_BASE = f'''
 </DJ_PLAYLISTS>
 '''.strip()
 
-MOCK_INPUT_DIR  = '/mock/input'
-MOCK_OUTPUT_DIR = '/mock/output'
-MOCK_XML_FILE_PATH = '/mock/xml/file.xml'
-MOCK_ARTIST        = 'mock_artist'
-MOCK_ALBUM         = 'mock_album'
-MOCK_TITLE         = 'mock_title'
-MOCK_GENRE         = 'mock_genre'
-MOCK_TONALITY      = 'mock_tonality'
-MOCK_DATE_ADDED    = 'mock_date_added'
+MOCK_INPUT_DIR       = '/mock/input'
+MOCK_OUTPUT_DIR      = '/mock/output'
+MOCK_XML_INPUT_PATH  = '/mock/xml/file.xml'
+MOCK_XML_OUTPUT_PATH = '/mock/xml/out.xml'
+MOCK_ARTIST          = 'mock_artist'
+MOCK_ALBUM           = 'mock_album'
+MOCK_TITLE           = 'mock_title'
+MOCK_GENRE           = 'mock_genre'
+MOCK_TONALITY        = 'mock_tonality'
+MOCK_DATE_ADDED      = 'mock_date_added'
 
 # Generation functions
 def _create_track_xml(index: int) -> str:
@@ -891,12 +892,12 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(XML_BASE))
         
         # Call the target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert call expectations
         mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
 
         # Assert that the function reads the file tags
         mock_tags_load.assert_has_calls([
@@ -1033,7 +1034,7 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(XML_BASE))
         
         # Insert the first track
-        first_result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        first_result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Reset mocks from first call
         mock_path_exists.reset_mock()
@@ -1049,7 +1050,7 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(first_result.collection_root)
 
         # Call the target function to check that 'mock_file_1' was inserted
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1059,8 +1060,8 @@ class TestRecordCollection(unittest.TestCase):
             
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_xml_parse.assert_called_with(MOCK_XML_FILE_PATH)
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_parse.assert_called_with(MOCK_XML_INPUT_PATH)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
         
         # Assert that the function reads the file tags
         mock_tags_load.assert_has_calls([
@@ -1216,13 +1217,13 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(existing_track_xml))
         
         # Call target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_tags_load.assert_called_once_with(f"{MOCK_INPUT_DIR}{os.sep}{mock_file}")
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
-        mock_xml_parse.assert_called_once_with(MOCK_XML_FILE_PATH)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_parse.assert_called_once_with(MOCK_XML_INPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1285,7 +1286,7 @@ class TestRecordCollection(unittest.TestCase):
                                            f"{MOCK_TONALITY}_update")]
         
         # Call target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1296,8 +1297,8 @@ class TestRecordCollection(unittest.TestCase):
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_tags_load.assert_called_once_with(f"{MOCK_INPUT_DIR}{os.sep}{mock_file}")
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
-        mock_xml_parse.assert_called_once_with(MOCK_XML_FILE_PATH)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_parse.assert_called_once_with(MOCK_XML_INPUT_PATH)
 
         # Assert the expected XML contents
         # Check DJ_PLAYLISTS root node
@@ -1352,7 +1353,7 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(XML_BASE))
         
         # Call the target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1363,7 +1364,7 @@ class TestRecordCollection(unittest.TestCase):
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
 
         # Assert that the function reads the file tags
         FILE_PATH_MUSIC = f"{MOCK_INPUT_DIR}{os.sep}"
@@ -1438,7 +1439,7 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(XML_BASE))
         
         # Call target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1449,7 +1450,7 @@ class TestRecordCollection(unittest.TestCase):
         # Assert call expectations: all files should be skipped
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_tags_load.assert_not_called()
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
 
         # Empty playlist still expected to be written
         # Check root 'DJ_PLAYLISTS' node
@@ -1553,7 +1554,7 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(existing_track_xml))
         
         # Call target function
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert return value is RecordResult
         self.assertIsInstance(result, library.RecordResult)
@@ -1564,8 +1565,8 @@ class TestRecordCollection(unittest.TestCase):
         # Assert call expectations
         mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         mock_tags_load.assert_called_once_with(f"{MOCK_INPUT_DIR}{os.sep}{mock_bad_file}")
-        mock_xml_write.assert_called_once_with(MOCK_XML_FILE_PATH, encoding='UTF-8', xml_declaration=True)
-        mock_xml_parse.assert_called_once_with(MOCK_XML_FILE_PATH)
+        mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
+        mock_xml_parse.assert_called_once_with(MOCK_XML_INPUT_PATH)
 
         # Assert that the XML contents are the same as before attempting to add the track.
         self.assertEqual(ET.tostring(actual, encoding="UTF-8"),
@@ -1590,12 +1591,12 @@ class TestRecordCollection(unittest.TestCase):
         
         # Call target function and assert expectations
         with self.assertRaisesRegex(Exception, mock_exception_message):
-            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
             
         # Assert expectations: Code should only check that path exists and attempt to parse
         mock_collect_paths.assert_not_called()
         mock_tags_load.assert_not_called()
-        mock_xml_parse.assert_called_once_with(MOCK_XML_FILE_PATH)
+        mock_xml_parse.assert_called_once_with(MOCK_XML_INPUT_PATH)
         mock_xml_write.assert_not_called()
         
     @patch.object(ET.ElementTree, 'write')
@@ -1616,12 +1617,12 @@ class TestRecordCollection(unittest.TestCase):
         
         # Call target function and assert expectations
         with self.assertRaises(ValueError):
-            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
             
         # Assert expectations: Code should only check that path exists and attempt to parse
         mock_collect_paths.assert_not_called()
         mock_tags_load.assert_not_called()
-        mock_xml_parse.assert_called_once_with(MOCK_XML_FILE_PATH)
+        mock_xml_parse.assert_called_once_with(MOCK_XML_INPUT_PATH)
         mock_xml_write.assert_not_called()
         
     @patch.object(ET.ElementTree, 'write')
@@ -1642,7 +1643,7 @@ class TestRecordCollection(unittest.TestCase):
         
         # Call target function and assert expectations
         with self.assertRaises(Exception):
-            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH)
+            library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
             
         # Assert expectations: nothing should be called
         mock_collect_paths.assert_not_called()
@@ -1671,13 +1672,13 @@ class TestRecordCollection(unittest.TestCase):
         mock_xml_parse.return_value = ET.ElementTree(ET.fromstring(XML_BASE))
 
         # Call the target function with dry_run=True
-        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_FILE_PATH, dry_run=True)
+        result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH, dry_run=True)
 
         # Assert XML write was NOT called in dry-run mode
         mock_xml_write.assert_not_called()
 
         # Assert dry-run log was called
-        mock_log_dry_run.assert_called_once_with('write collection', MOCK_XML_FILE_PATH)
+        mock_log_dry_run.assert_called_once_with('write collection', MOCK_XML_INPUT_PATH)
 
         # Assert return value is RecordResult dataclass
         self.assertIsInstance(result, library.RecordResult)

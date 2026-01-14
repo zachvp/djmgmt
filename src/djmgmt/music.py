@@ -754,7 +754,8 @@ def update_library(source: str,
     process_result = process(source, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
-    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
+    # TODO: refactor to use separate base and output path
+    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)

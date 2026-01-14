@@ -1340,7 +1340,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints, dry_run=False)
 
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, dry_run=False)
+        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=False)
 
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
@@ -1448,7 +1448,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints, dry_run=True)
 
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, dry_run=True)
+        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=True)
 
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
