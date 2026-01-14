@@ -56,7 +56,7 @@ class PageBuilder:
             level: Logging level (default: logging.DEBUG)
         '''
         log_path = utils.create_file_path(self.module_name)
-        common.configure_log(level=level, path=str(log_path))
+        common.configure_log_module(log_path, level=level)
 
     def render_header_and_overview(self, expanded: bool = False) -> None:
         '''Render the module header and overview expander.

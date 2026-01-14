@@ -14,6 +14,15 @@ sys.path.append(PROJECT_ROOT)
 
 from djmgmt import common
 
+class TestFilenameNoExt(unittest.TestCase):
+    def test_success(self) -> None:
+        # call test target
+        actual = common.filename_no_ext('/test/path/file.foo')
+        self.assertEqual(actual, 'file')
+        
+        actual = common.filename_no_ext(__file__)
+        self.assertEqual(actual, 'test_common')
+
 class TestConfigureLog(unittest.TestCase):
     @patch('logging.basicConfig')
     @patch('os.path.exists')
@@ -24,10 +33,10 @@ class TestConfigureLog(unittest.TestCase):
                                    mock_basic_config: MagicMock) -> None:
         '''Tests that a default log configuration is created for common.log'''
         # call test target
-        common.configure_log()
+        common.configure_log('test')
         
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/src/djmgmt/logs/common.log"
+        LOG_PATH = f"{PROJECT_ROOT}/logs/test.log"
         self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
         self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.DEBUG)
         
@@ -40,10 +49,10 @@ class TestConfigureLog(unittest.TestCase):
                                        mock_basic_config: MagicMock) -> None:
         '''Tests that a custom log configuration is respected.'''
         # call test target
-        common.configure_log(level=logging.INFO, path=__file__)
+        common.configure_log('test', level=logging.INFO)
         
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/tests/logs/test_common.log"
+        LOG_PATH = f"{PROJECT_ROOT}/logs/test.log"
         self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
         self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.INFO)
         

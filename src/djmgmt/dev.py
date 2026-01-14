@@ -3,7 +3,7 @@ if __name__ == '__main__':
     import asyncio
     
     # logs
-    common.configure_log(path=__file__)
+    common.configure_log(common.filename_no_ext( __file__))
     
     # dev script
     r = asyncio.run(encode.encode_lossless('/Users/zachvp/Music/DJ/',

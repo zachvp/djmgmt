@@ -921,7 +921,7 @@ if __name__ == '__main__':
     import sys
     
     # log config
-    common.configure_log(path=__file__)
+    common.configure_log_module(__file__)
 
     # parse arguments
     script_args = parse_args(Namespace.FUNCTIONS, Namespace.FUNCTIONS_SINGLE_ARG, sys.argv[1:])

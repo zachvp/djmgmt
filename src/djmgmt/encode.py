@@ -580,7 +580,7 @@ def missing_art_cli(args: Namespace) -> None:
 
 # Main
 if __name__ == '__main__':
-    common.configure_log(level=logging.DEBUG, path=__file__)
+    common.configure_log_module(__file__, level=logging.DEBUG)
     script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
 
     if script_args.function == Namespace.FUNCTION_LOSSLESS:

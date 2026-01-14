@@ -209,7 +209,7 @@ if __name__ == '__main__':
     import sys
     from . import common
     
-    common.configure_log(level=logging.DEBUG, path=__file__)
+    common.configure_log_module(__file__, level=logging.DEBUG)
     args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
     
     logging.info(f"running function '{args.function}'")

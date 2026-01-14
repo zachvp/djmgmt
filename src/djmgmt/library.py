@@ -499,7 +499,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
 # Main
 if __name__ == '__main__':
     # setup
-    common.configure_log(level=logging.DEBUG, path=__file__)
+    common.configure_log_module(__file__, level=logging.DEBUG)
     script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
 
     if script_args.root_path:

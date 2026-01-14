@@ -613,7 +613,7 @@ def run_sync_mappings(mappings: list[FileMapping],
 if __name__ == '__main__':
     import sys
     # setup
-    common.configure_log(level=logging.DEBUG, path=__file__)
+    common.configure_log_module(__file__, level=logging.DEBUG)
     script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES, sys.argv[1:])
 
     # run the given command

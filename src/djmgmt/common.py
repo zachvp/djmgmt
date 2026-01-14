@@ -10,34 +10,33 @@ FileMapping = tuple[str, str]
 
 # Constants
 # TODO: use project path as root for logs, they shouldn't be in src/
-DEFAULT_PATH = os.path.abspath(__file__)
+BASE_LOGS_PATH = os.path.join(str(constants.PROJECT_ROOT), 'logs')
 
-# TODO: add tests
-def configure_log(level: int=logging.DEBUG, path: str=DEFAULT_PATH) -> str:
-    '''Standard log configuration.'''
-    if path == DEFAULT_PATH:
-        logs_directory = os.path.join(os.path.dirname(DEFAULT_PATH), 'logs')
-    else:
-        logs_directory = os.path.join(os.path.dirname(os.path.abspath(path)), 'logs')
-    if not os.path.exists(logs_directory):
-        os.makedirs(logs_directory)
-
-    # Determine filename
-    filename = os.path.abspath(path)
-    split = os.path.basename(filename)
+def filename_no_ext(file_path: str) -> str:
+    split = os.path.basename(file_path)
     split = os.path.splitext(split)
     if len(split) > 1:
-        filename = split[0]
-    
-    # Configure the log
-    log_file_path = f"{logs_directory}/{filename}.log"
+        return split[0]
+    raise ValueError(f"Given path '{file_path}' has no filename")
 
-    # Clear existing handlers to allow reconfiguration in long-running processes (like Streamlit)
+def configure_log_module(module_path: str, level: int=logging.DEBUG) -> str:
+    return configure_log(filename_no_ext(module_path), level=level)
+
+def configure_log(module: str, level: int=logging.DEBUG) -> str:
+    '''Standard log configuration.'''
+    # validation
+    if len(module.strip()) < 1:
+        raise ValueError('Unable to configure log for empty module string.')
+    if not os.path.exists(BASE_LOGS_PATH):
+        os.makedirs(BASE_LOGS_PATH)
+
+    # clear existing handlers to allow reconfiguration in long-running processes (like Streamlit)
     root_logger = logging.getLogger()
     for handler in root_logger.handlers[:]:
         handler.close()
         root_logger.removeHandler(handler)
 
+    log_file_path = os.path.join(BASE_LOGS_PATH, f"{module}.log")
     logging.basicConfig(filename=log_file_path,
                         level=level,
                         format="%(asctime)s [%(levelname)s] %(message)s",
