@@ -2124,3 +2124,261 @@ class TestMergeCollections(unittest.TestCase):
         tracks = collection.findall('TRACK')
         self.assertEqual(len(tracks), 0)
         self.assertEqual(collection.get('Entries'), '0')
+
+
+class TestBuildTrackIdToLocation(unittest.TestCase):
+    '''Tests for library._build_track_id_to_location.'''
+
+    def test_success_single_track(self) -> None:
+        '''Tests that a single track is mapped from TrackID to Location.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="1">
+                <TRACK TrackID="123" Name="Test Track" Location="file://localhost/path/to/track.aiff"/>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_id_to_location(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result['123'], 'file://localhost/path/to/track.aiff')
+
+    def test_success_multiple_tracks(self) -> None:
+        '''Tests that multiple tracks are mapped correctly.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="3">
+                <TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>
+                <TRACK TrackID="2" Location="file://localhost/path/track2.aiff"/>
+                <TRACK TrackID="3" Location="file://localhost/path/track3.aiff"/>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_id_to_location(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 3)
+        self.assertEqual(result['1'], 'file://localhost/path/track1.aiff')
+        self.assertEqual(result['2'], 'file://localhost/path/track2.aiff')
+        self.assertEqual(result['3'], 'file://localhost/path/track3.aiff')
+
+    def test_success_empty_collection(self) -> None:
+        '''Tests that an empty collection returns an empty mapping.'''
+        # Setup
+        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_id_to_location(collection)
+
+        # Assertions
+        self.assertDictEqual(result, {})
+
+    def test_success_track_missing_id_or_location(self) -> None:
+        '''Tests that tracks missing TrackID or Location are skipped.'''
+        # Setup
+        collection_xml = '''
+            <COLLECTION Entries="3">
+                <TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>
+                <TRACK TrackID="2"/>
+                <TRACK Location="file://localhost/path/track3.aiff"/>
+            </COLLECTION>
+        '''.strip()
+        collection = ET.fromstring(collection_xml)
+
+        # Call function
+        result = library._build_track_id_to_location(collection)
+
+        # Assertions
+        self.assertEqual(len(result), 1)
+        self.assertEqual(result['1'], 'file://localhost/path/track1.aiff')
+
+
+class TestGetPlaylistTrackKeys(unittest.TestCase):
+    '''Tests for library._get_playlist_track_keys.'''
+
+    def test_success_with_tracks(self) -> None:
+        '''Tests extracting track keys from a playlist with tracks.'''
+        # Setup
+        root_xml = '''
+            <DJ_PLAYLISTS>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="3">
+                            <TRACK Key="1"/>
+                            <TRACK Key="2"/>
+                            <TRACK Key="3"/>
+                        </NODE>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+        root = ET.fromstring(root_xml)
+
+        # Call function
+        result = library._get_playlist_track_keys(root, constants.XPATH_PRUNED)
+
+        # Assertions
+        self.assertSetEqual(result, {'1', '2', '3'})
+
+    def test_success_empty_playlist(self) -> None:
+        '''Tests extracting keys from an empty playlist.'''
+        # Setup
+        root_xml = '''
+            <DJ_PLAYLISTS>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="0"/>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+        root = ET.fromstring(root_xml)
+
+        # Call function
+        result = library._get_playlist_track_keys(root, constants.XPATH_PRUNED)
+
+        # Assertions
+        self.assertSetEqual(result, set())
+
+    def test_success_playlist_not_found(self) -> None:
+        '''Tests that missing playlist returns empty set.'''
+        # Setup
+        root_xml = '''
+            <DJ_PLAYLISTS>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT"/>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+        root = ET.fromstring(root_xml)
+
+        # Call function
+        result = library._get_playlist_track_keys(root, constants.XPATH_PRUNED)
+
+        # Assertions
+        self.assertSetEqual(result, set())
+
+
+class TestMergePlaylistReferences(unittest.TestCase):
+    '''Tests for library._merge_playlist_references.'''
+
+    def test_success_disjoint_playlists(self) -> None:
+        '''Tests merging playlists with no overlapping tracks.'''
+        # Setup - primary has tracks 1,2; secondary has tracks 3,4
+        primary_root_xml = '''
+            <DJ_PLAYLISTS>
+                <COLLECTION Entries="2">
+                    <TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>
+                    <TRACK TrackID="2" Location="file://localhost/path/trackB.aiff"/>
+                </COLLECTION>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="2">
+                            <TRACK Key="1"/>
+                            <TRACK Key="2"/>
+                        </NODE>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+        secondary_root_xml = '''
+            <DJ_PLAYLISTS>
+                <COLLECTION Entries="2">
+                    <TRACK TrackID="3" Location="file://localhost/path/trackC.aiff"/>
+                    <TRACK TrackID="4" Location="file://localhost/path/trackD.aiff"/>
+                </COLLECTION>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="2">
+                            <TRACK Key="3"/>
+                            <TRACK Key="4"/>
+                        </NODE>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+
+        primary_root = ET.fromstring(primary_root_xml)
+        secondary_root = ET.fromstring(secondary_root_xml)
+        primary_collection = primary_root.find(constants.XPATH_COLLECTION)
+        secondary_collection = secondary_root.find(constants.XPATH_COLLECTION)
+        assert primary_collection is not None
+        assert secondary_collection is not None
+
+        # Build merged track index (simulating merge result)
+        merged_track_index = {
+            'file://localhost/path/trackA.aiff': ET.fromstring('<TRACK TrackID="1"/>'),
+            'file://localhost/path/trackB.aiff': ET.fromstring('<TRACK TrackID="2"/>'),
+            'file://localhost/path/trackC.aiff': ET.fromstring('<TRACK TrackID="3"/>'),
+            'file://localhost/path/trackD.aiff': ET.fromstring('<TRACK TrackID="4"/>'),
+        }
+
+        # Call function
+        result = library._merge_playlist_references(
+            primary_root, secondary_root,
+            primary_collection, secondary_collection,
+            merged_track_index, constants.XPATH_PRUNED
+        )
+
+        # Assertions
+        self.assertSetEqual(result, {'1', '2', '3', '4'})
+
+    def test_success_overlapping_by_location(self) -> None:
+        '''Tests that overlapping tracks (same location) are deduplicated.'''
+        # Setup - both playlists reference trackA at same location but different IDs
+        primary_root_xml = '''
+            <DJ_PLAYLISTS>
+                <COLLECTION Entries="1">
+                    <TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>
+                </COLLECTION>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="1">
+                            <TRACK Key="1"/>
+                        </NODE>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+        secondary_root_xml = '''
+            <DJ_PLAYLISTS>
+                <COLLECTION Entries="1">
+                    <TRACK TrackID="99" Location="file://localhost/path/trackA.aiff"/>
+                </COLLECTION>
+                <PLAYLISTS>
+                    <NODE Type="0" Name="ROOT">
+                        <NODE Name="_pruned" Type="1" Entries="1">
+                            <TRACK Key="99"/>
+                        </NODE>
+                    </NODE>
+                </PLAYLISTS>
+            </DJ_PLAYLISTS>
+        '''.strip()
+
+        primary_root = ET.fromstring(primary_root_xml)
+        secondary_root = ET.fromstring(secondary_root_xml)
+        primary_collection = primary_root.find(constants.XPATH_COLLECTION)
+        secondary_collection = secondary_root.find(constants.XPATH_COLLECTION)
+        assert primary_collection is not None
+        assert secondary_collection is not None
+
+        # Merged track index has the winning track (e.g., from newer file)
+        merged_track_index = {
+            'file://localhost/path/trackA.aiff': ET.fromstring('<TRACK TrackID="99"/>'),
+        }
+
+        # Call function
+        result = library._merge_playlist_references(
+            primary_root, secondary_root,
+            primary_collection, secondary_collection,
+            merged_track_index, constants.XPATH_PRUNED
+        )
+
+        # Assertions - should have single track with merged ID
+        self.assertSetEqual(result, {'99'})

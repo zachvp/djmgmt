@@ -625,18 +625,117 @@ def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
     return index
 
 
+def _build_track_id_to_location(collection: ET.Element) -> dict[str, str]:
+    '''Builds a mapping from TrackID to Location for playlist reference resolution.
+
+    Args:
+        collection: The COLLECTION node containing TRACK elements
+
+    Returns:
+        Dict mapping TrackID to Location URL
+    '''
+    mapping: dict[str, str] = {}
+    for track in collection:
+        track_id = track.get(constants.ATTR_TRACK_ID)
+        location = track.get(constants.ATTR_PATH)
+        if track_id and location:
+            mapping[track_id] = location
+    return mapping
+
+
+def _get_playlist_track_keys(root: ET.Element, playlist_xpath: str) -> set[str]:
+    '''Gets all track Key values from a playlist.
+
+    Args:
+        root: The XML root element
+        playlist_xpath: XPath to the playlist node
+
+    Returns:
+        Set of track Key values (TrackIDs referenced by the playlist)
+    '''
+    try:
+        playlist = find_node(root, playlist_xpath)
+    except ValueError:
+        return set()
+
+    keys: set[str] = set()
+    for track in playlist.findall(constants.TAG_TRACK):
+        key = track.get(constants.ATTR_TRACK_KEY)
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _merge_playlist_references(
+    primary_root: ET.Element,
+    secondary_root: ET.Element,
+    primary_collection: ET.Element,
+    secondary_collection: ET.Element,
+    merged_track_index: dict[str, ET.Element],
+    playlist_xpath: str
+) -> set[str]:
+    '''Merges playlist track references from two collections.
+
+    Resolves TrackID references to Locations, then maps back to the merged
+    collection's TrackIDs. Deduplicates by Location to handle ID conflicts.
+
+    Args:
+        primary_root: Primary XML root
+        secondary_root: Secondary XML root
+        primary_collection: Primary COLLECTION node
+        secondary_collection: Secondary COLLECTION node
+        merged_track_index: Location -> TRACK mapping of merged collection
+        playlist_xpath: XPath to the playlist to merge
+
+    Returns:
+        Set of TrackIDs for the merged playlist
+    '''
+    # Build TrackID -> Location mappings for both collections
+    primary_id_to_loc = _build_track_id_to_location(primary_collection)
+    secondary_id_to_loc = _build_track_id_to_location(secondary_collection)
+
+    # Get playlist track keys from both
+    primary_keys = _get_playlist_track_keys(primary_root, playlist_xpath)
+    secondary_keys = _get_playlist_track_keys(secondary_root, playlist_xpath)
+
+    # Resolve keys to locations (deduplicate by location)
+    merged_locations: set[str] = set()
+
+    for key in primary_keys:
+        location = primary_id_to_loc.get(key)
+        if location:
+            merged_locations.add(location)
+
+    for key in secondary_keys:
+        location = secondary_id_to_loc.get(key)
+        if location:
+            merged_locations.add(location)
+
+    # Map locations back to merged TrackIDs
+    merged_keys: set[str] = set()
+    for location in merged_locations:
+        track = merged_track_index.get(location)
+        if track is not None:
+            track_id = track.get(constants.ATTR_TRACK_ID)
+            if track_id:
+                merged_keys.add(track_id)
+
+    return merged_keys
+
+
 def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     '''Merges two Rekordbox XML collections into a single root element.
 
-    Combines COLLECTION tracks from both files. When the same track (by Location)
-    exists in both, uses metadata from the file with the newer modification time.
+    Combines COLLECTION tracks and _pruned playlist from both files. When the
+    same track (by Location) exists in both, uses metadata from the file with
+    the newer modification time.
 
     Args:
         primary_path: Path to first XML collection file
         secondary_path: Path to second XML collection file
 
     Returns:
-        Merged ET.Element root with combined COLLECTION tracks
+        Merged ET.Element root with combined COLLECTION tracks and _pruned playlist
     '''
     # load both XML files
     primary_root = load_collection(primary_path)
@@ -675,7 +774,23 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     # update Entries count
     output_collection.set('Entries', str(len(track_index)))
 
-    logging.info(f"Merged collections: {len(track_index)} total tracks")
+    # merge _pruned playlist
+    merged_pruned_keys = _merge_playlist_references(
+        primary_root,
+        secondary_root,
+        primary_collection,
+        secondary_collection,
+        track_index,
+        constants.XPATH_PRUNED
+    )
+
+    # populate output _pruned playlist
+    output_pruned = find_node(output_root, constants.XPATH_PRUNED)
+    for track_id in merged_pruned_keys:
+        ET.SubElement(output_pruned, constants.TAG_TRACK, {constants.ATTR_TRACK_KEY: track_id})
+    output_pruned.set('Entries', str(len(merged_pruned_keys)))
+
+    logging.info(f"Merged collections: {len(track_index)} tracks, {len(merged_pruned_keys)} pruned")
     return output_root
 
 
