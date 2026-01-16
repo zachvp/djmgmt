@@ -1298,11 +1298,17 @@ class TestUpdateLibrary(unittest.TestCase):
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.merge_collections')
+    @patch('djmgmt.library.write_root')
     @patch('djmgmt.library.record_collection')
+    @patch('djmgmt.common.find_latest_file')
     @patch('djmgmt.music.process')
     def test_success(self,
                      mock_process: MagicMock,
+                     mock_find_latest_file: MagicMock,
                      mock_record_collection: MagicMock,
+                     mock_write_root: MagicMock,
+                     mock_merge_collections: MagicMock,
                      mock_compare_tags: MagicMock,
                      mock_create_sync_mappings: MagicMock,
                      mock_filter_mappings: MagicMock,
@@ -1317,8 +1323,8 @@ class TestUpdateLibrary(unittest.TestCase):
         
         mock_sync_result = SyncResult(mappings=[], batches=[SyncBatchResult(date_context='', files_processed=3, success=True)])
 
-        mock_record_collection.return_value = mock_record_result
         mock_process.return_value = mock_process_result
+        mock_record_collection.return_value = mock_record_result
         mock_run_sync_mappings.return_value = mock_sync_result
         mock_compare_tags.return_value = mock_mappings_changed.copy()
         mock_create_sync_mappings.return_value = mock_mappings_created.copy()
@@ -1338,9 +1344,18 @@ class TestUpdateLibrary(unittest.TestCase):
         # Assert expectations
         ## Call parameters: process
         mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints, dry_run=False)
+        
+        # Call parameters: find_latest_file
+        mock_find_latest_file.assert_called_once_with('/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/')
+        
+        # Call parameters: merge_collections
+        mock_merge_collections.assert_called_once_with(mock_find_latest_file.return_value, constants.COLLECTION_PATH_PROCESSED)
+        
+        # Call parameters: write_root
+        mock_write_root.assert_called_once_with(mock_merge_collections.return_value, constants.COLLECTION_PATH_MERGED)
 
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=False)
+        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_MERGED, constants.COLLECTION_PATH_PROCESSED, dry_run=False)
 
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)

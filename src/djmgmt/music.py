@@ -754,8 +754,12 @@ def update_library(source: str,
     process_result = process(source, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
-    # TODO: refactor to use separate base and output path
-    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
+    # TODO: refactor to take collection backup dir as argument
+    # TODO: refactor to use argument-injected paths rather than constants
+    latest_collection = common.find_latest_file('/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/')
+    merged_collection = library.merge_collections(latest_collection, constants.COLLECTION_PATH_PROCESSED)
+    library.write_root(merged_collection, constants.COLLECTION_PATH_MERGED)
+    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_MERGED, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)

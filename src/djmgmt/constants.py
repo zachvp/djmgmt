@@ -67,7 +67,9 @@ XPATH_PLAYED     = _playlist_node('played')
 EXTENSIONS = {'.mp3', '.wav', '.aif', '.aiff', '.flac'}
 
 # state paths
-COLLECTION_PATH_TEMPLATE  = str(PROJECT_ROOT / 'state' / 'collection-template.xml')
-COLLECTION_PATH_PROCESSED = str(PROJECT_ROOT / 'state' / 'output' / 'processed-collection.xml')
-COLLECTION_PATH_DYNAMIC   = str(PROJECT_ROOT / 'state' / 'output' / 'dynamic-collection.xml')
-MISSING_ART_PATH          = str(PROJECT_ROOT / 'state' / 'output' / 'missing-art.txt')
+STATE_PATH_BASE = PROJECT_ROOT / 'state'
+COLLECTION_PATH_TEMPLATE  = str(STATE_PATH_BASE / 'collection-template.xml')
+COLLECTION_PATH_PROCESSED = str(STATE_PATH_BASE / 'output' / 'processed-collection.xml')
+COLLECTION_PATH_DYNAMIC   = str(STATE_PATH_BASE / 'output' / 'dynamic-collection.xml')
+COLLECTION_PATH_MERGED    = str(STATE_PATH_BASE / 'output' / 'merged-collection.xml')
+MISSING_ART_PATH          = str(STATE_PATH_BASE / 'output' / 'missing-art.txt')

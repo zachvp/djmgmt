@@ -345,18 +345,9 @@ def add_playlist_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath
 
     return base_root
 
-# Dev functions
-def dev_debug():
-    test_str =\
-    '''
-        <TRACK TrackID="109970693" Name="花と鳥と山" Artist="haircuts for men" Composer="" Album="京都コネクション" Grouping="" Genre="Lounge/Ambient" Kind="AIFF File" Size="84226278" TotalTime="476" DiscNumber="0" TrackNumber="5" Year="2023" AverageBpm="134.00" DateAdded="2023-04-27" BitRate="1411" SampleRate="44100" Comments="8A - 1" PlayCount="1" Rating="0" Location="file://localhost/Volumes/USR-MUSIC/DJing/haircuts%20for%20men%20-%20%e8%8a%b1%e3%81%a8%e9%b3%a5%e3%81%a8%e5%b1%b1.aiff" Remixer="" Tonality="8A" Label="" Mix="">
-          <TEMPO Inizio="0.126" Bpm="134.00" Metro="4/4" Battito="1" />
-        </TRACK>'''
-    t = ET.fromstring(test_str)
-    logging.debug(t.tag)
-
-    u = full_path(t, '/USR-MUSIC/DJing/', constants.MAPPING_MONTH)
-    logging.debug(u)
+def write_root(root: ET.Element, file_path: str) -> None:
+    tree = ET.ElementTree(root)
+    tree.write(file_path, encoding='UTF-8', xml_declaration=True)
 
 # Primary functions
 def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
@@ -559,8 +550,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
     if dry_run:
         common.log_dry_run('write collection', base_collection_path)
     else:
-        tree = ET.ElementTree(root)
-        tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
+        write_root(root, output_collection_path)
 
     logging.info(f"Collection updated: {new_tracks} new tracks, {updated_tracks} updated tracks at {base_collection_path}")
 
@@ -600,8 +590,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     add_unplayed_tracks(collection_root, base_root)
 
     # write the result to file
-    tree = ET.ElementTree(base_root)
-    tree.write(output_collection_path, encoding='UTF-8', xml_declaration=True)
+    write_root(base_root, output_collection_path)
 
     return base_root
 
@@ -690,15 +679,15 @@ def _merge_playlist_references(
     Returns:
         Set of TrackIDs for the merged playlist
     '''
-    # Build TrackID -> Location mappings for both collections
+    # build TrackID -> Location mappings for both collections
     primary_id_to_loc = _build_track_id_to_location(primary_collection)
     secondary_id_to_loc = _build_track_id_to_location(secondary_collection)
 
-    # Get playlist track keys from both
+    # get playlist track keys from both
     primary_keys = _get_playlist_track_keys(primary_root, playlist_xpath)
     secondary_keys = _get_playlist_track_keys(secondary_root, playlist_xpath)
 
-    # Resolve keys to locations (deduplicate by location)
+    # resolve keys to locations (deduplicate by location)
     merged_locations: set[str] = set()
 
     for key in primary_keys:
@@ -711,7 +700,7 @@ def _merge_playlist_references(
         if location:
             merged_locations.add(location)
 
-    # Map locations back to merged TrackIDs
+    # map locations back to merged TrackIDs
     merged_keys: set[str] = set()
     for location in merged_locations:
         track = merged_track_index.get(location)
@@ -747,7 +736,7 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     primary_mtime = os.path.getmtime(primary_path)
     secondary_mtime = os.path.getmtime(secondary_path)
 
-    if primary_mtime > secondary_mtime:
+    if primary_mtime >= secondary_mtime:
         newer_collection = primary_collection
         older_collection = secondary_collection
     else:
