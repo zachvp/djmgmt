@@ -5,6 +5,7 @@
     "reportUnusedImport": "error",
     "reportUnusedVariable": "error",
     "ignore": [
-        "**/audacity_script_sample.py"
+        "**/audacity_script_sample.py",
+        "**/claude/",
     ]
 }
