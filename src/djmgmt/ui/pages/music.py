@@ -129,9 +129,13 @@ if run_clicked:
                 with center:
                     with st.spinner(f"Updating library from `{source_path}` to `{output_path}`"):
                         music.update_library(
-                            source=source_path,
+                            new_music_dir_path=source_path,
                             library_path=output_path,
                             client_mirror_path=client_mirror_path,
+                            # TODO configure from UI
+                            collection_export_dir_path='/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/',
+                            processed_collection_path=constants.COLLECTION_PATH_PROCESSED,
+                            merged_collection_path=constants.COLLECTION_PATH_MERGED,
                             valid_extensions=constants.EXTENSIONS,
                             prefix_hints=music.PREFIX_HINTS,
                             full_scan=full_scan

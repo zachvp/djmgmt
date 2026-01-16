@@ -1294,6 +1294,11 @@ class TestProcessCLI(unittest.TestCase):
                                              mock_prefix_hints)
 
 class TestUpdateLibrary(unittest.TestCase):
+    # Test constants for update_library paths
+    MOCK_COLLECTION_EXPORT_DIR = '/mock/collection/export'
+    MOCK_PROCESSED_COLLECTION = '/mock/processed-collection.xml'
+    MOCK_MERGED_COLLECTION = '/mock/merged-collection.xml'
+
     @patch('djmgmt.sync.run_sync_mappings')
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.sync.create_sync_mappings')
@@ -1320,7 +1325,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_mappings_changed = [self.create_mock_file_mapping(0), self.create_mock_file_mapping(1)]
         mock_mappings_created = [self.create_mock_file_mapping(2)]
         mock_mappings_filtered = [self.create_mock_file_mapping(0)]
-        
+
         mock_sync_result = SyncResult(mappings=[], batches=[SyncBatchResult(date_context='', files_processed=3, success=True)])
 
         mock_process.return_value = mock_process_result
@@ -1338,24 +1343,27 @@ class TestUpdateLibrary(unittest.TestCase):
         actual = music.update_library(MOCK_INPUT_DIR,
                                       mock_library,
                                       mock_client_mirror,
+                                      self.MOCK_COLLECTION_EXPORT_DIR,
+                                      self.MOCK_PROCESSED_COLLECTION,
+                                      self.MOCK_MERGED_COLLECTION,
                                       mock_extensions,
                                       mock_hints)
 
         # Assert expectations
         ## Call parameters: process
         mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints, dry_run=False)
-        
+
         # Call parameters: find_latest_file
-        mock_find_latest_file.assert_called_once_with('/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/')
-        
+        mock_find_latest_file.assert_called_once_with(self.MOCK_COLLECTION_EXPORT_DIR)
+
         # Call parameters: merge_collections
-        mock_merge_collections.assert_called_once_with(mock_find_latest_file.return_value, constants.COLLECTION_PATH_PROCESSED)
-        
+        mock_merge_collections.assert_called_once_with(mock_find_latest_file.return_value, self.MOCK_PROCESSED_COLLECTION)
+
         # Call parameters: write_root
-        mock_write_root.assert_called_once_with(mock_merge_collections.return_value, constants.COLLECTION_PATH_MERGED)
+        mock_write_root.assert_called_once_with(mock_merge_collections.return_value, self.MOCK_MERGED_COLLECTION)
 
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_MERGED, constants.COLLECTION_PATH_PROCESSED, dry_run=False)
+        mock_record_collection.assert_called_once_with(mock_library, self.MOCK_MERGED_COLLECTION, self.MOCK_PROCESSED_COLLECTION, dry_run=False)
 
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
@@ -1369,7 +1377,7 @@ class TestUpdateLibrary(unittest.TestCase):
         ## Call parameters: run_sync_mappings
         expected_mappings = mock_mappings_created + mock_mappings_filtered
         mock_run_sync_mappings.assert_called_once_with(expected_mappings, full_scan=True, dry_run=False)
-        
+
         ## Result
         self.assertEqual(actual.process_result, mock_process_result)
         self.assertEqual(actual.record_result, mock_record_result)
@@ -1380,11 +1388,17 @@ class TestUpdateLibrary(unittest.TestCase):
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.sync.create_sync_mappings')
+    @patch('djmgmt.library.write_root')
+    @patch('djmgmt.library.merge_collections')
     @patch('djmgmt.library.record_collection')
+    @patch('djmgmt.common.find_latest_file')
     @patch('djmgmt.music.process')
     def test_error_sync(self,
                         mock_process: MagicMock,
+                        mock_find_latest_file: MagicMock,
                         mock_record_collection: MagicMock,
+                        mock_merge_collections: MagicMock,
+                        mock_write_root: MagicMock,
                         mock_create_sync_mappings: MagicMock,
                         mock_compare_tags: MagicMock,
                         mock_filter_path_mappings: MagicMock,
@@ -1405,6 +1419,9 @@ class TestUpdateLibrary(unittest.TestCase):
             music.update_library(MOCK_INPUT_DIR,
                                  mock_library,
                                  mock_client_mirror,
+                                 self.MOCK_COLLECTION_EXPORT_DIR,
+                                 self.MOCK_PROCESSED_COLLECTION,
+                                 self.MOCK_MERGED_COLLECTION,
                                  mock_extensions,
                                  mock_hints)
 
@@ -1420,11 +1437,17 @@ class TestUpdateLibrary(unittest.TestCase):
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.tags_info.compare_tags')
+    @patch('djmgmt.library.write_root')
+    @patch('djmgmt.library.merge_collections')
     @patch('djmgmt.library.record_collection')
+    @patch('djmgmt.common.find_latest_file')
     @patch('djmgmt.music.process')
     def test_dry_run(self,
                      mock_process: MagicMock,
+                     mock_find_latest_file: MagicMock,
                      mock_record_collection: MagicMock,
+                     mock_merge_collections: MagicMock,
+                     mock_write_root: MagicMock,
                      mock_compare_tags: MagicMock,
                      mock_create_sync_mappings: MagicMock,
                      mock_filter_mappings: MagicMock,
@@ -1436,7 +1459,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_mappings_changed = [self.create_mock_file_mapping(0), self.create_mock_file_mapping(1)]
         mock_mappings_created = [self.create_mock_file_mapping(2)]
         mock_mappings_filtered = [self.create_mock_file_mapping(0)]
-        
+
         mock_sync_result = SyncResult(mappings=[], batches=[SyncBatchResult(date_context='', files_processed=3, success=True)])
 
         mock_record_collection.return_value = mock_record_result
@@ -1454,6 +1477,9 @@ class TestUpdateLibrary(unittest.TestCase):
         actual = music.update_library(MOCK_INPUT_DIR,
                                       mock_library,
                                       mock_client_mirror,
+                                      self.MOCK_COLLECTION_EXPORT_DIR,
+                                      self.MOCK_PROCESSED_COLLECTION,
+                                      self.MOCK_MERGED_COLLECTION,
                                       mock_extensions,
                                       mock_hints,
                                       dry_run=True)
@@ -1462,8 +1488,17 @@ class TestUpdateLibrary(unittest.TestCase):
         ## Call parameters: process
         mock_process.assert_called_once_with(MOCK_INPUT_DIR, mock_library, mock_extensions, mock_hints, dry_run=True)
 
+        ## Call parameters: find_latest_file
+        mock_find_latest_file.assert_called_once_with(self.MOCK_COLLECTION_EXPORT_DIR)
+
+        ## Call parameters: merge_collections
+        mock_merge_collections.assert_called_once_with(mock_find_latest_file.return_value, self.MOCK_PROCESSED_COLLECTION)
+
+        ## Call parameters: write_root
+        mock_write_root.assert_called_once_with(mock_merge_collections.return_value, self.MOCK_MERGED_COLLECTION)
+
         ## Call parameters: record_collection
-        mock_record_collection.assert_called_once_with(mock_library, constants.COLLECTION_PATH_PROCESSED, constants.COLLECTION_PATH_PROCESSED, dry_run=True)
+        mock_record_collection.assert_called_once_with(mock_library, self.MOCK_MERGED_COLLECTION, self.MOCK_PROCESSED_COLLECTION, dry_run=True)
 
         ## Call parameters: compare_tags
         mock_compare_tags.assert_called_once_with(mock_library, mock_client_mirror)
@@ -1477,7 +1512,7 @@ class TestUpdateLibrary(unittest.TestCase):
         ## Call parameters: run_sync_mappings
         expected_mappings = mock_mappings_created + mock_mappings_filtered
         mock_run_sync_mappings.assert_called_once_with(expected_mappings, full_scan=True, dry_run=True)
-        
+
         ## Result
         self.assertEqual(actual.process_result, mock_process_result)
         self.assertEqual(actual.record_result, mock_record_result)
@@ -1522,13 +1557,19 @@ class TestParseArgs(unittest.TestCase):
     def test_valid_update_library(self, mock_exists: MagicMock) -> None:
         '''Tests that update_library works with all required arguments.'''
         argv = ['update_library', '--input', '/in', '--output', '/lib',
-                '--client-mirror-path', '/mirror']
+                '--client-mirror-path', '/mirror',
+                '--collection-export-dir-path', '/exports',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml']
         args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         self.assertEqual(args.function, 'update_library')
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/lib')
         self.assertEqual(args.client_mirror_path, '/mirror')
+        self.assertEqual(args.collection_export_dir_path, '/exports')
+        self.assertEqual(args.processed_collection_path, '/processed.xml')
+        self.assertEqual(args.merged_collection_path, '/merged.xml')
 
     @patch('sys.exit')
     def test_missing_input(self, mock_exit: MagicMock) -> None:
@@ -1550,18 +1591,73 @@ class TestParseArgs(unittest.TestCase):
     @patch('os.path.exists', return_value=True)
     def test_update_library_missing_client_mirror(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
         '''Tests that update_library requires --client-mirror-path.'''
-        argv = ['update_library', '--input', '/in', '--output', '/out']
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--collection-export-dir-path', '/exports',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml']
         music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         mock_exit.assert_called_with(2)
 
     @patch('sys.exit')
-    @patch('os.path.exists', return_value=False)
+    @patch('os.path.exists', return_value=True)
+    def test_update_library_missing_collection_export_dir(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library requires --collection-export-dir-path.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/mirror',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', return_value=True)
+    def test_update_library_missing_processed_collection(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library requires --processed-collection-path.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/mirror',
+                '--collection-export-dir-path', '/exports',
+                '--merged-collection-path', '/merged.xml']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', return_value=True)
+    def test_update_library_missing_merged_collection(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library requires --merged-collection-path.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/mirror',
+                '--collection-export-dir-path', '/exports',
+                '--processed-collection-path', '/processed.xml']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', side_effect=lambda p: p != '/nonexistent')
     # TODO: refactor tests to use with pattern to assert exceptions rather than checking exit code
     def test_update_library_invalid_client_mirror_path(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
         '''Tests that update_library validates client_mirror_path exists.'''
         argv = ['update_library', '--input', '/in', '--output', '/out',
-                '--client-mirror-path', '/nonexistent']
+                '--client-mirror-path', '/nonexistent',
+                '--collection-export-dir-path', '/exports',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml']
+        music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    @patch('os.path.exists', side_effect=lambda p: p != '/nonexistent')
+    def test_update_library_invalid_collection_export_dir_path(self, mock_exists: MagicMock, mock_exit: MagicMock) -> None:
+        '''Tests that update_library validates collection_export_dir_path exists.'''
+        argv = ['update_library', '--input', '/in', '--output', '/out',
+                '--client-mirror-path', '/mirror',
+                '--collection-export-dir-path', '/nonexistent',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml']
         music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
         mock_exit.assert_called_with(2)
@@ -1600,6 +1696,9 @@ class TestParseArgs(unittest.TestCase):
         '''Tests that dry_run works with update_library and all its required arguments.'''
         argv = ['update_library', '--input', '/in', '--output', '/lib',
                 '--client-mirror-path', '/mirror',
+                '--collection-export-dir-path', '/exports',
+                '--processed-collection-path', '/processed.xml',
+                '--merged-collection-path', '/merged.xml',
                 '--dry-run']
         args = music.parse_args(music.Namespace.FUNCTIONS, music.Namespace.FUNCTIONS_SINGLE_ARG, argv)
 
@@ -1607,6 +1706,9 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/lib')
         self.assertEqual(args.client_mirror_path, '/mirror')
+        self.assertEqual(args.collection_export_dir_path, '/exports')
+        self.assertEqual(args.processed_collection_path, '/processed.xml')
+        self.assertEqual(args.merged_collection_path, '/merged.xml')
         self.assertTrue(args.dry_run)
 
     def test_dry_run_with_single_arg_function(self) -> None:

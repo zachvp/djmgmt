@@ -57,9 +57,12 @@ class Namespace(argparse.Namespace):
 
     # Optional (alphabetical)
     client_mirror_path: str
+    collection_export_dir_path: str
     dry_run: bool
     input: str
+    merged_collection_path: str
     output: str
+    processed_collection_path: str
 
     # Function constants
     FUNCTION_SWEEP = 'sweep'
@@ -93,18 +96,26 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
     # Optional: all function parameters (alphabetical)
     parser.add_argument('--client-mirror-path', '-m', type=str,
                        help='Client mirror path for media sync')
+    parser.add_argument('--collection-export-dir-path', type=str,
+                       help='Directory containing exported Rekordbox collection XML files')
     parser.add_argument('--dry-run', '-d', action='store_true',
                        help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
     parser.add_argument('--input', '-i', type=str,
                        help='Input directory or file path')
+    parser.add_argument('--merged-collection-path', type=str,
+                       help='Path to write merged collection XML')
     parser.add_argument('--output', '-o', type=str,
                        help='Output directory or file path')
+    parser.add_argument('--processed-collection-path', type=str,
+                       help='Path to processed collection XML state file')
 
     # Parse into Namespace
     args = parser.parse_args(argv, namespace=Namespace())
 
     # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path'])
+    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path',
+                                      'collection_export_dir_path', 'processed_collection_path',
+                                      'merged_collection_path'])
 
     # Validate function
     if args.function not in valid_functions:
@@ -136,10 +147,18 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, si
     if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
         if not args.client_mirror_path:
             parser.error(f"'{args.function}' requires --client-mirror-path")
+        if not args.collection_export_dir_path:
+            parser.error(f"'{args.function}' requires --collection-export-dir-path")
+        if not args.processed_collection_path:
+            parser.error(f"'{args.function}' requires --processed-collection-path")
+        if not args.merged_collection_path:
+            parser.error(f"'{args.function}' requires --merged-collection-path")
 
         # Validate paths exist
         if not os.path.exists(args.client_mirror_path):
             parser.error(f"--client-mirror-path '{args.client_mirror_path}' does not exist")
+        if not os.path.exists(args.collection_export_dir_path):
+            parser.error(f"--collection-export-dir-path '{args.collection_export_dir_path}' does not exist")
 
 def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
     '''Compresses all files in a directory into a zip archive.
@@ -706,9 +725,12 @@ def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[s
     '''CLI wrapper for the core `process` function.'''
     process(args.input, args.output, valid_extensions, prefix_hints)
 
-def update_library(source: str,
+def update_library(new_music_dir_path: str,
                    library_path: str,
                    client_mirror_path: str,
+                   collection_export_dir_path: str,
+                   processed_collection_path: str,
+                   merged_collection_path: str,
                    valid_extensions: set[str],
                    prefix_hints: set[str],
                    full_scan: bool = True,
@@ -751,15 +773,15 @@ def update_library(source: str,
     from . import tags_info
     
     # process all of the source files into the library dir
-    process_result = process(source, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
+    process_result = process(new_music_dir_path, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
     # TODO: refactor to take collection backup dir as argument
     # TODO: refactor to use argument-injected paths rather than constants
-    latest_collection = common.find_latest_file('/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/')
-    merged_collection = library.merge_collections(latest_collection, constants.COLLECTION_PATH_PROCESSED)
-    library.write_root(merged_collection, constants.COLLECTION_PATH_MERGED)
-    record_result = library.record_collection(library_path, constants.COLLECTION_PATH_MERGED, constants.COLLECTION_PATH_PROCESSED, dry_run=dry_run)
+    latest_collection = common.find_latest_file(collection_export_dir_path)
+    merged_collection = library.merge_collections(latest_collection, processed_collection_path)
+    library.write_root(merged_collection, merged_collection_path)
+    record_result = library.record_collection(library_path, merged_collection_path, processed_collection_path, dry_run=dry_run)
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     changed = tags_info.compare_tags(library_path, client_mirror_path)
@@ -805,6 +827,9 @@ if __name__ == '__main__':
         result = update_library(script_args.input,
                                 script_args.output,
                                 script_args.client_mirror_path,
+                                script_args.collection_export_dir_path,
+                                script_args.processed_collection_path,
+                                script_args.merged_collection_path,
                                 constants.EXTENSIONS,
                                 PREFIX_HINTS,
                                 dry_run=script_args.dry_run)
