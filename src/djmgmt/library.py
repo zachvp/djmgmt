@@ -142,7 +142,7 @@ def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], incl
     '''
     # path components
     date = node.attrib[constants.ATTR_DATE_ADDED]
-    path_components = os.path.split(node.attrib[constants.ATTR_PATH].lstrip(library_root))
+    path_components = os.path.split(node.attrib[constants.ATTR_LOCATION].lstrip(library_root))
     subpath_date = date_path(date, mapping)
 
     # construct the path
@@ -231,7 +231,7 @@ def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, pl
     track_paths = set()
     for track in collection_node:
         track_id = track.get(constants.ATTR_TRACK_ID)
-        path = track.get(constants.ATTR_PATH)
+        path = track.get(constants.ATTR_LOCATION)
         if track_id and path and track_id in track_keys:
             track_paths.add(collection_path_to_syspath(path))
     
@@ -255,7 +255,7 @@ def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMet
     file_url = f'{constants.REKORDBOX_ROOT}{quote(source_path, safe="()/")}'
 
     # Find track in collection
-    track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
+    track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
 
     if track_node is None:
         logging.warning(f'Track not found in collection: {source_path}')
@@ -376,8 +376,8 @@ def generate_date_paths(collection: ET.Element,
 
     for node in collection:
         # check if track file is in expected library folder
-        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_PATH])
-        if constants.REKORDBOX_ROOT not in node.attrib[constants.ATTR_PATH]:
+        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
+        if constants.REKORDBOX_ROOT not in node.attrib[constants.ATTR_LOCATION]:
             logging.warning(f"unexpected path {node_syspath}, will skip")
             continue
         
@@ -441,7 +441,7 @@ def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) 
     identifiers: list[str] = []
     
     for node in collection:
-        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_PATH])
+        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
         # check if a playlist is provided
         if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
             logging.debug(f"skip non-playlist track: '{node_syspath}'")
@@ -459,7 +459,7 @@ def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) 
 def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
     names: list[str] = []
     for node in collection:
-        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_PATH])
+        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
         # check if a playlist is provided
         if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
             logging.debug(f"skip non-playlist track: '{node_syspath}'")
@@ -500,7 +500,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
             file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe='()/')}"
             
             # check if track already exists
-            existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_PATH}="{file_url}"]')
+            existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
             
             # load metadata Tags
             tags = Tags.load(file_path)
@@ -516,7 +516,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
                 constants.ATTR_ALBUM  : tags.album or fallback_value,
                 constants.ATTR_GENRE  : tags.genre or fallback_value,
                 constants.ATTR_KEY    : tags.key or fallback_value,
-                constants.ATTR_PATH   : file_url
+                constants.ATTR_LOCATION   : file_url
             }
             
             # check for existing track
@@ -617,7 +617,7 @@ def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
     '''
     index: dict[str, ET.Element] = {}
     for track in collection:
-        location = track.get(constants.ATTR_PATH)
+        location = track.get(constants.ATTR_LOCATION)
         if location:
             index[location] = track
         else:
@@ -637,7 +637,7 @@ def _build_track_id_to_location(collection: ET.Element) -> dict[str, str]:
     mapping: dict[str, str] = {}
     for track in collection:
         track_id = track.get(constants.ATTR_TRACK_ID)
-        location = track.get(constants.ATTR_PATH)
+        location = track.get(constants.ATTR_LOCATION)
         if track_id and location:
             mapping[track_id] = location
     return mapping
@@ -763,7 +763,7 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
 
     # overwrite with newer collection tracks (newer wins on conflict)
     for track in newer_collection:
-        location = track.get(constants.ATTR_PATH)
+        location = track.get(constants.ATTR_LOCATION)
         if location:
             track_index[location] = track
 

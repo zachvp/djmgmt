@@ -125,7 +125,7 @@ def create_genre_map(path: str) -> dict[str, str]:
 def output_collection_filter(root: ET.Element) -> list[str]:
     output : list[str] = []
     for track in root:
-        path = library.collection_path_to_syspath(track.attrib[constants.ATTR_PATH])
+        path = library.collection_path_to_syspath(track.attrib[constants.ATTR_LOCATION])
         output.append(f"{track.attrib[constants.ATTR_GENRE]}\t{path}")
     for line in output:
         print(line)

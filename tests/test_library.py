@@ -956,18 +956,18 @@ class TestRecordCollection(unittest.TestCase):
             self.assertIn('Tonality', track.attrib)
             self.assertEqual(track.attrib['Tonality'], MOCK_TONALITY)
             
-            self.assertIn(constants.ATTR_PATH, track.attrib)
+            self.assertIn(constants.ATTR_LOCATION, track.attrib)
             # Path content will be different per track, so check outside the loop
             
         # Check URL-encoded paths
         # Check track 0 path: no URL encoding required
         track_0 = collection[0]
-        self.assertEqual(track_0.attrib[constants.ATTR_PATH], f"file://localhost{MOCK_INPUT_DIR}/mock_file.aiff")
+        self.assertEqual(track_0.attrib[constants.ATTR_LOCATION], f"file://localhost{MOCK_INPUT_DIR}/mock_file.aiff")
         
         # Check track 1 path: URL encoding required
         track_1 = collection[1]
-        self.assertIn(constants.ATTR_PATH, track_1.attrib)
-        self.assertEqual(track_1.attrib[constants.ATTR_PATH].lower(),
+        self.assertIn(constants.ATTR_LOCATION, track_1.attrib)
+        self.assertEqual(track_1.attrib[constants.ATTR_LOCATION].lower(),
                          f"file://localhost{MOCK_INPUT_DIR}/03%20-%20%E6%9A%B4%E9%A2%A8%E4%B8%80%E6%97%8F%20(Remix).mp3".lower())
         
         # Check PLAYLISTS node
@@ -1113,19 +1113,19 @@ class TestRecordCollection(unittest.TestCase):
             self.assertIn('Tonality', track.attrib)
             self.assertEqual(track.attrib['Tonality'], MOCK_TONALITY)
             
-            self.assertIn(constants.ATTR_PATH, track.attrib)
+            self.assertIn(constants.ATTR_LOCATION, track.attrib)
             # Path content will be different per track, so check outside the loop
             
         # Check URL encoded paths
         # Track 0 is skipped, covered in new_file unit test
         # Check track 1 path: no URL encoding required
         track_1 = collection[1]
-        self.assertEqual(track_1.attrib[constants.ATTR_PATH], f"file://localhost{MOCK_INPUT_DIR}/mock_file_1.aiff")
+        self.assertEqual(track_1.attrib[constants.ATTR_LOCATION], f"file://localhost{MOCK_INPUT_DIR}/mock_file_1.aiff")
         
         # Check track 2 path: URL encoding required
         track_2 = collection[2]
-        self.assertIn(constants.ATTR_PATH, track_2.attrib)
-        self.assertEqual(track_2.attrib[constants.ATTR_PATH].lower(),
+        self.assertIn(constants.ATTR_LOCATION, track_2.attrib)
+        self.assertEqual(track_2.attrib[constants.ATTR_LOCATION].lower(),
                          f"file://localhost{MOCK_INPUT_DIR}/03%20-%20%E6%9A%B4%E9%A2%A8%E4%B8%80%E6%97%8F%20(Remix).mp3".lower())
         
         # Check PLAYLISTS node
@@ -1199,7 +1199,7 @@ class TestRecordCollection(unittest.TestCase):
                 {constants.ATTR_GENRE}="{MOCK_GENRE}"
                 {constants.ATTR_KEY}="{MOCK_TONALITY}"
                 {constants.ATTR_DATE_ADDED}="{MOCK_DATE_ADDED}"
-                {constants.ATTR_PATH}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />
+                {constants.ATTR_LOCATION}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />
             </COLLECTION>
             <PLAYLISTS>
                 <NODE Type="0" Name="ROOT" Count="2">
@@ -1261,7 +1261,7 @@ class TestRecordCollection(unittest.TestCase):
                 {constants.ATTR_GENRE}="{MOCK_GENRE}"
                 {constants.ATTR_KEY}="{MOCK_TONALITY}"
                 {constants.ATTR_DATE_ADDED}="{MOCK_DATE_ADDED}"
-                {constants.ATTR_PATH}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />
+                {constants.ATTR_LOCATION}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />
             </COLLECTION>
             <PLAYLISTS>
                 <NODE Type="0" Name="ROOT" Count="2">
@@ -1325,7 +1325,7 @@ class TestRecordCollection(unittest.TestCase):
         # Check data that should not change
         self.assertEqual(track.get(constants.ATTR_TRACK_ID), '1')
         self.assertEqual(track.get(constants.ATTR_DATE_ADDED), MOCK_DATE_ADDED)
-        self.assertEqual(track.get(constants.ATTR_PATH), f"file://localhost{MOCK_INPUT_DIR}/{mock_file}")
+        self.assertEqual(track.get(constants.ATTR_LOCATION), f"file://localhost{MOCK_INPUT_DIR}/{mock_file}")
         
         # Check the expected new data
         self.assertEqual(track.get(constants.ATTR_ARTIST), f"{MOCK_ARTIST}_update")
@@ -1412,8 +1412,8 @@ class TestRecordCollection(unittest.TestCase):
         self.assertIn(constants.ATTR_DATE_ADDED, track.attrib)
         self.assertRegex(track.attrib[constants.ATTR_DATE_ADDED], r"\d{4}-\d{2}-\d{2}")
         
-        self.assertIn(constants.ATTR_PATH, track.attrib)
-        self.assertEqual(track.attrib[constants.ATTR_PATH], f"file://localhost{MOCK_INPUT_DIR}/mock_file.aiff")
+        self.assertIn(constants.ATTR_LOCATION, track.attrib)
+        self.assertEqual(track.attrib[constants.ATTR_LOCATION], f"file://localhost{MOCK_INPUT_DIR}/mock_file.aiff")
         
         self.assertIn(constants.ATTR_GENRE, track.attrib)
         self.assertEqual(track.attrib[constants.ATTR_GENRE], '')

@@ -548,7 +548,7 @@ async def find_missing_art_xml(collection_file_path: str, collection_xpath: str,
     
     for node in collection:
         # check if node is in playlist
-        source = library.collection_path_to_syspath(node.attrib[constants.ATTR_PATH])
+        source = library.collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
         if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
             logging.info(f"skip non-playlist track: '{source}'")
             continue
