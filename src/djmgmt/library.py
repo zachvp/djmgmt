@@ -364,8 +364,6 @@ def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
     collection = find_node(collection, constants.XPATH_COLLECTION)
     return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
 
-# TODO: update to handle '/' character in metadata path (e.g. a/jus/ted)
-# TODO: add test coverage for URL-encoded paths (i.e. Rekordbox file location)
 def generate_date_paths(collection: ET.Element,
                         root_path: str,
                         playlist_ids: set[str] = set(),
@@ -471,7 +469,6 @@ def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) ->
         names.append(name)
     return names
 
-# TODO: move to library module
 # TODO: extend to save backup of previous X versions
 # TODO: implement merge XML function
 def record_collection(source: str, base_collection_path: str, output_collection_path: str, dry_run: bool = False) -> RecordResult:
@@ -484,6 +481,9 @@ def record_collection(source: str, base_collection_path: str, output_collection_
     collection    = find_node(root, constants.XPATH_COLLECTION)
     playlist_root = find_node(root, constants.XPATH_PLAYLISTS)
     pruned        = find_node(root, constants.XPATH_PRUNED)
+    
+    # log
+    logging.debug(f"Use xml path: '{xml_path}'")
     
     # count existing tracks
     existing_tracks = len(collection.findall(constants.TAG_TRACK))
@@ -747,7 +747,7 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     primary_mtime = os.path.getmtime(primary_path)
     secondary_mtime = os.path.getmtime(secondary_path)
 
-    if primary_mtime >= secondary_mtime:
+    if primary_mtime > secondary_mtime:
         newer_collection = primary_collection
         older_collection = secondary_collection
     else:
