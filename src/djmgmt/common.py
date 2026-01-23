@@ -191,6 +191,9 @@ def clean_dirname_simple(dirname: str) -> str:
 
 def find_latest_file(search_dir: str, filter: set[str] = set()) -> str:
     '''Recursively finds the path for the most recently modified collection.xml file.'''
+    if not os.path.isdir(search_dir):
+        raise ValueError(f"Path '{search_dir}' is not a directory.")
+    
     paths = collect_paths(search_dir, filter=filter)
     return max(paths, key=os.path.getmtime) if paths else ''
 
