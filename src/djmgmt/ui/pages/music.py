@@ -34,10 +34,11 @@ page.render_arguments_header()
 # Load app config
 app_config = AppConfig.load()
 
-# Required arguments
+# Argument fields
 source_path = None
 output_path = None
 client_mirror_path = None
+collection_export_dir_path = None
 full_scan = True
 
 if function == music.Namespace.FUNCTION_PROCESS:
@@ -47,6 +48,8 @@ elif function == music.Namespace.FUNCTION_UPDATE_LIBRARY:
     source_path = page.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
     output_path = page.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
     client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
+    collection_export_dir_path = page.render_path_input('Collection Export Directory Path', app_config.collection_directory, 'Unable to load collection directory path')
+    
     full_scan = page.render_checkbox_input('Full Scan', default_value=True)
 
 # Render separator between Arguments and Run sections
@@ -120,8 +123,8 @@ if run_clicked:
                 logging.error(f"Error in {music.Namespace.FUNCTION_PROCESS}:\n{e}", exc_info=True)
 
     elif function == music.Namespace.FUNCTION_UPDATE_LIBRARY:
-        if not source_path or not output_path or not client_mirror_path:
-            st.error('Source path, library path, and client mirror path are required')
+        if not source_path or not output_path or not client_mirror_path or not collection_export_dir_path:
+            st.error('Source path, library path, client mirror path, and collection export path are required')
         else:
             try:
                 # Run the update_library function
@@ -132,8 +135,7 @@ if run_clicked:
                             new_music_dir_path=source_path,
                             library_path=output_path,
                             client_mirror_path=client_mirror_path,
-                            # TODO configure from UI
-                            collection_export_dir_path='/Users/zachvp/Library/CloudStorage/OneDrive-Personal/Backups/rekordbox/collections/',
+                            collection_export_dir_path=collection_export_dir_path,
                             processed_collection_path=constants.COLLECTION_PATH_PROCESSED,
                             merged_collection_path=constants.COLLECTION_PATH_MERGED,
                             valid_extensions=constants.EXTENSIONS,
@@ -146,6 +148,7 @@ if run_clicked:
                 message = ['**Success!**',
                            f"- Updated library at `{output_path}`",
                            f"- Synced to client mirror at `{client_mirror_path}`",
+                           f"- Used `{collection_export_dir_path}` as collection export directory.",
                            f"- Collection saved to: `{constants.COLLECTION_PATH_PROCESSED}`",
                            f"- Full scan: `{full_scan}`"]
                 st.success('\n'.join(message))
@@ -154,6 +157,7 @@ if run_clicked:
                 app_config.download_directory = source_path
                 app_config.library_directory = output_path
                 app_config.client_mirror_directory = client_mirror_path
+                app_config.collection_directory = collection_export_dir_path
                 AppConfig.save(app_config)
             except Exception as e:
                 st.error(f"Error updating library:\n{e}")

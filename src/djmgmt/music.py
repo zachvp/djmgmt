@@ -131,7 +131,6 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
 
     return args
 
-
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, single_arg_functions: set[str]) -> None:
     '''Validate function-specific required arguments.'''
 
@@ -776,8 +775,6 @@ def update_library(new_music_dir_path: str,
     process_result = process(new_music_dir_path, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
     # update the processed collection according to any new files
-    # TODO: refactor to take collection backup dir as argument
-    # TODO: refactor to use argument-injected paths rather than constants
     latest_collection = common.find_latest_file(collection_export_dir_path)
     merged_collection = library.merge_collections(latest_collection, processed_collection_path)
     library.write_root(merged_collection, merged_collection_path)
