@@ -11,12 +11,14 @@ from djmgmt.ui.components.recent_file_input import RecentFileInput
 # Constants
 MODULE = 'playlist'
 FUNCTION_EXTRACT = 'extract'
-FUNCTIONS = [FUNCTION_EXTRACT]
+FUNCTION_PRESS_MIX = 'press_mix'
+FUNCTIONS = [FUNCTION_EXTRACT, FUNCTION_PRESS_MIX]
 
 # Function mapping
 function_mapper = FunctionMapper(module=playlist)
 function_mapper.add_all({
-    FUNCTION_EXTRACT: playlist.extract
+    FUNCTION_EXTRACT: playlist.extract,
+    FUNCTION_PRESS_MIX: playlist.press_mix
 })
 
 # Page initialization
@@ -32,27 +34,48 @@ page.render_arguments_header()
 # Load app config
 app_config = AppConfig.load()
 
+# Common inputs
 # Render playlist path input with auto-loading and latest file finder
-finder = RecentFileInput.Finder(app_config.playlist_directory or '', common.find_latest_file, {'.tsv', '.txt', '.csv'})
+playlist_finder = RecentFileInput.Finder(app_config.playlist_directory or '', common.find_latest_file, {'.tsv', '.txt', '.csv'})
 input_path = RecentFileInput.render(
     label='Playlist Path',
     widget_key='widget_key_playlist_path',
     default_value=app_config.playlist_directory,
-    finder=finder,
+    finder=playlist_finder,
     button_label='Find Latest Playlist File'
 )
 
-# Render optional arguments - field selection checkboxes
-st.write('**Field Selection**')
-col1, col2, col3, col4 = st.columns(4)
-with col1:
-    include_number = st.checkbox('Number', value=False)
-with col2:
-    include_title = st.checkbox('Title', value=True)
-with col3:
-    include_artist = st.checkbox('Artist', value=True)
-with col4:
-    include_genre = st.checkbox('Genre', value=False)
+# Function-specific inputs
+# Initialize variables
+music_file_path = ''
+include_number = False
+include_title = True
+include_artist = True
+include_genre = False
+
+if function == FUNCTION_PRESS_MIX:
+    # Render music file path input with latest file finder
+    music_finder = RecentFileInput.Finder(app_config.mix_recording_directory or '', common.find_latest_file, {'.wav', '.aiff', '.aif'})
+    music_file_path = RecentFileInput.render(
+        label='Music File Path',
+        widget_key='widget_key_music_file_path',
+        default_value=app_config.mix_recording_directory,
+        finder=music_finder,
+        button_label='Find Latest Music File'
+    )
+
+elif function == FUNCTION_EXTRACT:
+    # Render optional arguments - field selection checkboxes
+    st.write('**Field Selection**')
+    col1, col2, col3, col4 = st.columns(4)
+    with col1:
+        include_number = st.checkbox('Number', value=False)
+    with col2:
+        include_title = st.checkbox('Title', value=True)
+    with col3:
+        include_artist = st.checkbox('Artist', value=True)
+    with col4:
+        include_genre = st.checkbox('Genre', value=False)
 
 # Separator between Arguments and Run sections
 page.render_section_separator()
@@ -118,3 +141,46 @@ if run_clicked:
 
                 except Exception as e:
                     st.error(f'Error extracting playlist data: {e}')
+
+    elif function == FUNCTION_PRESS_MIX:
+        # Validate inputs
+        if not music_file_path:
+            st.error('Music file path is required')
+        elif not os.path.exists(music_file_path):
+            st.error(f'File not found: {music_file_path}')
+        elif not input_path:
+            st.error('Playlist path is required')
+        elif not os.path.exists(input_path):
+            st.error(f'File not found: {input_path}')
+        else:
+            # Validate file extensions
+            music_extension = os.path.splitext(music_file_path)[1]
+            if music_extension not in {'.wav', '.aiff', '.aif'}:
+                st.error(f'Unsupported music file extension: {music_extension}. Expected .wav, .aiff, or .aif')
+            else:
+                playlist_extension = os.path.splitext(input_path)[1]
+                if playlist_extension not in {'.tsv', '.txt', '.csv'}:
+                    st.error(f'Unsupported playlist file extension: {playlist_extension}. Expected .tsv, .txt, or .csv')
+                else:
+                    try:
+                        # Run the function
+                        mix = playlist.press_mix(
+                            music_file_path=music_file_path,
+                            playlist_file_path=input_path
+                        )
+
+                        # Render results
+                        page.render_results_header()
+                        st.success('Mix pressed successfully')
+                        st.write('**Mix Details**')
+                        st.write(f'Date Recorded: {mix.date_recorded}')
+                        st.write(f'Music Path: {mix.music_path}')
+                        st.write(f'Playlist Path: {mix.playlist_file_path}')
+
+                        # Update config to store the most recent working paths
+                        app_config.mix_recording_directory = os.path.dirname(music_file_path)
+                        app_config.playlist_directory = os.path.dirname(input_path)
+                        AppConfig.save(app_config)
+
+                    except Exception as e:
+                        st.error(f'Error pressing mix: {e}')

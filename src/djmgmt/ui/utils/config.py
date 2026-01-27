@@ -52,12 +52,13 @@ class BaseConfig:
             json.dump(config.to_dict(), f, indent=2)
 
 class AppKey(StrEnum):
-    COLLECTION_DIRECTORY = 'collection_directory'
-    COLLECTION_PATH      = 'collection_path'
-    DOWNLOAD_DIRECTORY   = 'download_directory'
-    LIBRARY_DIRECTORY    = 'library_directory'
-    CLIENT_MIRROR_PATH   = 'client_mirror_directory'
-    PLAYLIST_DIRECTORY   = 'playlist_directory'
+    COLLECTION_DIRECTORY     = 'collection_directory'
+    COLLECTION_PATH          = 'collection_path'
+    DOWNLOAD_DIRECTORY       = 'download_directory'
+    LIBRARY_DIRECTORY        = 'library_directory'
+    CLIENT_MIRROR_PATH       = 'client_mirror_directory'
+    PLAYLIST_DIRECTORY       = 'playlist_directory'
+    MIX_RECORDING_DIRECTORY  = 'mix_recording_directory'
 
 class AppConfig(BaseConfig):
     PATH     = Path(__file__).parent.parent / 'config.json'
@@ -70,3 +71,4 @@ class AppConfig(BaseConfig):
     library_directory         : Optional[str]
     client_mirror_directory   : Optional[str]
     playlist_directory        : Optional[str]
+    mix_recording_directory   : Optional[str]
