@@ -120,7 +120,7 @@ def parse_args(valid_functions: set[str], single_arg_functions: set[str],
     # Validate function
     if args.function not in valid_functions:
         parser.error(f"invalid function '{args.function}'\n"
-                    f"expect one of: {', '.join(sorted(valid_functions))}")
+                     f"expect one of: {', '.join(sorted(valid_functions))}")
 
     # Function-specific validation
     _validate_function_args(parser, args, single_arg_functions)

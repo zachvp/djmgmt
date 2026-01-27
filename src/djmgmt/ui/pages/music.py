@@ -57,7 +57,7 @@ page.render_section_separator()
 
 # Handle Run button
 run_clicked = page.render_run_button()
-if run_clicked:
+if run_clicked: 
     if function == music.Namespace.FUNCTION_PROCESS:
         if not source_path or not output_path:
             st.error('Source and output paths are required')

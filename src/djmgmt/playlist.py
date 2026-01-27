@@ -10,21 +10,121 @@ Format
 import argparse
 import os
 import csv
+import re
+import logging
 from typing import Callable
+from dataclasses import dataclass, fields, asdict
 
 from . import common
+
+
+# data
+@dataclass
+class Mix:
+    '''Represents a DJ mix with all associated file paths and metadata.'''
+    date_recorded: str              # ISO date (YYYY-MM-DD)
+    music_path: str                 # Path to original WAV recording
+    playlist_file_path: str         # Path to Rekordbox playlist TSV export
+    soundcloud_url: str = ''        # Full Soundcloud track URL
+    title: str = ''                 # Human-readable mix title
+    cover_image_path: str = ''      # Path to local cover image
+    transcoded_file_path: str = ''  # Path to MP3 in output directory
+
+# constants
+# CSV file for structured mix data
+MIXES_CSV_FILE_PATH = '/Users/zachvp/Music/mixtapes/mixes.csv'
+
+# CSV column headers (must match Mix dataclass field order)
+MIXES_CSV_HEADERS = [f.name for f in fields(Mix)]
+
+WINDOWS_MIX = 'WindowsMix'
 
 # command support
 class Namespace(argparse.Namespace):
     # required
-    input: str
+    function: str
 
-    # optional
-    number: bool
-    title: bool
+    # optional (alphabetical)
     artist: bool
+    cover_image_path: str
+    csv_file_path: str
     genre: bool
+    music_file_path: str
+    number: bool
+    playlist_file_path: str
+    soundcloud_url: str
+    title: bool
+    transcoded_file_path: str
+    
+    # function constants
+    FUNCTION_EXTRACT_PLAYLIST = 'extract'
+    FUNCTION_PRESS_MIXTAPE = 'press'
+    
+    FUNCTIONS = {FUNCTION_EXTRACT_PLAYLIST, FUNCTION_PRESS_MIXTAPE}
 
+def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
+    parser = argparse.ArgumentParser(description="Output each track from a rekordbox-exported playlist.\
+        If no options are provided, all fields will exist in the ouptut.")
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
+    
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--artist', '-a', action='store_true',
+                        help='Include the artist in the extract output.')
+    parser.add_argument('--cover-image-path', '-c', type=str,
+                       help='The path to the mix cover image.')
+    parser.add_argument('--csv-file-path', '-d', type=str,
+                       help='The path to CSV file.')
+    parser.add_argument('--genre', '-g', action='store_true',
+                        help='Include the genre in the output.')
+    parser.add_argument('--music-file-path', '-m', type=str,
+                       help='The path to the mix music file.')
+    parser.add_argument('--number', '-n', action='store_true',
+                        help='Include the track number in the extract output.')
+    parser.add_argument('--playlist-file-path', '-p', type=str,
+                       help='The path to the mix playlist file.')
+    parser.add_argument('--soundcloud-url', '-s', type=str,
+                       help='The mix Soundcloud URL.')
+    parser.add_argument('--title', '-t', action='store_true',
+                        help='Include the title in the extract output.')
+    parser.add_argument('--transcoded-file-path', '-x', type=str,
+                       help='The transcoded mix file path.')
+
+    args = parser.parse_args(argv, namespace=Namespace())
+    
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['cover_image_path',
+                                      'csv_file_path',
+                                      'music_file_path',
+                                      'playlist_file_path',
+                                      'transcoded_file_path'])
+
+    # validate function
+    if args.function not in valid_functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                     f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # function-specific validation
+    _validate_function_args(parser, args)
+
+    return args
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+    
+    # required for all functions
+    if not args.playlist_file_path:
+        parser.error(f"'{args.function}' requires --playlist-file-path")
+    
+    # mix press requires specific args
+    if args.function == Namespace.FUNCTION_PRESS_MIXTAPE:
+        if not args.music_file_path:
+            parser.error(f"'{args.function}' requires --music-file-path")
+        if not args.playlist_file_path:
+            parser.error(f"'{args.function}' requires --playlist-file-path")
+
+# helpers
 def extract_tsv(path: str, fields: list[int]) -> list[str]:
     output = []
 
@@ -53,20 +153,6 @@ def extract_csv(path: str, fields: list[int]) -> list[str]:
             if len(output_line) > 0:
                 output.append(output_line)
     return output
-
-def parse_args() -> type[Namespace]:
-    parser = argparse.ArgumentParser(description="Output each track from a rekordbox-exported playlist.\
-        If no options are provided, all fields will exist in the ouptut.")
-    parser.add_argument('input', type=str, help='The playlist path.')
-    parser.add_argument('--number', '-n', action='store_true', help='Include the track number in the output.')
-    parser.add_argument('--title', '-t', action='store_true', help='Include the title in the output.')
-    parser.add_argument('--artist', '-a', action='store_true', help='Include the artist in the output.')
-    parser.add_argument('--genre', '-g', action='store_true', help='Include the genre in the output.')
-
-    args = parser.parse_args(namespace=Namespace)
-    args.input = os.path.normpath(args.input)
-
-    return args
 
 def find_column(path: str, name: str) -> int:
     '''Locate the index of a column by name in a file's header row.
@@ -116,6 +202,105 @@ def find_column(path: str, name: str) -> int:
         print(f"error: unable to find name: '{name}' in path '{path}'")
     return -1
 
+def extract_date_from_filename(filepath: str) -> str | None:
+    '''
+    Extract recording date from filename.
+
+    Matches patterns like "REC-2022-06-08" in filenames.
+
+    Args:
+        filepath: Path to audio file
+
+    Returns:
+        ISO date string (YYYY-MM-DD) or None if not found
+    '''
+    filename = os.path.splitext(os.path.basename(filepath))[0]
+    match = re.search(r'REC-(\d{4}-\d{2}-\d{2})', filename, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    return None
+
+def load_mixes_csv(csv_file_path: str=MIXES_CSV_FILE_PATH) -> list[Mix]:
+    '''
+    Load all mixes from CSV file.
+
+    Returns:
+        List of Mix objects
+    '''
+    mixes = []
+
+    if not os.path.exists(csv_file_path):
+        return mixes
+
+    try:
+        with open(csv_file_path, 'r', encoding='utf-8', newline='') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                mix = Mix(**row)
+                mixes.append(mix)
+
+        logging.info(f"Loaded {len(mixes)} mixes from CSV")
+        return mixes
+    except Exception as e:
+        logging.warning(f"Error loading mixes CSV: {e}")
+        return []
+
+
+def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
+    '''
+    Append or update a mix entry in the CSV file.
+
+    If a mix with the same soundcloud_url exists, it will be updated.
+    Otherwise, the mix will be appended. Uses soundcloud_url as the unique
+    identifier since multiple mixes can share the same original_file_path
+    (e.g., WindowsMix entries).
+
+    Args:
+        mix: Mix object to save
+    '''
+    # load existing mixes
+    mixes = load_mixes_csv(csv_file_path=csv_file_path)
+    
+    # create file if it doesn't exist
+    if not mixes:
+        try:
+            with open(csv_file_path, 'w', encoding='utf-8', newline='') as f:
+                writer = csv.DictWriter(f, fieldnames=MIXES_CSV_HEADERS)
+                writer.writeheader()
+        except Exception as e:
+            logging.error(f"Error saving mix to CSV: {e}")
+
+    # check if mix already exists
+    existing_index = None
+    for i, existing in enumerate(mixes):
+        # try non-windows mix music path
+        if existing.music_path != WINDOWS_MIX and existing.music_path == mix.music_path:
+            existing_index = i
+            break
+        # fall back to Soundcloud URL
+        if existing.soundcloud_url and existing.soundcloud_url == mix.soundcloud_url:
+            existing_index = i
+            break
+
+    if existing_index is not None:
+        mixes[existing_index] = mix
+        logging.info(f"Updated mix: {mix.music_path}")
+    else:
+        mixes.append(mix)
+        logging.info(f"Added mix: {mix.music_path}")
+
+    # Write all mixes back to CSV
+    try:
+        with open(csv_file_path, 'w', encoding='utf-8', newline='') as f:
+            writer = csv.DictWriter(f, fieldnames=MIXES_CSV_HEADERS)
+            writer.writeheader()
+            for m in mixes:
+                writer.writerow(asdict(m))
+    except Exception as e:
+        logging.error(f"Error saving mix to CSV: {e}")
+
+
+# primary functions
 def extract(input_path: str,
             include_number: bool,
             include_title: bool,
@@ -160,8 +345,63 @@ def extract(input_path: str,
 
     return extracted
 
+def press_mix(music_file_path: str,
+              playlist_file_path: str,
+              soundcloud_url: str = '',
+              cover_image_path: str = '',
+              transcoded_file_path: str = '',
+              csv_file_path: str = '') -> Mix:
+    '''
+    Record a new mix entry to the CSV file.
+
+    Extracts the recording date from the filename if possible.
+
+    Args:
+        music_file_path: Path to original WAV recording
+        playlist_file_path: Path to Rekordbox playlist TSV export
+        soundcloud_url: Optional Soundcloud track URL
+        cover_image_path: Optional path to local cover image
+        transcoded_file_path: Optional path to transcoded MP3
+    '''
+    from datetime import datetime
+    
+    # Extract date from filename
+    date_recorded = extract_date_from_filename(music_file_path)
+
+    if not date_recorded:
+        logging.warning(f"Could not extract date from filename: {music_file_path}")
+        # Use today's date as fallback
+        date_recorded = datetime.now().strftime('%Y-%m-%d')
+        logging.info(f"Using today's date as fallback: {date_recorded}")
+
+    mix = Mix(
+        date_recorded=date_recorded,
+        music_path=music_file_path,
+        playlist_file_path=playlist_file_path,
+        soundcloud_url=soundcloud_url,
+        cover_image_path=cover_image_path,
+        transcoded_file_path=transcoded_file_path
+    )
+
+    save_mix_to_csv(mix, csv_file_path=csv_file_path)
+    return mix
+
 # main
 if __name__ == '__main__':
-    args = parse_args()
-    result = extract(args.input, args.number, args.title, args.artist, args.genre)
-    print('\n'.join(result))
+    import sys
+    
+    # log config
+    common.configure_log_module(__file__)
+    
+    args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
+    
+    if args.function == Namespace.FUNCTION_EXTRACT_PLAYLIST:
+        result = extract(args.function, args.number, args.title, args.artist, args.genre)
+        print('\n'.join(result))
+    elif args.function == Namespace.FUNCTION_PRESS_MIXTAPE:
+        press_mix(args.music_file_path,
+                  args.playlist_file_path,
+                  soundcloud_url=args.soundcloud_url,
+                  cover_image_path=args.cover_image_path,
+                  transcoded_file_path=args.transcoded_file_path,
+                  csv_file_path=args.csv_file_path)
