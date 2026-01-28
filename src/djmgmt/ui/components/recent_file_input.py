@@ -30,6 +30,29 @@ class RecentFileInput:
         filter: set[str]
 
     @staticmethod
+    def _find_latest_callback(widget_key: str, finder: 'RecentFileInput.Finder') -> None:
+        '''Callback executed when Find Latest button is clicked.
+
+        Runs BEFORE widget processing phase, ensuring all widgets commit state first.
+        Updates session state with latest file, or sets a warning flag if not found.
+        '''
+        warning_key = f'warning_{widget_key}'
+
+        # Clear any previous warnings
+        if warning_key in st.session_state:
+            del st.session_state[warning_key]
+
+        if not finder.directory:
+            st.session_state[warning_key] = 'Directory not configured in app settings'
+            return
+
+        latest_file = finder.function(finder.directory, finder.filter)
+        if latest_file:
+            st.session_state[widget_key] = latest_file
+        else:
+            st.session_state[warning_key] = f'No files found in {finder.directory}'
+
+    @staticmethod
     def render(
         label: str,
         widget_key: str,
@@ -42,9 +65,8 @@ class RecentFileInput:
         Args:
             label: Display label for the text input
             widget_key: Unique session state key for this input widget
-            config_value: Default value from app config (or None)
-            finder_directory: Directory to search for files (or None to disable finder)
-            finder_function: Function that takes directory and returns latest file path
+            finder: Finder configuration with directory, function, and file filter
+            default_value: Default value from app config (or None)
             button_label: Label for the finder button
 
         Returns:
@@ -52,38 +74,31 @@ class RecentFileInput:
         '''
         # Initialize session state for path if not present
         if widget_key not in st.session_state:
-            # Set default path to config value
             default_path = default_value
-
-            # Override default to latest file if config value is None and finder directory exists
             if default_path is None:
                 default_path = ''
                 if finder.directory:
                     default_path = finder.function(finder.directory, finder.filter)
-
             st.session_state[widget_key] = default_path
-
-        # Check if we need to update the path from a previous button click
-        pending_key = f"pending_{widget_key}"
-        if pending_key in st.session_state:
-            st.session_state[widget_key] = st.session_state[pending_key]
-            del st.session_state[pending_key]
 
         # Render the text input bound to session state
         st.text_input(label, key=widget_key)
         path = st.session_state[widget_key]
-        assert path is not None, f"Unable to load file path for {label}"
+        assert path is not None, f'Unable to load file path for {label}'
 
-        # Button to find latest file
-        if st.button(button_label):
-            if finder.directory:
-                latest_file = finder.function(finder.directory, finder.filter)
-                if latest_file:
-                    st.session_state[pending_key] = latest_file
-                    st.rerun()
-                else:
-                    st.warning(f"No files found in {finder.directory}")
-            else:
-                st.warning('Directory not configured in app settings')
+        # Button with callback (no st.rerun() needed)
+        button_key = f'button_{widget_key}'
+        st.button(
+            button_label,
+            key=button_key,
+            on_click=RecentFileInput._find_latest_callback,
+            args=(widget_key, finder)
+        )
+
+        # Display any warnings from callback
+        warning_key = f'warning_{widget_key}'
+        if warning_key in st.session_state:
+            st.warning(st.session_state[warning_key])
+            del st.session_state[warning_key]
 
         return path

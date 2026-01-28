@@ -26,7 +26,7 @@ PageBuilder.set_page_layout('wide')
 page = PageBuilder(module_name=MODULE, module_ref=music)
 page.initialize_logging()
 page.render_header_and_overview()
-function = page.render_function_selector(FUNCTIONS, function_mapper.get_description)
+function = page.render_function_selector(FUNCTIONS, function_mapper.get_description, MODULE)
 
 # Function arguments
 page.render_arguments_header()

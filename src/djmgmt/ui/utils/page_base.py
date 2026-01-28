@@ -71,19 +71,24 @@ class PageBuilder:
     @staticmethod
     def render_function_selector(
         functions: list[str],
-        get_description_fn: Callable[[str], str]
+        get_description_fn: Callable[[str], str],
+        module_name: str
     ) -> str:
         '''Render function selection UI with description expander.
 
         Args:
             functions: List of function names to display in selectbox
             get_description_fn: Function that takes a function name and returns its description
+            module_name: Module name for creating unique session state key
 
         Returns:
             Selected function name
         '''
         st.write('#### Function')
-        function = st.selectbox('Functions', functions, label_visibility='collapsed')
+
+        # Add explicit session state key to maintain selection across reruns
+        selector_key = f'function_selector_{module_name}'
+        function = st.selectbox('Functions', functions, key=selector_key, label_visibility='collapsed')
         assert function is not None, 'Function selection returned None'
 
         with st.expander('Description', expanded=False):
