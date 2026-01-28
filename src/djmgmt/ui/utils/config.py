@@ -59,6 +59,7 @@ class AppKey(StrEnum):
     CLIENT_MIRROR_PATH       = 'client_mirror_directory'
     PLAYLIST_DIRECTORY       = 'playlist_directory'
     MIX_RECORDING_DIRECTORY  = 'mix_recording_directory'
+    PRESSED_MIX_DIRECTORY    = 'pressed_mix_directory'
 
 class AppConfig(BaseConfig):
     PATH     = Path(__file__).parent.parent / 'config.json'
@@ -72,3 +73,4 @@ class AppConfig(BaseConfig):
     client_mirror_directory   : Optional[str]
     playlist_directory        : Optional[str]
     mix_recording_directory   : Optional[str]
+    pressed_mix_directory     : Optional[str]

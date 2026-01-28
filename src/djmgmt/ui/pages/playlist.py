@@ -48,6 +48,7 @@ input_path = RecentFileInput.render(
 # Function-specific inputs
 # Initialize variables
 music_file_path = ''
+csv_file_path = ''
 include_number = False
 include_title = True
 include_artist = True
@@ -62,6 +63,16 @@ if function == FUNCTION_PRESS_MIX:
         default_value=app_config.mix_recording_directory,
         finder=music_finder,
         button_label='Find Latest Music File'
+    )
+
+    # Render CSV file path input with latest file finder
+    csv_finder = RecentFileInput.Finder(app_config.pressed_mix_directory or '', common.find_latest_file, {'.csv'})
+    csv_file_path = RecentFileInput.render(
+        label='CSV File Path (optional)',
+        widget_key='widget_key_csv_file_path',
+        default_value=app_config.pressed_mix_directory,
+        finder=csv_finder,
+        button_label='Find Latest CSV File'
     )
 
 elif function == FUNCTION_EXTRACT:
@@ -166,7 +177,8 @@ if run_clicked:
                         # Run the function
                         mix = playlist.press_mix(
                             music_file_path=music_file_path,
-                            playlist_file_path=input_path
+                            playlist_file_path=input_path,
+                            csv_file_path=csv_file_path
                         )
 
                         # Render results
@@ -180,6 +192,8 @@ if run_clicked:
                         # Update config to store the most recent working paths
                         app_config.mix_recording_directory = os.path.dirname(music_file_path)
                         app_config.playlist_directory = os.path.dirname(input_path)
+                        if csv_file_path:
+                            app_config.pressed_mix_directory = os.path.dirname(csv_file_path)
                         AppConfig.save(app_config)
 
                     except Exception as e:
