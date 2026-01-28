@@ -186,7 +186,7 @@ if run_clicked:
                         st.success('Mix pressed successfully')
                         st.write('**Mix Details**')
                         st.write(f'Date Recorded: {mix.date_recorded}')
-                        st.write(f'Music Path: {mix.music_path}')
+                        st.write(f'Music Path: {mix.original_file_path}')
                         st.write(f'Playlist Path: {mix.playlist_file_path}')
 
                         # Update config to store the most recent working paths

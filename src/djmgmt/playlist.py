@@ -23,7 +23,7 @@ from . import common
 class Mix:
     '''Represents a DJ mix with all associated file paths and metadata.'''
     date_recorded: str              # ISO date (YYYY-MM-DD)
-    music_path: str                 # Path to original WAV recording
+    original_file_path: str                 # Path to original WAV recording
     playlist_file_path: str         # Path to Rekordbox playlist TSV export
     soundcloud_url: str = ''        # Full Soundcloud track URL
     title: str = ''                 # Human-readable mix title
@@ -242,8 +242,8 @@ def load_mixes_csv(csv_file_path: str=MIXES_CSV_FILE_PATH) -> list[Mix]:
         logging.info(f"Loaded {len(mixes)} mixes from CSV")
         return mixes
     except Exception as e:
-        logging.warning(f"Error loading mixes CSV: {e}")
-        return []
+        logging.error(f"Error loading mixes CSV: {e}")
+        raise
 
 
 def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
@@ -269,12 +269,13 @@ def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
                 writer.writeheader()
         except Exception as e:
             logging.error(f"Error saving mix to CSV: {e}")
+            raise
 
     # check if mix already exists
     existing_index = None
     for i, existing in enumerate(mixes):
         # try non-windows mix music path
-        if existing.music_path != WINDOWS_MIX and existing.music_path == mix.music_path:
+        if existing.original_file_path != WINDOWS_MIX and existing.original_file_path == mix.original_file_path:
             existing_index = i
             break
         # fall back to Soundcloud URL
@@ -284,10 +285,10 @@ def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
 
     if existing_index is not None:
         mixes[existing_index] = mix
-        logging.info(f"Updated mix: {mix.music_path}")
+        logging.info(f"Updated mix: {mix.original_file_path}")
     else:
         mixes.append(mix)
-        logging.info(f"Added mix: {mix.music_path}")
+        logging.info(f"Added mix: {mix.original_file_path}")
 
     # Write all mixes back to CSV
     try:
@@ -298,6 +299,7 @@ def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
                 writer.writerow(asdict(m))
     except Exception as e:
         logging.error(f"Error saving mix to CSV: {e}")
+        raise
 
 
 # primary functions
@@ -376,7 +378,7 @@ def press_mix(music_file_path: str,
 
     mix = Mix(
         date_recorded=date_recorded,
-        music_path=music_file_path,
+        original_file_path=music_file_path,
         playlist_file_path=playlist_file_path,
         soundcloud_url=soundcloud_url,
         cover_image_path=cover_image_path,
