@@ -190,7 +190,9 @@ if run_clicked:
                         st.write(f'Playlist Path: {mix.playlist_file_path}')
 
                         # Update config to store the most recent working paths
-                        app_config.mix_recording_directory = os.path.dirname(music_file_path)
+                        # TODO: this doesn't work b/c recorded file is in nested album folder;
+                        # should set based on current mix recording directory and music_file_path: only overwrite if music_file_path isn't a child of current mix_recording directory
+                        # app_config.mix_recording_directory = os.path.dirname(music_file_path)
                         app_config.playlist_directory = os.path.dirname(input_path)
                         if csv_file_path:
                             app_config.pressed_mix_directory = os.path.dirname(csv_file_path)
