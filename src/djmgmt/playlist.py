@@ -12,10 +12,12 @@ import os
 import csv
 import re
 import logging
+import xml.etree.ElementTree as ET
 from typing import Callable
 from dataclasses import dataclass, fields, asdict
 
 from . import common
+from . import library
 
 
 # data
@@ -387,6 +389,186 @@ def press_mix(music_file_path: str,
 
     save_mix_to_csv(mix, csv_file_path=csv_file_path)
     return mix
+
+# M3U8 generation for Navidrome sync
+def _find_playlist_node(root: ET.Element, playlist_path: str) -> ET.Element | None:
+    '''Find a playlist node by hierarchical path (e.g., "dynamic.unplayed").
+
+    Args:
+        root: XML root element
+        playlist_path: Dot-separated playlist path (e.g., "dynamic.unplayed")
+
+    Returns:
+        Playlist NODE element or None if not found
+    '''
+    # navigate to PLAYLISTS root
+    playlists_root = root.find('./PLAYLISTS/NODE[@Name="ROOT"]')
+    if playlists_root is None:
+        logging.error('Unable to find PLAYLISTS/ROOT in XML')
+        return None
+
+    # traverse the playlist path hierarchy
+    current = playlists_root
+    parts = playlist_path.split('.')
+
+    for part in parts:
+        # find child NODE with matching Name attribute
+        found = None
+        for child in current:
+            if child.tag == 'NODE' and child.get('Name') == part:
+                found = child
+                break
+
+        if found is None:
+            logging.error(f"Unable to find playlist node: '{part}' in path '{playlist_path}'")
+            return None
+
+        current = found
+
+    return current
+
+
+def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> str | None:
+    '''Build Navidrome path from track metadata using date-structured format.
+
+    Args:
+        metadata: TrackMetadata object with track information
+        target_base: Base path for Navidrome (e.g., "/media/SOL/music")
+
+    Returns:
+        Full Navidrome path or None if path cannot be built
+    '''
+    from datetime import datetime
+    from . import library
+    from . import constants
+
+    if not metadata.date_added:
+        logging.warning(f"Track '{metadata.title}' missing DateAdded")
+        return None
+
+    # build date-based path
+    date_path = library.date_path(metadata.date_added, constants.MAPPING_MONTH)
+
+    # determine sanitization method based on when file was organized
+    # files organized before 2025-12-01 used no sanitization (filesystem handled special chars)
+    # files organized after 2025-12-01 use clean_dirname_fat32
+    # Note: using conservative cutoff since DateAdded != organization date
+    date_added = datetime.fromisoformat(metadata.date_added)
+    sanitization_cutoff = datetime(2025, 12, 1)
+
+    if date_added < sanitization_cutoff:
+        # old files: minimal sanitization
+        # exFAT allows most chars; slashes create nested directories
+        # Remove all colons and strip leading/trailing whitespace
+        artist_safe = metadata.artist.replace(':', '').strip()
+        album_safe = metadata.album.replace(':', '').strip()
+
+        # handle empty artist/album
+        if not artist_safe:
+            artist_safe = constants.UNKNOWN_ARTIST
+        if not album_safe:
+            album_safe = constants.UNKNOWN_ALBUM
+    else:
+        # new files: use clean_dirname_fat32 sanitization
+        artist_safe = common.clean_dirname_fat32(metadata.artist)
+        album_safe = common.clean_dirname_fat32(metadata.album)
+
+    # get filename from original path and change extension to .mp3
+    filename = os.path.basename(metadata.path)
+    name, ext = os.path.splitext(filename)
+
+    # transform extension to mp3 for lossless and AAC formats
+    if ext.lower() in {'.aif', '.aiff', '.wav', '.flac', '.m4a'}:
+        filename = f"{name}.mp3"
+
+    # construct full Navidrome path
+    navidrome_path = f"{target_base}/{date_path}/{artist_safe}/{album_safe}/{filename}"
+
+    return navidrome_path
+
+
+def generate_m3u8_from_collection(
+    collection_path: str,
+    playlist_path: str,
+    output_path: str,
+    target_base: str = '/media/SOL/music'
+) -> list[str]:
+    '''Generate M3U8 playlist from Rekordbox XML collection for Navidrome.
+
+    Args:
+        collection_path: Path to Rekordbox XML collection file
+        playlist_path: Dot-separated playlist path (e.g., "dynamic.unplayed")
+        output_path: Where to write the M3U8 file
+        target_base: Base path for Navidrome Docker container (default: /media/SOL/music)
+
+    Returns:
+        List of track paths included in playlist (empty list on error)
+    '''
+    import xml.etree.ElementTree as ET
+    from . import library
+
+    try:
+        # parse XML collection
+        tree = ET.parse(collection_path)
+        root = tree.getroot()
+
+        # find collection and playlist nodes
+        collection = root.find('.//COLLECTION')
+        if collection is None:
+            logging.error('Unable to find COLLECTION in XML')
+            return []
+
+        playlist_node = _find_playlist_node(root, playlist_path)
+        if playlist_node is None:
+            return []
+
+        # extract track IDs from playlist
+        track_elements = playlist_node.findall('TRACK')
+        track_ids: list[str] = []
+        for track in track_elements:
+            track_id = track.get('Key')
+            if track_id is not None:
+                track_ids.append(track_id)
+        logging.info(f"Found {len(track_ids)} tracks in playlist '{playlist_path}'")
+
+        # transform each track
+        playlist_name = playlist_path.replace('.', '_')
+        m3u8_lines = ['#EXTM3U', f"#PLAYLIST:{playlist_name}"]
+        track_paths = []
+        skipped = 0
+
+        for track_id in track_ids:
+            # get track metadata using library function
+            metadata = library.extract_track_metadata_by_id(collection, track_id)
+            if metadata is None:
+                skipped += 1
+                continue
+
+            # build Navidrome path
+            navidrome_path = _build_navidrome_path(metadata, target_base)
+            if navidrome_path is None:
+                skipped += 1
+                continue
+
+            # add EXTINF metadata line
+            m3u8_lines.append(f"#EXTINF:{metadata.total_time},{metadata.artist} - {metadata.title}")
+            m3u8_lines.append(navidrome_path)
+            track_paths.append(navidrome_path)
+
+        # write M3U8 file
+        with open(output_path, 'w', encoding='utf-8') as f:
+            f.write('\n'.join(m3u8_lines))
+
+        logging.info(f"Generated M3U8 with {len(track_paths)} tracks at: {output_path}")
+        if skipped > 0:
+            logging.warning(f"Skipped {skipped} tracks due to errors")
+
+        return track_paths
+
+    except Exception as e:
+        logging.error(f"Error generating M3U8: {e}")
+        return []
+
 
 # main
 if __name__ == '__main__':

@@ -57,6 +57,8 @@ class TrackMetadata:
     artist: str
     album: str
     path: str
+    date_added: str = ''
+    total_time: str = '0'
 
 @dataclass
 class RecordResult:
@@ -265,7 +267,39 @@ def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMet
         title=track_node.get(constants.ATTR_TITLE, ''),
         artist=track_node.get(constants.ATTR_ARTIST, ''),
         album=track_node.get(constants.ATTR_ALBUM, ''),
+        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
+        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
         path=source_path
+    )
+
+
+def extract_track_metadata_by_id(collection: ET.Element, track_id: str) -> TrackMetadata | None:
+    '''Extracts track metadata from XML collection by TrackID.
+
+    Args:
+        collection: The COLLECTION node element
+        track_id: Track ID to look up
+
+    Returns:
+        TrackMetadata with metadata or None if not found
+    '''
+    track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_TRACK_ID}="{track_id}"]')
+
+    if track_node is None:
+        logging.warning(f'Track ID {track_id} not found in COLLECTION')
+        return None
+
+    # Get location and convert to system path
+    location = track_node.get(constants.ATTR_LOCATION, '')
+    sys_path = collection_path_to_syspath(location) if location else ''
+
+    return TrackMetadata(
+        title=track_node.get(constants.ATTR_TITLE, ''),
+        artist=track_node.get(constants.ATTR_ARTIST, constants.UNKNOWN_ARTIST),
+        album=track_node.get(constants.ATTR_ALBUM, constants.UNKNOWN_ALBUM),
+        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
+        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
+        path=sys_path
     )
 
 def get_played_tracks(root: ET.Element) -> list[str]:
