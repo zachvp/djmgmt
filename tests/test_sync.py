@@ -805,7 +805,7 @@ class TestCreateSyncMappings(unittest.TestCase):
         mock_generate_date_paths.assert_called_once_with(mock_node_collection,
                                                          MOCK_OUTPUT_DIR,
                                                          playlist_ids={'1'},
-                                                         metadata_path=True)
+                                                         metadata_path=False)
         
     @patch('djmgmt.sync.SavedDateContext.is_processed')
     @patch('djmgmt.common.find_date_context')
@@ -835,7 +835,7 @@ class TestCreateSyncMappings(unittest.TestCase):
         mock_generate_date_paths.assert_called_once_with(mock_node_collection,
                                                          MOCK_OUTPUT_DIR,
                                                          playlist_ids={'1'},
-                                                         metadata_path=True)
+                                                         metadata_path=False)
 
 class TestPreviewSync(unittest.TestCase):
     '''Tests for sync.preview_sync.'''

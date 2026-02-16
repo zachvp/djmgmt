@@ -188,7 +188,8 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
             parser.error(f"'{args.function}' requires --input")
         if not args.output:
             parser.error(f"'{args.function}' requires --output")
-        if not args.scan_mode:
+        # only remote sync requires scan mode
+        if args.sync_mode == Namespace.SYNC_MODE_REMOTE and not args.scan_mode:
             parser.error(f"'{args.function}' requires --scan-mode")
 
 # Helper functions
@@ -461,7 +462,7 @@ def rsync_healthcheck() -> bool:
     
 def create_sync_mappings(root: ET.Element, output_dir: str) -> list[FileMapping]:
     '''Creates a mapping list of system paths based on the given XML collection and output directory.
-    Each list entry maps from a source collection file path to a target date context + metadata-structured file path.
+    Each list entry maps from a source collection file path to a target date-structured file path.
     See organize_library_dates.generate_date_paths for more info.'''
     from . import library
 
@@ -477,7 +478,7 @@ def create_sync_mappings(root: ET.Element, output_dir: str) -> list[FileMapping]
     mappings = library.generate_date_paths(collection_node,
                                            output_dir,
                                            playlist_ids=playlist_ids,
-                                           metadata_path=True)
+                                           metadata_path=False)
 
     # filter out processed date contexts from the mappings
     filtered_mappings: list[FileMapping] = []
