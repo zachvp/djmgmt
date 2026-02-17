@@ -429,7 +429,10 @@ def _find_playlist_node(root: ET.Element, playlist_path: str) -> ET.Element | No
 
 
 def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> str | None:
-    '''Build Navidrome path from track metadata using date-structured format.
+    '''Build Navidrome path using simplified date-only structure.
+
+    Uses flat date-based paths (no artist/album subdirectories) to avoid
+    sanitization inconsistencies. Navidrome reads metadata from files anyway.
 
     Args:
         metadata: TrackMetadata object with track information
@@ -438,8 +441,6 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
     Returns:
         Full Navidrome path or None if path cannot be built
     '''
-    from datetime import datetime
-    from . import library
     from . import constants
 
     if not metadata.date_added:
@@ -447,31 +448,7 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
         return None
 
     # build date-based path
-    date_path = library.date_path(metadata.date_added, constants.MAPPING_MONTH)
-
-    # determine sanitization method based on when file was organized
-    # files organized before 2025-12-01 used no sanitization (filesystem handled special chars)
-    # files organized after 2025-12-01 use clean_dirname_fat32
-    # Note: using conservative cutoff since DateAdded != organization date
-    date_added = datetime.fromisoformat(metadata.date_added)
-    sanitization_cutoff = datetime(2025, 12, 1)
-
-    if date_added < sanitization_cutoff:
-        # old files: minimal sanitization
-        # exFAT allows most chars; slashes create nested directories
-        # Remove all colons and strip leading/trailing whitespace
-        artist_safe = metadata.artist.replace(':', '').strip()
-        album_safe = metadata.album.replace(':', '').strip()
-
-        # handle empty artist/album
-        if not artist_safe:
-            artist_safe = constants.UNKNOWN_ARTIST
-        if not album_safe:
-            album_safe = constants.UNKNOWN_ALBUM
-    else:
-        # new files: use clean_dirname_fat32 sanitization
-        artist_safe = common.clean_dirname_fat32(metadata.artist)
-        album_safe = common.clean_dirname_fat32(metadata.album)
+    dp = library.date_path(metadata.date_added, constants.MAPPING_MONTH)
 
     # get filename from original path and change extension to .mp3
     filename = os.path.basename(metadata.path)
@@ -481,10 +458,10 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
     if ext.lower() in {'.aif', '.aiff', '.wav', '.flac', '.m4a'}:
         filename = f"{name}.mp3"
 
-    # construct full Navidrome path
-    navidrome_path = f"{target_base}/{date_path}/{artist_safe}/{album_safe}/{filename}"
+    # strip chars that exFAT silently removes from filenames
+    filename = filename.replace('?', '')
 
-    return navidrome_path
+    return f"{target_base}/{dp}/{filename}"
 
 
 def generate_m3u8_from_collection(
