@@ -25,7 +25,7 @@ from . import library
 class Mix:
     '''Represents a DJ mix with all associated file paths and metadata.'''
     date_recorded: str              # ISO date (YYYY-MM-DD)
-    original_file_path: str                 # Path to original WAV recording
+    original_file_path: str         # Path to original WAV recording
     playlist_file_path: str         # Path to Rekordbox playlist TSV export
     soundcloud_url: str = ''        # Full Soundcloud track URL
     title: str = ''                 # Human-readable mix title

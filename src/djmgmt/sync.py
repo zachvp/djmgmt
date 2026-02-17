@@ -52,21 +52,23 @@ class Namespace(argparse.Namespace):
     # Optional (alphabetical)
     client_mirror_path: str
     collection: str
+    dry_run: bool
     end_date: str | None
     input: str
     library_path: str
     output: str
+    playlist_path: str
     scan_mode: str
     sync_mode: str
-    dry_run: bool
 
     # Function constants
-    FUNCTION_COPY = 'copy'
-    FUNCTION_MOVE = 'move'
+    FUNCTION_COPY = 'copy' # TOOD: remove
+    FUNCTION_MOVE = 'move' # TOOD: remove
     FUNCTION_SYNC = 'sync'
     FUNCTION_PREVIEW_SYNC = 'preview_sync'
+    FUNCTION_SYNC_PLAYLIST = 'sync_playlist'
 
-    FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC, FUNCTION_PREVIEW_SYNC}
+    FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC, FUNCTION_PREVIEW_SYNC, FUNCTION_SYNC_PLAYLIST}
 
     # Scan mode constants
     SCAN_QUICK = 'quick'
@@ -148,6 +150,8 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
                        help="Library path (for preview_sync)")
     parser.add_argument('--output', '-o', type=str,
                        help="Output directory to populate")
+    parser.add_argument('--playlist-path', '-p', type=str,
+                       help="Dot-separated Rekordbox playlist path (e.g. 'dynamic.unplayed')")
     parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
                        help="Scan mode for the server")
     parser.add_argument('--sync-mode', type=str, choices=list(valid_sync_modes),
@@ -182,6 +186,11 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
             parser.error(f"'{args.function}' requires --client-mirror-path")
         if not args.library_path:
             parser.error(f"'{args.function}' requires --library-path")
+    elif args.function == Namespace.FUNCTION_SYNC_PLAYLIST:
+        if not args.collection:
+            parser.error(f"'{args.function}' requires --collection")
+        if not args.playlist_path:
+            parser.error(f"'{args.function}' requires --playlist-path")
     else:
         # Other functions require --input, --output, and --scan-mode
         if not args.input:
@@ -208,9 +217,12 @@ def relative_paths(paths: list[str], parent: str) -> list[str]:
     return normalized
 
 def transform_implied_path(path: str) -> str | None:
-    '''Rsync-specific. Transforms the given path into a format that will include the required subdirectories.'''
-    # input : /Users/user/developer/test-private/data/tracks-output/2022/04 april/24/1-Gloria_Jones_-_Tainted_Love_(single_version).mp3
-    # output: /Users/user/developer/test-private/data/tracks-output/./2022/04 april/24/
+    '''Rsync-specific. Transforms the given path into a format that will include the required subdirectories.
+        Example:
+        path: /Users/user/developer/test-private/data/tracks-output/2022/04 april/24/1-Gloria_Jones_-_Tainted_Love_(single_version).mp3
+            -> 
+             /Users/user/developer/test-private/data/tracks-output/./2022/04 april/24/
+    '''
     
     components = path.split(os.sep)[1:]
     if not common.find_date_context(path):
@@ -571,6 +583,45 @@ def sync_from_path(args: Namespace):
             os.makedirs(output_parent_path)
         action(input_path_full, output_path_full)
 
+def sync_playlist(args: Namespace) -> bool:
+    '''Generates a Navidrome M3U8 playlist from a Rekordbox collection and rsyncs it to the media server.
+
+    Args:
+        args -- The parsed command-line arguments.
+    Returns:
+        True on success, False on failure.
+    '''
+    from . import playlist as playlist_module
+
+    # Build output path: state/output/playlists/{playlist_name}.m3u8
+    playlist_name = args.playlist_path.replace('.', '_')
+    os.makedirs(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
+    output_path = f"{constants.PLAYLIST_OUTPUT_PATH}/{playlist_name}.m3u8"
+
+    # Generate M3U8
+    logging.info(f"generating playlist '{args.playlist_path}' to '{output_path}'")
+    tracks = playlist_module.generate_m3u8_from_collection(args.collection, args.playlist_path, output_path)
+    if not tracks:
+        logging.error(f"playlist generation failed or returned no tracks for '{args.playlist_path}'")
+        return False
+
+    # Check rsync daemon
+    if not rsync_healthcheck():
+        logging.error('rsync daemon unreachable; aborting playlist sync')
+        return False
+
+    # Rsync: use ./playlists/ so -R flag preserves subdirectory at remote root
+    # Result: navidrome/playlists/{name}.m3u8 -> /media/zachvp/SOL/music/playlists/{name}.m3u8
+    output_base = str(constants.STATE_PATH_BASE / 'output')
+    source_path = f"{output_base}/./playlists/{playlist_name}.m3u8"
+    returncode, _ = transfer_files(source_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, args.dry_run)
+    if returncode != 0:
+        logging.error(f"playlist rsync failed (code {returncode})")
+        return False
+
+    logging.info(f"playlist sync complete: {len(tracks)} tracks")
+    return True
+
 def run_sync_mappings(mappings: list[FileMapping],
                       full_scan: bool = True,
                       sync_mode: str = Namespace.SYNC_MODE_REMOTE,
@@ -674,3 +725,6 @@ if __name__ == '__main__':
                     print()
 
             print(f'Summary: {len(new_tracks)} new, {len(changed_tracks)} changed')
+
+    elif script_args.function == Namespace.FUNCTION_SYNC_PLAYLIST:
+        sync_playlist(script_args)

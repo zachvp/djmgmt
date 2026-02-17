@@ -73,3 +73,4 @@ COLLECTION_PATH_PROCESSED = str(STATE_PATH_BASE / 'output' / 'processed-collecti
 COLLECTION_PATH_DYNAMIC   = str(STATE_PATH_BASE / 'output' / 'dynamic-collection.xml')
 COLLECTION_PATH_MERGED    = str(STATE_PATH_BASE / 'output' / 'merged-collection.xml')
 MISSING_ART_PATH          = str(STATE_PATH_BASE / 'output' / 'missing-art.txt')
+PLAYLIST_OUTPUT_PATH      = str(STATE_PATH_BASE / 'output' / 'playlists')
