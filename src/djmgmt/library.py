@@ -208,6 +208,44 @@ def find_node(root: ET.Element, xpath: str) -> ET.Element:
         raise ValueError(f"Unable to find node for XPath '{xpath}' in '{root.tag}'")
     return node
 
+def find_playlist_node(root: ET.Element, playlist_dot_path: str) -> ET.Element | None:
+    '''Find a playlist node by dot-separated hierarchical path (e.g., "dynamic.unplayed").
+
+    Constructs an XPath from the dot path and queries the XML tree directly.
+
+    Args:
+        root: XML root element
+        playlist_dot_path: Dot-separated playlist path (e.g., "dynamic.unplayed")
+
+    Returns:
+        Playlist NODE element or None if not found
+    '''
+    parts = playlist_dot_path.split('.')
+    segments = '/'.join(f'{constants.TAG_NODE}[@Name="{part}"]' for part in parts)
+    xpath = f'./PLAYLISTS/{constants.TAG_NODE}[@Name="ROOT"]/{segments}'
+    node = root.find(xpath)
+    if node is None:
+        logging.error(f"Unable to find playlist node at path '{playlist_dot_path}' (xpath: {xpath})")
+    return node
+
+def get_playlist_track_ids(playlist_node: ET.Element) -> list[str]:
+    '''Extract ordered track IDs (Key attribute) from a playlist node.
+
+    Args:
+        playlist_node: The playlist NODE element containing TRACK children
+
+    Returns:
+        Ordered list of track Key values
+    '''
+    track_ids: list[str] = []
+    for track in playlist_node.findall(constants.TAG_TRACK):
+        track_id = track.get(constants.ATTR_TRACK_KEY)
+        if track_id is None:
+            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {extract_track_metadata(track)}")
+        if track_id is not None:
+            track_ids.append(track_id)
+    return track_ids
+
 def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, playlist_xpath: str) -> list[FileMapping]:
     # output data
     filtered = []
@@ -241,6 +279,16 @@ def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, pl
     filtered = [mapping for mapping in mappings if mapping[0] in track_paths]
     return filtered
 
+def create_track_metadata(track_node: ET.Element) -> TrackMetadata:
+    return TrackMetadata(
+        title=track_node.get(constants.ATTR_TITLE, ''),
+        artist=track_node.get(constants.ATTR_ARTIST, constants.UNKNOWN_ARTIST),
+        album=track_node.get(constants.ATTR_ALBUM, constants.UNKNOWN_ALBUM),
+        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
+        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
+        path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
+    )
+
 def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMetadata | None:
     '''Extracts track metadata from XML collection by file path.
 
@@ -254,7 +302,7 @@ def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMet
     from urllib.parse import quote
 
     # Convert system path to URL format for XML lookup (pattern from music.py:254)
-    file_url = f'{constants.REKORDBOX_ROOT}{quote(source_path, safe="()/")}'
+    file_url = f'{constants.REKORDBOX_ROOT}{quote(source_path, safe=constants.URL_SAFE_CHARS)}'
 
     # Find track in collection
     track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
@@ -522,7 +570,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
         
         # only process music files
         if extension and extension in constants.EXTENSIONS:
-            file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe='()/')}"
+            file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
             
             # check if track already exists
             existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')

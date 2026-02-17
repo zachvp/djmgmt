@@ -296,50 +296,6 @@ COLLECTION_XML = '''<?xml version="1.0" encoding="UTF-8"?>
 </DJ_PLAYLISTS>'''.strip()
 
 
-class TestFindPlaylistNode(unittest.TestCase):
-    '''Tests for playlist._find_playlist_node.'''
-
-    def setUp(self) -> None:
-        self.root = ET.fromstring(COLLECTION_XML)
-
-    def test_nested_path(self) -> None:
-        '''Tests finding a nested playlist node via dot-separated path.'''
-        node = playlist._find_playlist_node(self.root, 'dynamic.unplayed')
-
-        self.assertIsNotNone(node)
-        assert node is not None
-        self.assertEqual(node.get('Name'), 'unplayed')
-        self.assertEqual(len(node.findall('TRACK')), 2)
-
-    def test_flat_path(self) -> None:
-        '''Tests finding a top-level playlist node.'''
-        node = playlist._find_playlist_node(self.root, 'flat_playlist')
-
-        self.assertIsNotNone(node)
-        assert node is not None
-        self.assertEqual(node.get('Name'), 'flat_playlist')
-
-    def test_not_found(self) -> None:
-        '''Tests that None is returned for a nonexistent playlist path.'''
-        node = playlist._find_playlist_node(self.root, 'nonexistent.path')
-
-        self.assertIsNone(node)
-
-    def test_partial_path_not_found(self) -> None:
-        '''Tests that None is returned when first segment matches but second does not.'''
-        node = playlist._find_playlist_node(self.root, 'dynamic.nonexistent')
-
-        self.assertIsNone(node)
-
-    def test_no_playlists_root(self) -> None:
-        '''Tests that None is returned when PLAYLISTS/ROOT is missing.'''
-        root = ET.fromstring('<DJ_PLAYLISTS><COLLECTION/></DJ_PLAYLISTS>')
-
-        node = playlist._find_playlist_node(root, 'dynamic.unplayed')
-
-        self.assertIsNone(node)
-
-
 class TestBuildNavidromePath(unittest.TestCase):
     '''Tests for playlist._build_navidrome_path.'''
 
@@ -397,18 +353,24 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('xml.etree.ElementTree.parse')
+    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.find_playlist_node')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
     def test_success(self,
-                     mock_parse: MagicMock,
+                     mock_load: MagicMock,
+                     mock_find_node: MagicMock,
+                     mock_find_playlist: MagicMock,
+                     mock_get_ids: MagicMock,
                      mock_extract: MagicMock,
                      mock_build_path: MagicMock) -> None:
         '''Tests successful M3U8 generation with mocked helpers.'''
-        # Setup XML parse mock
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring(COLLECTION_XML)
-        mock_parse.return_value = mock_tree
+        root = ET.fromstring(COLLECTION_XML)
+        mock_load.return_value = root
+        mock_find_node.return_value = root.find('.//COLLECTION')
+        mock_find_playlist.return_value = MagicMock()
+        mock_get_ids.return_value = ['1', '2']
 
-        # Setup metadata extraction
         mock_extract.side_effect = [
             TrackMetadata('Track One', 'Artist A', 'Album A', '/music/track1.aiff', '2025-05-20', '300'),
             TrackMetadata('Track Two', 'Artist B', 'Album B', '/music/track2.aiff', '2025-05-21', '240'),
@@ -418,37 +380,38 @@ class TestGenerateM3U8(unittest.TestCase):
             '/media/SOL/music/2025/05 may/21/track2.mp3',
         ]
 
-        # Call with dry_run to avoid file writes
         result = playlist.generate_m3u8('/mock/collection.xml', 'dynamic.unplayed', '/mock/output.m3u8', dry_run=True)
 
-        # Assertions
         self.assertEqual(len(result), 2)
         self.assertEqual(result[0], '/media/SOL/music/2025/05 may/20/track1.mp3')
         self.assertEqual(result[1], '/media/SOL/music/2025/05 may/21/track2.mp3')
         self.assertEqual(mock_extract.call_count, 2)
         self.assertEqual(mock_build_path.call_count, 2)
 
-    @patch('xml.etree.ElementTree.parse')
-    def test_error_no_collection_node(self, mock_parse: MagicMock) -> None:
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_error_no_collection_node(self,
+                                       mock_load: MagicMock,
+                                       mock_find_node: MagicMock) -> None:
         '''Tests that empty list is returned when COLLECTION node is missing.'''
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring('<DJ_PLAYLISTS></DJ_PLAYLISTS>')
-        mock_parse.return_value = mock_tree
+        mock_load.return_value = ET.fromstring('<DJ_PLAYLISTS></DJ_PLAYLISTS>')
+        mock_find_node.side_effect = ValueError('Unable to find node')
 
         result = playlist.generate_m3u8('/mock/collection.xml', 'dynamic.unplayed', '/mock/output.m3u8')
 
         self.assertListEqual(result, [])
 
-    @patch('xml.etree.ElementTree.parse')
-    def test_error_playlist_not_found(self, mock_parse: MagicMock) -> None:
+    @patch('djmgmt.library.find_playlist_node')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_error_playlist_not_found(self,
+                                       mock_load: MagicMock,
+                                       mock_find_node: MagicMock,
+                                       mock_find_playlist: MagicMock) -> None:
         '''Tests that empty list is returned when playlist path is not found.'''
-        xml = '''<DJ_PLAYLISTS>
-            <COLLECTION Entries="0"/>
-            <PLAYLISTS><NODE Type="0" Name="ROOT" Count="0"/></PLAYLISTS>
-        </DJ_PLAYLISTS>'''
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring(xml)
-        mock_parse.return_value = mock_tree
+        mock_load.return_value = MagicMock()
+        mock_find_node.return_value = MagicMock()
+        mock_find_playlist.return_value = None
 
         result = playlist.generate_m3u8('/mock/collection.xml', 'nonexistent', '/mock/output.m3u8')
 
@@ -456,15 +419,22 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('xml.etree.ElementTree.parse')
+    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.find_playlist_node')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
     def test_skips_tracks_with_no_metadata(self,
-                                            mock_parse: MagicMock,
+                                            mock_load: MagicMock,
+                                            mock_find_node: MagicMock,
+                                            mock_find_playlist: MagicMock,
+                                            mock_get_ids: MagicMock,
                                             mock_extract: MagicMock,
                                             mock_build_path: MagicMock) -> None:
         '''Tests that tracks with missing metadata are skipped.'''
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring(COLLECTION_XML)
-        mock_parse.return_value = mock_tree
+        mock_load.return_value = MagicMock()
+        mock_find_node.return_value = MagicMock()
+        mock_find_playlist.return_value = MagicMock()
+        mock_get_ids.return_value = ['1', '2']
 
         # First track returns None metadata, second succeeds
         mock_extract.side_effect = [
@@ -481,15 +451,22 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('xml.etree.ElementTree.parse')
+    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.find_playlist_node')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
     def test_skips_tracks_with_no_navidrome_path(self,
-                                                  mock_parse: MagicMock,
+                                                  mock_load: MagicMock,
+                                                  mock_find_node: MagicMock,
+                                                  mock_find_playlist: MagicMock,
+                                                  mock_get_ids: MagicMock,
                                                   mock_extract: MagicMock,
                                                   mock_build_path: MagicMock) -> None:
         '''Tests that tracks with no Navidrome path are skipped.'''
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring(COLLECTION_XML)
-        mock_parse.return_value = mock_tree
+        mock_load.return_value = MagicMock()
+        mock_find_node.return_value = MagicMock()
+        mock_find_playlist.return_value = MagicMock()
+        mock_get_ids.return_value = ['1', '2']
 
         mock_extract.side_effect = [
             TrackMetadata('Track One', 'Artist A', 'Album A', '/music/track1.aiff', '2025-05-20', '300'),
@@ -506,16 +483,23 @@ class TestGenerateM3U8(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('xml.etree.ElementTree.parse')
+    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.find_playlist_node')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
     def test_writes_m3u8_file(self,
-                               mock_parse: MagicMock,
+                               mock_load: MagicMock,
+                               mock_find_node: MagicMock,
+                               mock_find_playlist: MagicMock,
+                               mock_get_ids: MagicMock,
                                mock_extract: MagicMock,
                                mock_build_path: MagicMock,
                                mock_file_open: MagicMock) -> None:
         '''Tests that M3U8 content is written to file when not in dry_run mode.'''
-        mock_tree = MagicMock()
-        mock_tree.getroot.return_value = ET.fromstring(COLLECTION_XML)
-        mock_parse.return_value = mock_tree
+        mock_load.return_value = MagicMock()
+        mock_find_node.return_value = MagicMock()
+        mock_find_playlist.return_value = MagicMock()
+        mock_get_ids.return_value = ['1', '2']
 
         mock_extract.side_effect = [
             TrackMetadata('Track One', 'Artist A', 'Album A', '/music/track1.aiff', '2025-05-20', '300'),
@@ -538,10 +522,10 @@ class TestGenerateM3U8(unittest.TestCase):
         self.assertIn('/media/SOL/music/2025/05 may/20/track1.mp3', written_content)
         self.assertIn('#EXTINF:300,Artist A - Track One', written_content)
 
-    @patch('xml.etree.ElementTree.parse')
-    def test_error_parse_exception(self, mock_parse: MagicMock) -> None:
+    @patch('djmgmt.library.load_collection')
+    def test_error_parse_exception(self, mock_load: MagicMock) -> None:
         '''Tests that empty list is returned on XML parse error.'''
-        mock_parse.side_effect = ET.ParseError('bad xml')
+        mock_load.side_effect = ET.ParseError('bad xml')
 
         result = playlist.generate_m3u8('/mock/bad.xml', 'dynamic.unplayed', '/mock/output.m3u8')
 

@@ -49,6 +49,11 @@ ATTR_AVG_BPM        = 'AverageBpm'
 ATTR_TYPE           = 'Type'
 
 REKORDBOX_ROOT   = 'file://localhost'
+
+# Characters that Rekordbox stores literally (unencoded) in Location URLs.
+# Derived from analysis of 3,518 tracks in mac-collection-02-15-2026.xml.
+# Note: RFC 3986 unreserved chars (A-Za-z0-9-._~) are always safe by default.
+URL_SAFE_CHARS = '()/#$!+,=?'
 XPATH_COLLECTION = './/COLLECTION'
 
 ## xml references

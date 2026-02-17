@@ -12,12 +12,10 @@ import os
 import csv
 import re
 import logging
-import xml.etree.ElementTree as ET
 from typing import Callable
 from dataclasses import dataclass, fields, asdict
 
-from . import common
-from . import library
+from . import common, library, constants
 
 
 # data
@@ -391,43 +389,6 @@ def press_mix(music_file_path: str,
     return mix
 
 # M3U8 generation for Navidrome sync
-def _find_playlist_node(root: ET.Element, playlist_path: str) -> ET.Element | None:
-    '''Find a playlist node by hierarchical path (e.g., "dynamic.unplayed").
-
-    Args:
-        root: XML root element
-        playlist_path: Dot-separated playlist path (e.g., "dynamic.unplayed")
-
-    Returns:
-        Playlist NODE element or None if not found
-    '''
-    # navigate to PLAYLISTS root
-    playlists_root = root.find('./PLAYLISTS/NODE[@Name="ROOT"]')
-    if playlists_root is None:
-        logging.error('Unable to find PLAYLISTS/ROOT in XML')
-        return None
-
-    # traverse the playlist path hierarchy
-    current = playlists_root
-    parts = playlist_path.split('.')
-
-    for part in parts:
-        # find child NODE with matching Name attribute
-        found = None
-        for child in current:
-            if child.tag == 'NODE' and child.get('Name') == part:
-                found = child
-                break
-
-        if found is None:
-            logging.error(f"Unable to find playlist node: '{part}' in path '{playlist_path}'")
-            return None
-
-        current = found
-
-    return current
-
-
 def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> str | None:
     '''Build Navidrome path using simplified date-only structure.
 
@@ -463,7 +424,7 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
 
 def generate_m3u8(
     collection_path: str,
-    playlist_path: str,
+    playlist_dot_path: str,
     output_path: str,
     target_base: str = '/media/SOL/music',
     dry_run: bool = False
@@ -479,35 +440,22 @@ def generate_m3u8(
     Returns:
         List of track paths included in playlist (empty list on error)
     '''
-    import xml.etree.ElementTree as ET
-    from . import library
-
     try:
         # parse XML collection
-        tree = ET.parse(collection_path)
-        root = tree.getroot()
+        root = library.load_collection(collection_path)
+        
+        collection = library.find_node(root, constants.XPATH_COLLECTION)
 
-        # find collection and playlist nodes
-        collection = root.find('.//COLLECTION')
-        if collection is None:
-            logging.error('Unable to find COLLECTION in XML')
-            return []
-
-        playlist_node = _find_playlist_node(root, playlist_path)
+        # find playlist node and extract track IDs
+        playlist_node = library.find_playlist_node(root, playlist_dot_path)
         if playlist_node is None:
             return []
 
-        # extract track IDs from playlist
-        track_elements = playlist_node.findall('TRACK')
-        track_ids: list[str] = []
-        for track in track_elements:
-            track_id = track.get('Key')
-            if track_id is not None:
-                track_ids.append(track_id)
-        logging.info(f"Found {len(track_ids)} tracks in playlist '{playlist_path}'")
+        track_ids = library.get_playlist_track_ids(playlist_node)
+        logging.info(f"Found {len(track_ids)} tracks in playlist '{playlist_dot_path}'")
 
         # transform each track
-        playlist_name = playlist_path.replace('.', '_')
+        playlist_name = playlist_dot_path.replace('.', '_')
         m3u8_lines = ['#EXTM3U', f"#PLAYLIST:{playlist_name}"]
         track_paths = []
         skipped = 0

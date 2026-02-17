@@ -2382,3 +2382,105 @@ class TestMergePlaylistReferences(unittest.TestCase):
 
         # Assertions - should have single track with merged ID
         self.assertSetEqual(result, {'99'})
+
+
+# XML fixture for playlist node tests
+PLAYLIST_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+    <COLLECTION Entries="2">
+        <TRACK TrackID="1" Name="Track One" Artist="Artist A" Album="Album A"
+               Location="file://localhost/music/track1.aiff" DateAdded="2025-05-20" TotalTime="300"/>
+        <TRACK TrackID="2" Name="Track Two" Artist="Artist B" Album="Album B"
+               Location="file://localhost/music/track2.aiff" DateAdded="2025-05-21" TotalTime="240"/>
+    </COLLECTION>
+    <PLAYLISTS>
+        <NODE Type="0" Name="ROOT" Count="2">
+            <NODE Name="dynamic" Type="0" Count="1">
+                <NODE Name="unplayed" Type="1" KeyType="0" Entries="2">
+                    <TRACK Key="1"/>
+                    <TRACK Key="2"/>
+                </NODE>
+            </NODE>
+            <NODE Name="flat_playlist" Type="1" KeyType="0" Entries="1">
+                <TRACK Key="1"/>
+            </NODE>
+        </NODE>
+    </PLAYLISTS>
+</DJ_PLAYLISTS>'''.strip()
+
+
+class TestFindPlaylistNode(unittest.TestCase):
+    '''Tests for library.find_playlist_node.'''
+
+    def setUp(self) -> None:
+        self.root = ET.fromstring(PLAYLIST_XML)
+
+    def test_nested_path(self) -> None:
+        '''Tests finding a nested playlist node via dot-separated path.'''
+        node = library.find_playlist_node(self.root, 'dynamic.unplayed')
+
+        self.assertIsNotNone(node)
+        assert node is not None
+        self.assertEqual(node.get('Name'), 'unplayed')
+        self.assertEqual(len(node.findall('TRACK')), 2)
+
+    def test_flat_path(self) -> None:
+        '''Tests finding a top-level playlist node.'''
+        node = library.find_playlist_node(self.root, 'flat_playlist')
+
+        self.assertIsNotNone(node)
+        assert node is not None
+        self.assertEqual(node.get('Name'), 'flat_playlist')
+
+    def test_not_found(self) -> None:
+        '''Tests that None is returned for a nonexistent playlist path.'''
+        node = library.find_playlist_node(self.root, 'nonexistent.path')
+
+        self.assertIsNone(node)
+
+    def test_partial_path_not_found(self) -> None:
+        '''Tests that None is returned when first segment matches but second does not.'''
+        node = library.find_playlist_node(self.root, 'dynamic.nonexistent')
+
+        self.assertIsNone(node)
+
+    def test_no_playlists_root(self) -> None:
+        '''Tests that None is returned when PLAYLISTS/ROOT is missing.'''
+        root = ET.fromstring('<DJ_PLAYLISTS><COLLECTION/></DJ_PLAYLISTS>')
+
+        node = library.find_playlist_node(root, 'dynamic.unplayed')
+
+        self.assertIsNone(node)
+
+
+class TestGetPlaylistTrackIds(unittest.TestCase):
+    '''Tests for library.get_playlist_track_ids.'''
+
+    def setUp(self) -> None:
+        self.root = ET.fromstring(PLAYLIST_XML)
+
+    def test_returns_ordered_ids(self) -> None:
+        '''Tests that track IDs are returned in order.'''
+        node = library.find_playlist_node(self.root, 'dynamic.unplayed')
+        assert node is not None
+
+        result = library.get_playlist_track_ids(node)
+
+        self.assertListEqual(result, ['1', '2'])
+
+    def test_single_track(self) -> None:
+        '''Tests extraction from a playlist with one track.'''
+        node = library.find_playlist_node(self.root, 'flat_playlist')
+        assert node is not None
+
+        result = library.get_playlist_track_ids(node)
+
+        self.assertListEqual(result, ['1'])
+
+    def test_empty_playlist(self) -> None:
+        '''Tests extraction from a playlist with no tracks.'''
+        node = ET.fromstring('<NODE Name="empty" Type="1" KeyType="0" Entries="0"/>')
+
+        result = library.get_playlist_track_ids(node)
+
+        self.assertListEqual(result, [])
