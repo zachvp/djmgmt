@@ -448,27 +448,25 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
         return None
 
     # build date-based path
-    dp = library.date_path(metadata.date_added, constants.MAPPING_MONTH)
+    date_path = library.date_path(metadata.date_added, constants.MAPPING_MONTH)
 
     # get filename from original path and change extension to .mp3
     filename = os.path.basename(metadata.path)
-    name, ext = os.path.splitext(filename)
-
-    # transform extension to mp3 for lossless and AAC formats
-    if ext.lower() in {'.aif', '.aiff', '.wav', '.flac', '.m4a'}:
-        filename = f"{name}.mp3"
+    name = os.path.splitext(filename)[0]
+    filename = f"{name}.mp3"
 
     # strip chars that exFAT silently removes from filenames
     filename = filename.replace('?', '')
 
-    return f"{target_base}/{dp}/{filename}"
+    return f"{target_base}/{date_path}/{filename}"
 
 
-def generate_m3u8_from_collection(
+def generate_m3u8(
     collection_path: str,
     playlist_path: str,
     output_path: str,
-    target_base: str = '/media/SOL/music'
+    target_base: str = '/media/SOL/music',
+    dry_run: bool = False
 ) -> list[str]:
     '''Generate M3U8 playlist from Rekordbox XML collection for Navidrome.
 
@@ -533,8 +531,11 @@ def generate_m3u8_from_collection(
             track_paths.append(navidrome_path)
 
         # write M3U8 file
-        with open(output_path, 'w', encoding='utf-8') as f:
-            f.write('\n'.join(m3u8_lines))
+        if dry_run:
+            common.log_dry_run('write', output_path)
+        else:
+            with open(output_path, 'w', encoding='utf-8') as f:
+                f.write('\n'.join(m3u8_lines))
 
         logging.info(f"Generated M3U8 with {len(track_paths)} tracks at: {output_path}")
         if skipped > 0:

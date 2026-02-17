@@ -57,8 +57,8 @@ class TrackMetadata:
     artist: str
     album: str
     path: str
-    date_added: str = ''
-    total_time: str = '0'
+    date_added: str
+    total_time: str
 
 @dataclass
 class RecordResult:

@@ -624,7 +624,7 @@ class TestRunSyncMappings(unittest.TestCase):
         
         # Call target function
         mock_full_scan = True
-        sync.run_sync_mappings(mock_mappings, mock_full_scan)
+        sync.run_music(mock_mappings, mock_full_scan)
         
         # Assert expectations
         mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
@@ -643,7 +643,7 @@ class TestRunSyncMappings(unittest.TestCase):
         # Call target function
         mock_full_scan = True
         with self.assertRaises(Exception) as e:
-            sync.run_sync_mappings(mock_mappings, mock_full_scan)
+            sync.run_music(mock_mappings, mock_full_scan)
             self.assertEqual(e.msg, mock_error)
         
         # Assert expectations
@@ -663,7 +663,7 @@ class TestRunSyncMappings(unittest.TestCase):
         # Call target function
         mock_full_scan = True
         with self.assertRaises(Exception) as e:
-            sync.run_sync_mappings(mock_mappings, mock_full_scan)
+            sync.run_music(mock_mappings, mock_full_scan)
             self.assertEqual(e.msg, mock_error)
 
         # Assert expectations
@@ -699,7 +699,7 @@ class TestRunSyncMappings(unittest.TestCase):
         # Call target function with end_date
         mock_full_scan = True
         end_date = '2025/05 may/20'
-        sync.run_sync_mappings(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, end_date)
+        sync.run_music(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, end_date)
 
         # Assert expectations
         # Should only sync the first two mappings (dates <= end_date)
@@ -730,7 +730,7 @@ class TestRunSyncMappings(unittest.TestCase):
 
         # Call target function with dry_run=True
         mock_full_scan = True
-        result = sync.run_sync_mappings(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+        result = sync.run_music(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
 
         # Assert expectations
         # Verify dry_run was threaded to sync_mappings
@@ -761,7 +761,7 @@ class TestRunSyncMappings(unittest.TestCase):
 
         # Call target function (normal mode, dry_run defaults to False)
         mock_full_scan = False
-        result = sync.run_sync_mappings(mock_mappings, mock_full_scan)
+        result = sync.run_music(mock_mappings, mock_full_scan)
 
         # Assert expectations
         # Verify sync_mappings was called with dry_run=False (default)
@@ -865,8 +865,8 @@ class TestPreviewSync(unittest.TestCase):
 
         # Mock metadata extraction
         mock_extract_metadata.side_effect = [
-            TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff'),
-            TrackMetadata('Track 2', 'Artist 2', 'Album 2', '/library/track2.aiff')
+            TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff', 'mock_date_added', 'mock_total_time'),
+            TrackMetadata('Track 2', 'Artist 2', 'Album 2', '/library/track2.aiff', 'mock_date_added', 'mock_total_time')
         ]
 
         # Call function
@@ -903,7 +903,7 @@ class TestPreviewSync(unittest.TestCase):
             ('/library/track1.aiff', '/mirror/track1.mp3')
         ]
         mock_find_node.return_value = MagicMock()
-        mock_extract_metadata.return_value = TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff')
+        mock_extract_metadata.return_value = TrackMetadata('Track 1', 'Artist 1', 'Album 1', '/library/track1.aiff', 'mock_date_added', 'mock_total_time')
 
         # Call function
         root = ET.fromstring(COLLECTION_XML)
@@ -940,8 +940,8 @@ class TestPreviewSync(unittest.TestCase):
         ]
         mock_find_node.return_value = MagicMock()
         mock_extract_metadata.side_effect = [
-            TrackMetadata('New Track', 'Artist', 'Album', '/library/new_track.aiff'),
-            TrackMetadata('Changed Track', 'Artist', 'Album', '/library/changed_track.aiff')
+            TrackMetadata('New Track', 'Artist', 'Album', '/library/new_track.aiff', 'mock_date_added', 'mock_total_time'),
+            TrackMetadata('Changed Track', 'Artist', 'Album', '/library/changed_track.aiff', 'mock_date_added', 'mock_total_time')
         ]
 
         # Call function

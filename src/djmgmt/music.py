@@ -788,7 +788,7 @@ def update_library(new_music_dir_path: str,
         mappings += changed
     
     # run the sync
-    sync_result = sync.run_sync_mappings(mappings, full_scan=full_scan, dry_run=dry_run)
+    sync_result = sync.run_music(mappings, full_scan=full_scan, dry_run=dry_run)
     
     return UpdateLibraryResult(process_result=process_result,
                                record_result=record_result,
