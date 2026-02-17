@@ -1175,13 +1175,8 @@ class TestParseArgs(unittest.TestCase):
 class TestSyncPlaylist(unittest.TestCase):
     '''Tests for sync.sync_playlist.'''
 
-    def _make_args(self, dry_run: bool = False) -> sync.Namespace:
-        '''Creates a mock Namespace with playlist-related arguments.'''
-        args = sync.Namespace()
-        args.collection = '/mock/collection.xml'
-        args.playlist_path = 'dynamic.unplayed'
-        args.dry_run = dry_run
-        return args
+    MOCK_COLLECTION = '/mock/collection.xml'
+    MOCK_PLAYLIST_PATH = 'dynamic.unplayed'
 
     @patch('djmgmt.sync.transfer_files')
     @patch('djmgmt.sync.rsync_healthcheck')
@@ -1199,13 +1194,13 @@ class TestSyncPlaylist(unittest.TestCase):
         mock_transfer.return_value = (0, 'success')
 
         # Call
-        result = sync.sync_playlist(self._make_args())
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         # Assertions
         self.assertIsNotNone(result)
         mock_makedirs.assert_called_once_with(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
         mock_generate.assert_called_once_with(
-            '/mock/collection.xml', 'dynamic.unplayed',
+            self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH,
             f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
             dry_run=False
         )
@@ -1220,7 +1215,7 @@ class TestSyncPlaylist(unittest.TestCase):
         '''Tests that None is returned when generate_m3u8 returns no tracks.'''
         mock_generate.return_value = []
 
-        result = sync.sync_playlist(self._make_args())
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         self.assertIsNone(result)
         mock_generate.assert_called_once()
@@ -1236,7 +1231,7 @@ class TestSyncPlaylist(unittest.TestCase):
         mock_generate.return_value = ['/media/SOL/music/track1.mp3']
         mock_healthcheck.return_value = False
 
-        result = sync.sync_playlist(self._make_args())
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         self.assertIsNone(result)
         mock_healthcheck.assert_called_once()
@@ -1255,7 +1250,7 @@ class TestSyncPlaylist(unittest.TestCase):
         mock_healthcheck.return_value = True
         mock_transfer.return_value = (1, 'error')
 
-        result = sync.sync_playlist(self._make_args())
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         self.assertIsNone(result)
         mock_transfer.assert_called_once()
@@ -1274,11 +1269,11 @@ class TestSyncPlaylist(unittest.TestCase):
         mock_healthcheck.return_value = True
         mock_transfer.return_value = (0, 'success')
 
-        result = sync.sync_playlist(self._make_args(dry_run=True))
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH, dry_run=True)
 
         self.assertIsNotNone(result)
         mock_generate.assert_called_once_with(
-            '/mock/collection.xml', 'dynamic.unplayed',
+            self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH,
             f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
             dry_run=True
         )
@@ -1300,10 +1295,37 @@ class TestSyncPlaylist(unittest.TestCase):
         mock_healthcheck.return_value = True
         mock_transfer.return_value = (0, 'success')
 
-        result = sync.sync_playlist(self._make_args())
+        result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         self.assertIsNotNone(result)
         assert result is not None
         local_path, rsync_path = result
         self.assertIn('dynamic_unplayed.m3u8', local_path)
         self.assertIn('playlists/dynamic_unplayed.m3u8', rsync_path)
+
+class TestSyncPlaylistCli(unittest.TestCase):
+    '''Tests for sync.sync_playlist_cli.'''
+
+    @patch('djmgmt.sync.sync_playlist')
+    def test_extracts_args_and_calls_core(self, mock_sync_playlist: MagicMock) -> None:
+        '''Tests that CLI wrapper extracts Namespace fields and calls sync_playlist with plain parameters.'''
+        args = sync.Namespace()
+        args.collection = '/mock/collection.xml'
+        args.playlist_path = 'dynamic.unplayed'
+        args.dry_run = False
+
+        sync.run_playlist_cli(args)
+
+        mock_sync_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=False)
+
+    @patch('djmgmt.sync.sync_playlist')
+    def test_threads_dry_run(self, mock_sync_playlist: MagicMock) -> None:
+        '''Tests that dry_run=True is threaded from args to sync_playlist.'''
+        args = sync.Namespace()
+        args.collection = '/mock/collection.xml'
+        args.playlist_path = 'dynamic.unplayed'
+        args.dry_run = True
+
+        sync.run_playlist_cli(args)
+
+        mock_sync_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=True)

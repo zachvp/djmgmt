@@ -574,26 +574,29 @@ def run_music(mappings: list[FileMapping],
     logging.info(f"sync duration: {format_timing(timestamp)}")
     return SyncResult(mappings=mappings, batches=batch_results)
 
-def sync_playlist(args: Namespace) -> FileMapping | None:
+def run_playlist(collection: str, playlist_path: str, dry_run: bool = False) -> FileMapping | None:
     '''Generates a Navidrome M3U8 playlist from a Rekordbox collection and rsyncs it to the media server.
 
     Args:
-        args -- The parsed command-line arguments.
+        collection: Path to Rekordbox XML collection file
+        playlist_path: Dot-separated playlist path (e.g., "dynamic.unplayed")
+        dry_run: If True, skip destructive operations
+
     Returns:
-        True on success, False on failure.
+        FileMapping tuple (local_path, rsync_path) on success, None on failure.
     '''
     from . import playlist
 
     # Build output path: state/output/playlists/{playlist_name}.m3u8
-    playlist_name = args.playlist_path.replace('.', '_')
+    playlist_name = playlist_path.replace('.', '_')
     os.makedirs(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
     local_path = f"{constants.PLAYLIST_OUTPUT_PATH}{os.path.sep}{playlist_name}.m3u8"
 
     # Generate M3U8
-    logging.info(f"generating playlist '{args.playlist_path}' to '{local_path}'")
-    tracks = playlist.generate_m3u8(args.collection, args.playlist_path, local_path, dry_run=args.dry_run)
+    logging.info(f"generating playlist '{playlist_path}' to '{local_path}'")
+    tracks = playlist.generate_m3u8(collection, playlist_path, local_path, dry_run=dry_run)
     if not tracks:
-        logging.error(f"playlist generation failed or returned no tracks for '{args.playlist_path}'")
+        logging.error(f"playlist generation failed or returned no tracks for '{playlist_path}'")
         return None
 
     # Check rsync daemon
@@ -605,13 +608,17 @@ def sync_playlist(args: Namespace) -> FileMapping | None:
     # Result: navidrome/playlists/{name}.m3u8 -> /media/zachvp/SOL/music/playlists/{name}.m3u8
     output_base = str(constants.STATE_PATH_BASE / 'output')
     rsync_path = f"{output_base}/./playlists/{playlist_name}.m3u8"
-    returncode, _ = transfer_files(rsync_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=args.dry_run)
+    returncode, _ = transfer_files(rsync_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=dry_run)
     if returncode != 0:
         logging.error(f"playlist rsync failed (code {returncode})")
         return None
 
     logging.info(f"playlist sync complete: {len(tracks)} tracks")
     return (local_path, rsync_path)
+
+def run_playlist_cli(args: Namespace) -> None:
+    '''CLI wrapper for the core `sync_playlist` function.'''
+    run_playlist(args.collection, args.playlist_path, dry_run=args.dry_run)
 
 # TODO add interactive mode to confirm sync state before any sync batch is possible
 if __name__ == '__main__':
@@ -678,4 +685,4 @@ if __name__ == '__main__':
             print(f'Summary: {len(new_tracks)} new, {len(changed_tracks)} changed')
 
     elif script_args.function == Namespace.FUNCTION_PLAYLIST:
-        sync_playlist(script_args)
+        run_playlist_cli(script_args)
