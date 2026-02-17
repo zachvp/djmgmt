@@ -16,7 +16,6 @@ Definitions
 
 import argparse
 import os
-import shutil
 import logging
 import time
 import xml.etree.ElementTree as ET
@@ -62,13 +61,11 @@ class Namespace(argparse.Namespace):
     sync_mode: str
 
     # Function constants
-    FUNCTION_COPY = 'copy' # TOOD: remove
-    FUNCTION_MOVE = 'move' # TOOD: remove
-    FUNCTION_SYNC = 'sync'
-    FUNCTION_PREVIEW_SYNC = 'preview_sync'
-    FUNCTION_SYNC_PLAYLIST = 'sync_playlist'
+    FUNCTION_MUSIC = 'music'
+    FUNCTION_PREVIEW = 'preview'
+    FUNCTION_PLAYLIST = 'playlist'
 
-    FUNCTIONS = {FUNCTION_COPY, FUNCTION_MOVE, FUNCTION_SYNC, FUNCTION_PREVIEW_SYNC, FUNCTION_SYNC_PLAYLIST}
+    FUNCTIONS = {FUNCTION_MUSIC, FUNCTION_PREVIEW, FUNCTION_PLAYLIST}
 
     # Scan mode constants
     SCAN_QUICK = 'quick'
@@ -76,7 +73,7 @@ class Namespace(argparse.Namespace):
 
     SCAN_MODES = {SCAN_QUICK, SCAN_FULL}
 
-    # Sync mode constants
+    # Music sync mode constants
     SYNC_MODE_LOCAL = 'local'
     SYNC_MODE_REMOTE = 'remote'
 
@@ -174,11 +171,10 @@ def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync
 
     return args
 
-
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
     '''Validate function-specific required arguments.'''
 
-    if args.function == Namespace.FUNCTION_PREVIEW_SYNC:
+    if args.function == Namespace.FUNCTION_PREVIEW:
         # preview_sync requires different arguments
         if not args.collection:
             parser.error(f"'{args.function}' requires --collection")
@@ -186,7 +182,7 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
             parser.error(f"'{args.function}' requires --client-mirror-path")
         if not args.library_path:
             parser.error(f"'{args.function}' requires --library-path")
-    elif args.function == Namespace.FUNCTION_SYNC_PLAYLIST:
+    elif args.function == Namespace.FUNCTION_PLAYLIST:
         if not args.collection:
             parser.error(f"'{args.function}' requires --collection")
         if not args.playlist_path:
@@ -537,53 +533,6 @@ def preview_sync(collection: ET.Element,
     return preview_tracks
 
 # Primary functions
-def sync_from_path(args: Namespace):
-    '''A primary script function.
-
-    Function arguments:
-        args -- The parsed command-line arguments.
-    '''
-
-    # collect the sorted input paths relative to the input directory
-    input_paths = sorted(relative_paths(common.collect_paths(args.input), args.input))
-
-    # define the date context tracker to determine when a new date context is entered
-    previous_date_context = ''
-
-    # assign the action based on the given mode
-    action = shutil.copy
-    if args.function == Namespace.FUNCTION_MOVE:
-        action = shutil.move
-    elif args.function != Namespace.FUNCTION_COPY:
-        print(f"error: unrecognized mode: {args.function}. Exiting.")
-        return
-
-    # performs the configured action for each input and output path
-    # waits for user input when input path date context changes
-    for path in input_paths:
-        # skip any existing valid output paths.
-        output_path_full = os.path.join(args.output, path)
-        if os.path.exists(output_path_full):
-            print(f"info: skip: output path exists: '{output_path_full}'")
-            continue
-        input_path_full = os.path.join(args.input, path)
-        print(f"info: {args.function}: '{input_path_full}' -> {output_path_full}")
-
-        # notify the user if the current date context is different from the previous date context
-        date_context = '/'.join(os.path.split(path)[:3]) # format: 'year/month/day'
-        if len(previous_date_context) > 0 and previous_date_context != date_context:
-            choice = input(f"info: date context changed from '{previous_date_context}' to '{date_context}' continue? [y/N]")
-            if choice != 'y':
-                print('info: user quit')
-                return
-        previous_date_context = date_context
-
-        # copy or move the input file to the output path, creating the output directories if needed
-        output_parent_path = os.path.split(output_path_full)[0]
-        if not os.path.exists(output_parent_path):
-            os.makedirs(output_parent_path)
-        action(input_path_full, output_path_full)
-
 def sync_playlist(args: Namespace) -> bool:
     '''Generates a Navidrome M3U8 playlist from a Rekordbox collection and rsyncs it to the media server.
 
@@ -670,9 +619,7 @@ if __name__ == '__main__':
 
     # run the given command
     logging.info(f"running function '{script_args.function}'")
-    if script_args.function in {Namespace.FUNCTION_COPY, Namespace.FUNCTION_MOVE}:
-        sync_from_path(script_args)
-    elif script_args.function == Namespace.FUNCTION_SYNC:
+    if script_args.function == Namespace.FUNCTION_MUSIC:
         from . import library
         tree = library.load_collection(script_args.input)
         mappings = create_sync_mappings(tree, script_args.output)
@@ -686,7 +633,7 @@ if __name__ == '__main__':
             for batch in sync_result.batches:
                 logging.debug(f"{batch.date_context}: {batch.files_processed} files")
         
-    elif script_args.function == Namespace.FUNCTION_PREVIEW_SYNC:
+    elif script_args.function == Namespace.FUNCTION_PREVIEW:
         from . import library
 
         # Load collection
@@ -727,5 +674,5 @@ if __name__ == '__main__':
 
             print(f'Summary: {len(new_tracks)} new, {len(changed_tracks)} changed')
 
-    elif script_args.function == Namespace.FUNCTION_SYNC_PLAYLIST:
+    elif script_args.function == Namespace.FUNCTION_PLAYLIST:
         sync_playlist(script_args)

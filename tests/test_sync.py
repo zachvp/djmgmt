@@ -1016,33 +1016,23 @@ class TestParseArgs(unittest.TestCase):
 
     def test_valid_sync(self) -> None:
         '''Tests that sync function can be called with required arguments.'''
-        argv = ['sync', '--input', '/mock/input', '--output', '/mock/output', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/mock/input', '--output', '/mock/output', '--scan-mode', 'quick']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
-        self.assertEqual(args.function, 'sync')
+        self.assertEqual(args.function, sync.Namespace.FUNCTION_MUSIC)
         self.assertEqual(args.input, '/mock/input')
         self.assertEqual(args.output, '/mock/output')
         self.assertEqual(args.scan_mode, 'quick')
         self.assertEqual(args.sync_mode, 'remote')  # default
         self.assertIsNone(args.end_date)
 
-    def test_valid_copy(self) -> None:
-        '''Tests that copy function can be called with required arguments.'''
-        argv = ['copy', '--input', '/src', '--output', '/dst', '--scan-mode', 'full']
-        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
-
-        self.assertEqual(args.function, 'copy')
-        self.assertEqual(args.input, '/src')
-        self.assertEqual(args.output, '/dst')
-        self.assertEqual(args.scan_mode, 'full')
-
     def test_valid_with_all_optional_args(self) -> None:
         '''Tests that all optional arguments can be provided.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick',
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick',
                 '--sync-mode', 'local', '--end-date', '2025/10 october/09']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
-        self.assertEqual(args.function, 'sync')
+        self.assertEqual(args.function, sync.Namespace.FUNCTION_MUSIC)
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/out')
         self.assertEqual(args.scan_mode, 'quick')
@@ -1052,7 +1042,7 @@ class TestParseArgs(unittest.TestCase):
     @patch('sys.exit')
     def test_missing_input(self, mock_exit: MagicMock) -> None:
         '''Tests that missing --input causes error.'''
-        argv = ['sync', '--output', '/out', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--output', '/out', '--scan-mode', 'quick']
         sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         mock_exit.assert_called_with(2)
@@ -1060,7 +1050,7 @@ class TestParseArgs(unittest.TestCase):
     @patch('sys.exit')
     def test_missing_output(self, mock_exit: MagicMock) -> None:
         '''Tests that missing --output causes error.'''
-        argv = ['sync', '--input', '/in', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--scan-mode', 'quick']
         sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         mock_exit.assert_called_with(2)
@@ -1068,7 +1058,7 @@ class TestParseArgs(unittest.TestCase):
     @patch('sys.exit')
     def test_missing_scan_mode(self, mock_exit: MagicMock) -> None:
         '''Tests that missing --scan-mode causes error.'''
-        argv = ['sync', '--input', '/in', '--output', '/out']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out']
         sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         mock_exit.assert_called_with(2)
@@ -1084,7 +1074,7 @@ class TestParseArgs(unittest.TestCase):
     @patch('sys.exit')
     def test_invalid_scan_mode(self, mock_exit: MagicMock) -> None:
         '''Tests that invalid scan mode causes error.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'invalid']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'invalid']
         sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         mock_exit.assert_called_with(2)
@@ -1092,14 +1082,14 @@ class TestParseArgs(unittest.TestCase):
     @patch('sys.exit')
     def test_invalid_sync_mode(self, mock_exit: MagicMock) -> None:
         '''Tests that invalid sync mode causes error.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '--sync-mode', 'invalid']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '--sync-mode', 'invalid']
         sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         mock_exit.assert_called_with(2)
 
     def test_path_normalization(self) -> None:
         '''Tests that paths are normalized.'''
-        argv = ['sync', '--input', 'relative/path', '--output', 'output/', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', 'relative/path', '--output', 'output/', '--scan-mode', 'quick']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         import os
@@ -1108,39 +1098,39 @@ class TestParseArgs(unittest.TestCase):
 
     def test_sync_mode_default(self) -> None:
         '''Tests that sync_mode defaults to remote.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertEqual(args.sync_mode, 'remote')
 
     def test_dry_run_default(self) -> None:
         '''Tests that dry_run defaults to False when not provided.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertFalse(args.dry_run)
 
     def test_dry_run_enabled(self) -> None:
         '''Tests that --dry-run flag sets dry_run to True.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '--dry-run']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '--dry-run']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertTrue(args.dry_run)
 
     def test_dry_run_short_flag(self) -> None:
         '''Tests that -d short flag sets dry_run to True.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '-d']
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'quick', '-d']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
         self.assertTrue(args.dry_run)
 
     def test_dry_run_with_all_options(self) -> None:
         '''Tests that dry_run works with all other optional arguments.'''
-        argv = ['sync', '--input', '/in', '--output', '/out', '--scan-mode', 'full',
+        argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'full',
                 '--sync-mode', 'local', '--end-date', '2025/10 october/09', '--dry-run']
         args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
 
-        self.assertEqual(args.function, 'sync')
+        self.assertEqual(args.function, sync.Namespace.FUNCTION_MUSIC)
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/out')
         self.assertEqual(args.scan_mode, 'full')
