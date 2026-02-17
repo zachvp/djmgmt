@@ -521,12 +521,12 @@ def preview_sync(collection: ET.Element,
     collection_node = library.find_node(collection, constants.XPATH_COLLECTION)
 
     for source_path, _ in new_mappings:
-        metadata = library.extract_track_metadata(collection_node, source_path)
+        metadata = library.extract_track_metadata_by_path(collection_node, source_path)
         if metadata:
             preview_tracks.append(SyncPreviewTrack(metadata=metadata, change_type='new'))
 
     for source_path, _ in changed_mappings:
-        metadata = library.extract_track_metadata(collection_node, source_path)
+        metadata = library.extract_track_metadata_by_path(collection_node, source_path)
         if metadata:
             preview_tracks.append(SyncPreviewTrack(metadata=metadata, change_type='changed'))
 

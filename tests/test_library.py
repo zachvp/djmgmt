@@ -1713,7 +1713,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
         source_path = '/Users/user/Music/DJ/test.aiff'
 
         # Call function
-        result = library.extract_track_metadata(collection, source_path)
+        result = library.extract_track_metadata_by_path(collection, source_path)
 
         # Assertions
         self.assertIsNotNone(result)
@@ -1731,7 +1731,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
         source_path = '/nonexistent/path.aiff'
 
         # Call function
-        result = library.extract_track_metadata(collection, source_path)
+        result = library.extract_track_metadata_by_path(collection, source_path)
 
         # Assertions
         self.assertIsNone(result)
@@ -1751,7 +1751,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
         source_path = '/Users/user/Music/DJ/test.aiff'
 
         # Call function
-        result = library.extract_track_metadata(collection, source_path)
+        result = library.extract_track_metadata_by_path(collection, source_path)
 
         # Assertions
         self.assertIsNotNone(result)
@@ -1779,7 +1779,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
         source_path = '/Users/user/Music Library/test (mix).aiff'
 
         # Call function
-        result = library.extract_track_metadata(collection, source_path)
+        result = library.extract_track_metadata_by_path(collection, source_path)
 
         # Assertions
         self.assertIsNotNone(result)

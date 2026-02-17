@@ -171,6 +171,10 @@ def collection_path_to_syspath(path: str) -> str:
         syspath = os.path.sep + syspath
     return syspath
 
+def syspath_to_collection_path(file_path: str) -> str:
+    '''Transforms the given system path to an XML file path'''
+    return f"{constants.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
+
 def swap_root(path: str, old_root: str, root: str) -> str:
     '''Returns the given path with its root replaced.
 
@@ -241,7 +245,7 @@ def get_playlist_track_ids(playlist_node: ET.Element) -> list[str]:
     for track in playlist_node.findall(constants.TAG_TRACK):
         track_id = track.get(constants.ATTR_TRACK_KEY)
         if track_id is None:
-            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {extract_track_metadata(track)}")
+            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {create_track_metadata(track)}")
         if track_id is not None:
             track_ids.append(track_id)
     return track_ids
@@ -289,37 +293,28 @@ def create_track_metadata(track_node: ET.Element) -> TrackMetadata:
         path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
     )
 
-def extract_track_metadata(collection: ET.Element, source_path: str) -> TrackMetadata | None:
+def extract_track_metadata_by_path(collection: ET.Element, syspath: str) -> TrackMetadata | None:
     '''Extracts track metadata from XML collection by file path.
 
     Args:
         collection: The COLLECTION node element
-        source_path: System file path to look up
+        syspath: System file path to look up
 
     Returns:
         TrackMetadata with title, artist, album, path, or None if not found
     '''
-    from urllib.parse import quote
 
     # Convert system path to URL format for XML lookup (pattern from music.py:254)
-    file_url = f'{constants.REKORDBOX_ROOT}{quote(source_path, safe=constants.URL_SAFE_CHARS)}'
+    file_url = syspath_to_collection_path(syspath)
 
     # Find track in collection
     track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
 
     if track_node is None:
-        logging.warning(f'Track not found in collection: {source_path}')
+        logging.warning(f'Track not found in collection: {syspath}')
         return None
 
-    return TrackMetadata(
-        title=track_node.get(constants.ATTR_TITLE, ''),
-        artist=track_node.get(constants.ATTR_ARTIST, ''),
-        album=track_node.get(constants.ATTR_ALBUM, ''),
-        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
-        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
-        path=source_path
-    )
-
+    return create_track_metadata(track_node)
 
 def extract_track_metadata_by_id(collection: ET.Element, track_id: str) -> TrackMetadata | None:
     '''Extracts track metadata from XML collection by TrackID.
@@ -338,17 +333,7 @@ def extract_track_metadata_by_id(collection: ET.Element, track_id: str) -> Track
         return None
 
     # Get location and convert to system path
-    location = track_node.get(constants.ATTR_LOCATION, '')
-    sys_path = collection_path_to_syspath(location) if location else ''
-
-    return TrackMetadata(
-        title=track_node.get(constants.ATTR_TITLE, ''),
-        artist=track_node.get(constants.ATTR_ARTIST, constants.UNKNOWN_ARTIST),
-        album=track_node.get(constants.ATTR_ALBUM, constants.UNKNOWN_ALBUM),
-        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
-        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
-        path=sys_path
-    )
+    return create_track_metadata(track_node)
 
 def get_played_tracks(root: ET.Element) -> list[str]:
     '''Returns a list of TRACK.Key/ID strings for all playlist tracks in the 'mixtapes' folder.'''
@@ -570,7 +555,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
         
         # only process music files
         if extension and extension in constants.EXTENSIONS:
-            file_url = f"{constants.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
+            file_url = syspath_to_collection_path(file_path)
             
             # check if track already exists
             existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
