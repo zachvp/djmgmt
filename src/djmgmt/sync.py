@@ -582,7 +582,7 @@ def sync_playlist(args: Namespace) -> FileMapping | None:
     Returns:
         True on success, False on failure.
     '''
-    from . import playlist as playlist_module
+    from . import playlist
 
     # Build output path: state/output/playlists/{playlist_name}.m3u8
     playlist_name = args.playlist_path.replace('.', '_')
@@ -591,7 +591,7 @@ def sync_playlist(args: Namespace) -> FileMapping | None:
 
     # Generate M3U8
     logging.info(f"generating playlist '{args.playlist_path}' to '{local_path}'")
-    tracks = playlist_module.generate_m3u8(args.collection, args.playlist_path, local_path, dry_run=args.dry_run)
+    tracks = playlist.generate_m3u8(args.collection, args.playlist_path, local_path, dry_run=args.dry_run)
     if not tracks:
         logging.error(f"playlist generation failed or returned no tracks for '{args.playlist_path}'")
         return None

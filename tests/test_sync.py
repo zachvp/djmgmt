@@ -1,5 +1,6 @@
 # TODO: add coverage for rsync_healthcheck
 
+import os
 import unittest
 import subprocess
 import xml.etree.ElementTree as ET
@@ -1124,6 +1125,39 @@ class TestParseArgs(unittest.TestCase):
 
         self.assertTrue(args.dry_run)
 
+    def test_valid_playlist(self) -> None:
+        '''Tests that playlist function can be called with required arguments.'''
+        argv = [sync.Namespace.FUNCTION_PLAYLIST, '--collection', '/mock/collection.xml', '--playlist-path', 'dynamic.unplayed']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertEqual(args.function, sync.Namespace.FUNCTION_PLAYLIST)
+        self.assertEqual(args.collection, '/mock/collection.xml')
+        self.assertEqual(args.playlist_path, 'dynamic.unplayed')
+
+    @patch('sys.exit')
+    def test_playlist_missing_collection(self, mock_exit: MagicMock) -> None:
+        '''Tests that playlist function errors when --collection is missing.'''
+        argv = [sync.Namespace.FUNCTION_PLAYLIST, '--playlist-path', 'dynamic.unplayed']
+        sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        mock_exit.assert_called_with(2)
+
+    @patch('sys.exit')
+    def test_playlist_missing_playlist_path(self, mock_exit: MagicMock) -> None:
+        '''Tests that playlist function errors when --playlist-path is missing.'''
+        argv = [sync.Namespace.FUNCTION_PLAYLIST, '--collection', '/mock/collection.xml']
+        sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        mock_exit.assert_called_with(2)
+
+    def test_playlist_with_dry_run(self) -> None:
+        '''Tests that playlist function accepts --dry-run flag.'''
+        argv = [sync.Namespace.FUNCTION_PLAYLIST, '--collection', '/mock/collection.xml', '--playlist-path', 'dynamic.unplayed', '--dry-run']
+        args = sync.parse_args(sync.Namespace.FUNCTIONS, sync.Namespace.SCAN_MODES, sync.Namespace.SYNC_MODES, argv)
+
+        self.assertEqual(args.function, sync.Namespace.FUNCTION_PLAYLIST)
+        self.assertTrue(args.dry_run)
+
     def test_dry_run_with_all_options(self) -> None:
         '''Tests that dry_run works with all other optional arguments.'''
         argv = [sync.Namespace.FUNCTION_MUSIC, '--input', '/in', '--output', '/out', '--scan-mode', 'full',
@@ -1137,3 +1171,139 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.sync_mode, 'local')
         self.assertEqual(args.end_date, '2025/10 october/09')
         self.assertTrue(args.dry_run)
+
+class TestSyncPlaylist(unittest.TestCase):
+    '''Tests for sync.sync_playlist.'''
+
+    def _make_args(self, dry_run: bool = False) -> sync.Namespace:
+        '''Creates a mock Namespace with playlist-related arguments.'''
+        args = sync.Namespace()
+        args.collection = '/mock/collection.xml'
+        args.playlist_path = 'dynamic.unplayed'
+        args.dry_run = dry_run
+        return args
+
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_success(self,
+                     mock_makedirs: MagicMock,
+                     mock_generate: MagicMock,
+                     mock_healthcheck: MagicMock,
+                     mock_transfer: MagicMock) -> None:
+        '''Tests successful playlist generation and rsync transfer.'''
+        # Setup
+        mock_generate.return_value = ['/media/SOL/music/2025/05 may/20/track1.mp3']
+        mock_healthcheck.return_value = True
+        mock_transfer.return_value = (0, 'success')
+
+        # Call
+        result = sync.sync_playlist(self._make_args())
+
+        # Assertions
+        self.assertIsNotNone(result)
+        mock_makedirs.assert_called_once_with(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
+        mock_generate.assert_called_once_with(
+            '/mock/collection.xml', 'dynamic.unplayed',
+            f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
+            dry_run=False
+        )
+        mock_healthcheck.assert_called_once()
+        mock_transfer.assert_called_once()
+
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_error_empty_tracks(self,
+                                mock_makedirs: MagicMock,
+                                mock_generate: MagicMock) -> None:
+        '''Tests that None is returned when generate_m3u8 returns no tracks.'''
+        mock_generate.return_value = []
+
+        result = sync.sync_playlist(self._make_args())
+
+        self.assertIsNone(result)
+        mock_generate.assert_called_once()
+
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_error_rsync_unhealthy(self,
+                                    mock_makedirs: MagicMock,
+                                    mock_generate: MagicMock,
+                                    mock_healthcheck: MagicMock) -> None:
+        '''Tests that None is returned when rsync healthcheck fails.'''
+        mock_generate.return_value = ['/media/SOL/music/track1.mp3']
+        mock_healthcheck.return_value = False
+
+        result = sync.sync_playlist(self._make_args())
+
+        self.assertIsNone(result)
+        mock_healthcheck.assert_called_once()
+
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_error_rsync_transfer_fails(self,
+                                         mock_makedirs: MagicMock,
+                                         mock_generate: MagicMock,
+                                         mock_healthcheck: MagicMock,
+                                         mock_transfer: MagicMock) -> None:
+        '''Tests that None is returned when rsync transfer fails.'''
+        mock_generate.return_value = ['/media/SOL/music/track1.mp3']
+        mock_healthcheck.return_value = True
+        mock_transfer.return_value = (1, 'error')
+
+        result = sync.sync_playlist(self._make_args())
+
+        self.assertIsNone(result)
+        mock_transfer.assert_called_once()
+
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_dry_run(self,
+                     mock_makedirs: MagicMock,
+                     mock_generate: MagicMock,
+                     mock_healthcheck: MagicMock,
+                     mock_transfer: MagicMock) -> None:
+        '''Tests that dry_run is threaded to generate_m3u8 and transfer_files.'''
+        mock_generate.return_value = ['/media/SOL/music/track1.mp3']
+        mock_healthcheck.return_value = True
+        mock_transfer.return_value = (0, 'success')
+
+        result = sync.sync_playlist(self._make_args(dry_run=True))
+
+        self.assertIsNotNone(result)
+        mock_generate.assert_called_once_with(
+            '/mock/collection.xml', 'dynamic.unplayed',
+            f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
+            dry_run=True
+        )
+        mock_transfer.assert_called_once()
+        # Verify dry_run was passed to transfer_files
+        self.assertTrue(mock_transfer.call_args.kwargs.get('dry_run', False))
+
+    @patch('djmgmt.sync.transfer_files')
+    @patch('djmgmt.sync.rsync_healthcheck')
+    @patch('djmgmt.playlist.generate_m3u8')
+    @patch('os.makedirs')
+    def test_returns_file_mapping(self,
+                                   mock_makedirs: MagicMock,
+                                   mock_generate: MagicMock,
+                                   mock_healthcheck: MagicMock,
+                                   mock_transfer: MagicMock) -> None:
+        '''Tests that the returned FileMapping contains expected local and rsync paths.'''
+        mock_generate.return_value = ['/media/SOL/music/track1.mp3']
+        mock_healthcheck.return_value = True
+        mock_transfer.return_value = (0, 'success')
+
+        result = sync.sync_playlist(self._make_args())
+
+        self.assertIsNotNone(result)
+        assert result is not None
+        local_path, rsync_path = result
+        self.assertIn('dynamic_unplayed.m3u8', local_path)
+        self.assertIn('playlists/dynamic_unplayed.m3u8', rsync_path)

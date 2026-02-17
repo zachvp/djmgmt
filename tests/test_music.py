@@ -1299,7 +1299,7 @@ class TestUpdateLibrary(unittest.TestCase):
     MOCK_PROCESSED_COLLECTION = '/mock/processed-collection.xml'
     MOCK_MERGED_COLLECTION = '/mock/merged-collection.xml'
 
-    @patch('djmgmt.sync.run_sync_mappings')
+    @patch('djmgmt.sync.run_music')
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.tags_info.compare_tags')
@@ -1384,7 +1384,7 @@ class TestUpdateLibrary(unittest.TestCase):
         self.assertEqual(actual.sync_result, mock_sync_result)
         self.assertListEqual(actual.changed_mappings, mock_mappings_filtered)
         
-    @patch('djmgmt.sync.run_sync_mappings')
+    @patch('djmgmt.sync.run_music')
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.sync.create_sync_mappings')
@@ -1433,7 +1433,7 @@ class TestUpdateLibrary(unittest.TestCase):
         mock_filter_path_mappings.assert_called_once()
         mock_run_sync_mappings.assert_called_once()
     
-    @patch('djmgmt.sync.run_sync_mappings')
+    @patch('djmgmt.sync.run_music')
     @patch('djmgmt.library.filter_path_mappings')
     @patch('djmgmt.sync.create_sync_mappings')
     @patch('djmgmt.tags_info.compare_tags')
