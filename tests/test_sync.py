@@ -1172,8 +1172,8 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.end_date, '2025/10 october/09')
         self.assertTrue(args.dry_run)
 
-class TestSyncPlaylist(unittest.TestCase):
-    '''Tests for sync.sync_playlist.'''
+class TestRunPlaylist(unittest.TestCase):
+    '''Tests for sync.run_playlist.'''
 
     MOCK_COLLECTION = '/mock/collection.xml'
     MOCK_PLAYLIST_PATH = 'dynamic.unplayed'
@@ -1303,12 +1303,12 @@ class TestSyncPlaylist(unittest.TestCase):
         self.assertIn('dynamic_unplayed.m3u8', local_path)
         self.assertIn('playlists/dynamic_unplayed.m3u8', rsync_path)
 
-class TestSyncPlaylistCli(unittest.TestCase):
-    '''Tests for sync.sync_playlist_cli.'''
+class TestRunPlaylistCli(unittest.TestCase):
+    '''Tests for sync.run_playlist_cli.'''
 
-    @patch('djmgmt.sync.sync_playlist')
-    def test_extracts_args_and_calls_core(self, mock_sync_playlist: MagicMock) -> None:
-        '''Tests that CLI wrapper extracts Namespace fields and calls sync_playlist with plain parameters.'''
+    @patch('djmgmt.sync.run_playlist')
+    def test_extracts_args_and_calls_core(self, mock_run_playlist: MagicMock) -> None:
+        '''Tests that CLI wrapper extracts Namespace fields and calls run_playlist with plain parameters.'''
         args = sync.Namespace()
         args.collection = '/mock/collection.xml'
         args.playlist_path = 'dynamic.unplayed'
@@ -1316,11 +1316,11 @@ class TestSyncPlaylistCli(unittest.TestCase):
 
         sync.run_playlist_cli(args)
 
-        mock_sync_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=False)
+        mock_run_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=False)
 
-    @patch('djmgmt.sync.sync_playlist')
-    def test_threads_dry_run(self, mock_sync_playlist: MagicMock) -> None:
-        '''Tests that dry_run=True is threaded from args to sync_playlist.'''
+    @patch('djmgmt.sync.run_playlist')
+    def test_threads_dry_run(self, mock_run_playlist: MagicMock) -> None:
+        '''Tests that dry_run=True is threaded from args to run_playlist.'''
         args = sync.Namespace()
         args.collection = '/mock/collection.xml'
         args.playlist_path = 'dynamic.unplayed'
@@ -1328,4 +1328,4 @@ class TestSyncPlaylistCli(unittest.TestCase):
 
         sync.run_playlist_cli(args)
 
-        mock_sync_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=True)
+        mock_run_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=True)

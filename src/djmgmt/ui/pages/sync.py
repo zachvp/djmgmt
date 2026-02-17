@@ -2,7 +2,7 @@ import streamlit as st
 import pandas as pd
 import logging
 
-from djmgmt import sync, library, common
+from djmgmt import sync, library, common, constants
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -11,11 +11,13 @@ from djmgmt.ui.components.recent_file_input import RecentFileInput
 # Constants
 MODULE = 'sync'
 FUNCTION_PREVIEW = 'preview_sync'
-FUNCTIONS = [FUNCTION_PREVIEW]
+FUNCTION_PLAYLIST = 'run_playlist'
+FUNCTIONS = [FUNCTION_PREVIEW, FUNCTION_PLAYLIST]
 
 # Function mapping
 function_mapper = FunctionMapper(module=sync)
 function_mapper.add(FUNCTION_PREVIEW, sync.preview_sync)
+function_mapper.add(FUNCTION_PLAYLIST, sync.run_playlist)
 
 # Page initialization
 PageBuilder.set_page_layout('wide')
@@ -31,7 +33,7 @@ page.render_arguments_header()
 app_config = AppConfig.load()
 
 # Render collection path input with latest backup finder
-finder = RecentFileInput.Finder(
+collection_finder = RecentFileInput.Finder(
     app_config.collection_directory or '',
     common.find_latest_file,
     {'.xml'}
@@ -40,12 +42,21 @@ collection_path = RecentFileInput.render(
     label='Collection Path',
     widget_key='widget_key_sync_preview_collection',
     default_value=app_config.collection_path,
-    finder=finder,
+    finder=collection_finder,
     button_label='Find Latest Collection Backup'
 )
 
-library_path = page.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
-client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
+# Function-specific arguments
+library_path = ''
+client_mirror_path = ''
+playlist_dot_path = ''
+dry_run = False
+
+if function == FUNCTION_PREVIEW:
+    library_path = page.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
+    client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
+elif function == FUNCTION_PLAYLIST:
+    playlist_dot_path = page.render_path_input('Playlist Dot Path (e.g. dynamic.unplayed)', None, 'Unable to load playlist path')
 
 # Separator between Arguments and Run sections
 page.render_section_separator()
@@ -77,11 +88,11 @@ if run_clicked:
                     df_data = []
                     for track in preview_tracks:
                         df_data.append({
-                            'Title': track.metadata.title,
-                            'Artist': track.metadata.artist,
-                            'Album': track.metadata.album,
-                            'Path': track.metadata.path,
-                            'Type': '🆕 New' if track.change_type == 'new' else '✏️ Changed'
+                            'Title'  : track.metadata.title,
+                            'Artist' : track.metadata.artist,
+                            'Album'  : track.metadata.album,
+                            'Path'   : track.metadata.path,
+                            'Type'   : '🆕 New' if track.change_type == 'new' else '✏️ Changed'
                         })
 
                     df = pd.DataFrame(df_data)
@@ -93,11 +104,11 @@ if run_clicked:
                         width='stretch',
                         height=min((len(df) + 1) * 35, 800),
                         column_config={
-                            'Title': st.column_config.TextColumn('Title', width='medium'),
-                            'Artist': st.column_config.TextColumn('Artist', width='medium'),
-                            'Album': st.column_config.TextColumn('Album', width='medium'),
-                            'Path': st.column_config.TextColumn('Path', width='large'),
-                            'Type': st.column_config.TextColumn('Change Type', width='small')
+                            'Title'  : st.column_config.TextColumn('Title', width='medium'),
+                            'Artist' : st.column_config.TextColumn('Artist', width='medium'),
+                            'Album'  : st.column_config.TextColumn('Album', width='medium'),
+                            'Path'   : st.column_config.TextColumn('Path', width='large'),
+                            'Type'   : st.column_config.TextColumn('Change Type', width='small')
                         }
                     )
 
@@ -115,5 +126,31 @@ if run_clicked:
             except Exception as e:
                 st.error(f'Error previewing sync: {e}')
                 logging.error(f'Error in {FUNCTION_PREVIEW}: {e}', exc_info=True)
-    else:
-        st.info('Function execution not yet implemented')
+
+    elif function == FUNCTION_PLAYLIST:
+        if not collection_path or not playlist_dot_path:
+            st.error('Collection Path and Playlist Path are required')
+        else:
+            try:
+                center = page.create_center_context()
+                with center:
+                    with st.spinner('Syncing playlist...'):
+                        result = sync.run_playlist(collection_path, playlist_dot_path, dry_run=dry_run)
+
+                page.render_results_header()
+
+                if result is None:
+                    st.error('Playlist sync failed - check logs for details')
+                else:
+                    local_path, rsync_path = result
+                    st.success('Playlist synced successfully')
+                    st.write(f'**Local:** `{local_path}`')
+                    st.write(f'**Rsync implied path:** `{rsync_path}`')
+
+                # Update config
+                app_config.collection_path = collection_path
+                AppConfig.save(app_config)
+
+            except Exception as e:
+                st.error(f'Error syncing playlist: {e}')
+                logging.error(f'Error in {FUNCTION_PLAYLIST}: {e}', exc_info=True)
