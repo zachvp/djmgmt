@@ -843,7 +843,7 @@ class TestPreviewSync(unittest.TestCase):
 
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.library.filter_path_mappings')
-    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.extract_track_metadata_by_path')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.sync.create_sync_mappings')
     def test_success_new_tracks_only(self,
@@ -883,7 +883,7 @@ class TestPreviewSync(unittest.TestCase):
 
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.library.filter_path_mappings')
-    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.extract_track_metadata_by_path')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.sync.create_sync_mappings')
     def test_success_changed_tracks_only(self,
@@ -917,7 +917,7 @@ class TestPreviewSync(unittest.TestCase):
 
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.library.filter_path_mappings')
-    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.extract_track_metadata_by_path')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.sync.create_sync_mappings')
     def test_success_mixed_tracks(self,
@@ -960,7 +960,7 @@ class TestPreviewSync(unittest.TestCase):
 
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.library.filter_path_mappings')
-    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.extract_track_metadata_by_path')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.sync.create_sync_mappings')
     def test_empty_preview(self,
@@ -986,7 +986,7 @@ class TestPreviewSync(unittest.TestCase):
 
     @patch('djmgmt.tags_info.compare_tags')
     @patch('djmgmt.library.filter_path_mappings')
-    @patch('djmgmt.library.extract_track_metadata')
+    @patch('djmgmt.library.extract_track_metadata_by_path')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.sync.create_sync_mappings')
     def test_track_not_found_in_collection(self,

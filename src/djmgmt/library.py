@@ -286,8 +286,8 @@ def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, pl
 def create_track_metadata(track_node: ET.Element) -> TrackMetadata:
     return TrackMetadata(
         title=track_node.get(constants.ATTR_TITLE, ''),
-        artist=track_node.get(constants.ATTR_ARTIST, constants.UNKNOWN_ARTIST),
-        album=track_node.get(constants.ATTR_ALBUM, constants.UNKNOWN_ALBUM),
+        artist=track_node.get(constants.ATTR_ARTIST, ''),
+        album=track_node.get(constants.ATTR_ALBUM, ''),
         date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
         total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
         path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
