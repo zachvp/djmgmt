@@ -56,7 +56,7 @@ if function == FUNCTION_PREVIEW:
     library_path = page.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
     client_mirror_path = page.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
 elif function == FUNCTION_PLAYLIST:
-    playlist_dot_path = page.render_path_input('Playlist Dot Path (e.g. dynamic.unplayed)', None, 'Unable to load playlist path')
+    playlist_dot_path = page.render_path_input('Playlist Dot Path', 'dynamic.unplayed', 'Unable to load playlist path')
 
 # Separator between Arguments and Run sections
 page.render_section_separator()
