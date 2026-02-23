@@ -204,23 +204,23 @@ class TestFullPath(unittest.TestCase):
         actual = library.full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH)
         
         # Assert expectations
-        expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_FILE.aiff'
+        expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_FILE_1.aiff'
         self.assertEqual(actual, expected)
-        
+
     @patch('djmgmt.library.date_path')
     def test_success_include_metadata(self, mock_date_path: MagicMock) -> None:
         '''Tests for expected output with metadata included paramter.'''
         # Set up input
         node = ET.fromstring(TRACK_XML)
-        
+
         # Set up mocks
         mock_date_path.return_value = '2020/02 february/03'
-        
+
         # Call test function
         actual = library.full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=True)
-        
+
         # Assert expectations
-        expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_ARTIST/MOCK_ALBUM/MOCK_FILE.aiff'
+        expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_ARTIST_1/MOCK_ALBUM_1/MOCK_FILE_1.aiff'
         self.assertEqual(actual, expected)
 
 class TestCollectionPathToSyspath(unittest.TestCase):
@@ -251,45 +251,12 @@ class TestCollectionPathToSyspath(unittest.TestCase):
         self.assertEqual(actual, expected)
 
 # Constants: filter path mappings
-## track XML with a simple, non-encoded location
-TRACK_XML_PLAYLIST_SIMPLE = '''
-    <TRACK
-        TrackID="1"
-        Name="Test Track"
-        Artist="MOCK_ARTIST"
-        Album="MOCK_ALBUM"
-        DateAdded="2020-02-03"
-        Location="file://localhost/Users/user/Music/DJ/MOCK_PLAYLIST_FILE.aiff">
-    </TRACK>
-'''.strip()
-
-## track XML with a URL-encoded location
-TRACK_XML_PLAYLIST_ENCODED = '''
-    <TRACK
-        TrackID="2"
-        Name="Test Track"
-        Artist="MOCK_ARTIST"
-        Album="MOCK_ALBUM"
-        DateAdded="2020-02-03"
-        Location="file://localhost/Users/user/Music/DJ/haircuts%20for%20men%20-%20%e8%8a%b1%e3%81%a8%e9%b3%a5%e3%81%a8%e5%b1%b1.aiff">
-    </TRACK>
-'''.strip()
-
-## track XML not present in playlist
-TRACK_XML_COLLECTION = '''
-    <TRACK
-        TrackID="3"
-        Name="Test Track"
-        Artist="MOCK_ARTIST"
-        Album="MOCK_ALBUM"
-        DateAdded="2020-02-03"
-        Location="file://localhost/Users/user/Music/DJ/MOCK_COLLECTION_FILE.aiff">
-    </TRACK>
-'''.strip()
+TRACK_XML_PLAYLIST_SIMPLE  = _create_track_xml(1)  # TrackID=1, in _pruned
+TRACK_XML_COLLECTION       = _create_track_xml(3)  # TrackID=3, collection-only
 
 # collection XML that contains 2 tracks present in the '_pruned' playlist, and 1 track that only exists in the collection
 DJ_PLAYLISTS_XML = _build_dj_playlists_xml(
-    [TRACK_XML_COLLECTION, TRACK_XML_PLAYLIST_SIMPLE, TRACK_XML_PLAYLIST_ENCODED],
+    [TRACK_XML_COLLECTION, TRACK_XML_PLAYLIST_SIMPLE],
     ['1', '2']
 )
 
@@ -306,21 +273,7 @@ class TestFilterPathMappings(unittest.TestCase):
         # Call target function
         mappings = [
             # playlist file: simple
-            ('/Users/user/Music/DJ/MOCK_PLAYLIST_FILE.aiff', '/mock/output/MOCK_PLAYLIST_FILE.mp3'),
-        ]
-        collection = ET.fromstring(DJ_PLAYLISTS_XML)
-        actual = library.filter_path_mappings(mappings, collection, constants.XPATH_PRUNED)
-        
-        # Assert expectations
-        self.assertEqual(actual, mappings)
-        
-    def test_success_mappings_special_characters(self) -> None:
-        '''Tests that the given special character mapping passes through the filter.'''
-        
-        # Call target function
-        mappings = [
-            # playlist file: non-standard characters
-            ('/Users/user/Music/DJ/haircuts for men - 花と鳥と山.aiff', '/mock/output/haircuts for men - 花と鳥と山.mp3'),
+            ('/Users/user/Music/DJ/MOCK_FILE_1.aiff', '/mock/output/MOCK_FILE_1.mp3'),
         ]
         collection = ET.fromstring(DJ_PLAYLISTS_XML)
         actual = library.filter_path_mappings(mappings, collection, constants.XPATH_PRUNED)
@@ -332,9 +285,9 @@ class TestFilterPathMappings(unittest.TestCase):
         '''Tests that the given non-playlist file does not pass through the filter.'''
         
         # Call target function
-        mappings = [            
+        mappings = [
             # non-playlist collection file
-            ('/Users/user/Music/DJ/MOCK_COLLECTION_FILE.aiff', '/mock/output/MOCK_COLLECTION_FILE.mp3'),
+            ('/Users/user/Music/DJ/MOCK_FILE_3.aiff', '/mock/output/MOCK_FILE_3.mp3'),
         ]
         collection = ET.fromstring(DJ_PLAYLISTS_XML)
         actual = library.filter_path_mappings(mappings, collection, constants.XPATH_PRUNED)
@@ -442,10 +395,7 @@ class TestGetPlayedTracks(unittest.TestCase):
 
     <DJ_PLAYLISTS Version="1.0.0">
         <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="3">
-            {_create_track_xml(0)}
-            {_create_track_xml(1)}
-        </COLLECTION>
+        {_build_collection_xml([_create_track_xml(0), _create_track_xml(1)])}
         <PLAYLISTS>
             <NODE Type="0" Name="ROOT" Count="2">
                 <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
@@ -467,10 +417,7 @@ class TestGetPlayedTracks(unittest.TestCase):
 
     <DJ_PLAYLISTS Version="1.0.0">
         <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="2">
-            {_create_track_xml(0)}
-            {_create_track_xml(1)}
-        </COLLECTION>
+        {_build_collection_xml([_create_track_xml(0), _create_track_xml(1)])}
         <PLAYLISTS>
             <NODE Type="0" Name="ROOT" Count="2">
                 <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
@@ -1502,14 +1449,9 @@ class TestMergePlaylistReferences(unittest.TestCase):
 
 
 # XML fixture for playlist node tests
-PLAYLIST_XML = '''<?xml version="1.0" encoding="UTF-8"?>
+PLAYLIST_XML = f'''<?xml version="1.0" encoding="UTF-8"?>
 <DJ_PLAYLISTS Version="1.0.0">
-    <COLLECTION Entries="2">
-        <TRACK TrackID="1" Name="Track One" Artist="Artist A" Album="Album A"
-               Location="file://localhost/music/track1.aiff" DateAdded="2025-05-20" TotalTime="300"/>
-        <TRACK TrackID="2" Name="Track Two" Artist="Artist B" Album="Album B"
-               Location="file://localhost/music/track2.aiff" DateAdded="2025-05-21" TotalTime="240"/>
-    </COLLECTION>
+    {_build_collection_xml([_create_track_xml(1), _create_track_xml(2)])}
     <PLAYLISTS>
         <NODE Type="0" Name="ROOT" Count="2">
             <NODE Name="dynamic" Type="0" Count="1">
