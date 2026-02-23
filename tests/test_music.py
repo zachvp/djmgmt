@@ -144,8 +144,8 @@ class TestSweep(unittest.TestCase):
         self.mock_move.assert_has_calls([call(i, o) for i, o in expected])
         self.assertEqual(actual, expected)
 
-    def test_no_sweep_non_music_files(self) -> None:
-        '''Test that loose, non-music files are not swept.'''
+    def test_skip_sweep_non_music_files(self) -> None:
+        '''Test that loose, non-music files skipped.'''
         mock_filenames = ['track_0.foo', 'img_0.jpg', 'img_1.jpeg', 'img_2.png']
         self.mock_collect_paths.return_value = mock_filenames
 

@@ -8,8 +8,10 @@ from djmgmt.library import TrackMetadata
 
 class TestFindColumn(unittest.TestCase):
     def setUp(self) -> None:
-        '''Set up test fixtures.'''
-        self.mock_path = '/mock/playlist.txt'
+        self.mock_path    = '/mock/playlist.txt'
+        self.mock_encoding = patch('djmgmt.common.get_encoding').start()
+        self.addCleanup(patch.stopall)
+        self.mock_encoding.return_value = 'utf-8'
 
     @staticmethod
     def _format_columns(data: list[str]) -> str:
@@ -24,8 +26,7 @@ class TestFindColumn(unittest.TestCase):
         return '\t'.join(data) + '\n'
 
     @patch('builtins.open', new_callable=mock_open, read_data=_format_columns(['#', 'Artist', 'Genre', 'BPM']))
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_find_column_single_word_header(self, mock_encoding: MagicMock, mock_file_open: MagicMock) -> None:
+    def test_find_column_single_word_header(self, mock_file_open: MagicMock) -> None:
         '''Tests finding a single-word column header.'''
 
         self.assertEqual(playlist.find_column(self.mock_path, '#'), 0)
@@ -34,8 +35,7 @@ class TestFindColumn(unittest.TestCase):
         self.assertEqual(playlist.find_column(self.mock_path, 'BPM'), 3)
 
     @patch('builtins.open', new_callable=mock_open, read_data=_format_columns(['#', 'Track Title', 'Date Added', 'DJ Play Count']))
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_find_column_multi_word_header(self, mock_encoding: MagicMock, mock_file_open: MagicMock) -> None:
+    def test_find_column_multi_word_header(self, mock_file_open: MagicMock) -> None:
         '''Tests finding a multi-word column header.'''
         
         self.assertEqual(playlist.find_column(self.mock_path, '#'), 0)
@@ -44,8 +44,7 @@ class TestFindColumn(unittest.TestCase):
         self.assertEqual(playlist.find_column(self.mock_path, 'DJ Play Count'), 3)
 
     @patch('builtins.open', new_callable=mock_open, read_data=_format_columns(['#', 'Track Title', 'BPM', 'Artist', 'Genre', 'Date Added', 'Time', 'Key', 'DJ Play Count']))
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_find_column_mixed_headers(self, mock_encoding: MagicMock, mock_file_open: MagicMock) -> None:
+    def test_find_column_mixed_headers(self, mock_file_open: MagicMock) -> None:
         '''Tests finding columns with both single and multi-word headers.'''
         
         self.assertEqual(playlist.find_column(self.mock_path, '#'), 0)
@@ -60,8 +59,7 @@ class TestFindColumn(unittest.TestCase):
 
     @patch('builtins.print')
     @patch('builtins.open', new_callable=mock_open, read_data=_format_columns(['#', 'Artist', 'Genre']))
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_find_column_not_found(self, mock_encoding: MagicMock, mock_file_open: MagicMock, mock_print: MagicMock) -> None:
+    def test_find_column_not_found(self, mock_file_open: MagicMock, mock_print: MagicMock) -> None:
         '''Tests that an error is returned and printed when column is not found.'''
 
         self.assertEqual(playlist.find_column(self.mock_path, 'NonExistent'), -1)
@@ -75,18 +73,18 @@ class TestExtract(unittest.TestCase):
     ALL_COLUMNS = [0, 1, 2, 3]  # number, title, artist, genre
     
     def setUp(self) -> None:
-        '''Set up test fixtures.'''
-        self.mock_path_tsv = '/mock/playlist.tsv'
-        self.mock_path_txt = '/mock/playlist.txt'
-        self.mock_path_csv = '/mock/playlist.csv'
+        self.mock_path_tsv    = '/mock/playlist.tsv'
+        self.mock_path_txt    = '/mock/playlist.txt'
+        self.mock_path_csv    = '/mock/playlist.csv'
+        self.mock_encoding    = patch('djmgmt.common.get_encoding').start()
+        self.mock_find_column = patch('djmgmt.playlist.find_column').start()
+        self.addCleanup(patch.stopall)
+        self.mock_encoding.return_value = 'utf-8'
+        self.mock_find_column.side_effect = TestExtract.ALL_COLUMNS
 
     @patch('djmgmt.playlist.extract_tsv')
-    @patch('djmgmt.playlist.find_column')
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_tsv_all_fields_explicit(self, mock_encoding: MagicMock, mock_find_column: MagicMock, mock_extract_tsv: MagicMock) -> None:
+    def test_extract_tsv_all_fields_explicit(self, mock_extract_tsv: MagicMock) -> None:
         '''Tests extracting all fields from a TSV file with explicit arguments.'''
-        # set up mocks
-        mock_find_column.side_effect = TestExtract.ALL_COLUMNS
         mock_extract_tsv.return_value = TestExtract.ALL_FIELDS
 
         # call test target
@@ -97,12 +95,8 @@ class TestExtract(unittest.TestCase):
         mock_extract_tsv.assert_called_once_with(self.mock_path_tsv, TestExtract.ALL_COLUMNS)
 
     @patch('djmgmt.playlist.extract_tsv')
-    @patch('djmgmt.playlist.find_column')
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_txt_all_fields_explicit(self, mock_encoding: MagicMock, mock_find_column: MagicMock, mock_extract_tsv: MagicMock) -> None:
+    def test_extract_txt_all_fields_explicit(self, mock_extract_tsv: MagicMock) -> None:
         '''Tests extracting all fields from a TXT file with explicit arguments.'''
-        # set up mocks
-        mock_find_column.side_effect = TestExtract.ALL_COLUMNS
         mock_extract_tsv.return_value = TestExtract.ALL_FIELDS
 
         # call test target
@@ -113,12 +107,8 @@ class TestExtract(unittest.TestCase):
         mock_extract_tsv.assert_called_once_with(self.mock_path_txt, TestExtract.ALL_COLUMNS)
 
     @patch('djmgmt.playlist.extract_csv')
-    @patch('djmgmt.playlist.find_column')
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_csv_all_fields_explicit(self, mock_encoding: MagicMock, mock_find_column: MagicMock, mock_extract_csv: MagicMock) -> None:
+    def test_extract_csv_all_fields_explicit(self, mock_extract_csv: MagicMock) -> None:
         '''Tests extracting specific fields from a CSV file.'''
-        # set up mocks
-        mock_find_column.side_effect = TestExtract.ALL_COLUMNS
         mock_extract_csv.return_value = TestExtract.ALL_FIELDS
 
         # call test target
@@ -129,12 +119,8 @@ class TestExtract(unittest.TestCase):
         mock_extract_csv.assert_called_once_with(self.mock_path_csv, TestExtract.ALL_COLUMNS)
 
     @patch('djmgmt.playlist.extract_tsv')
-    @patch('djmgmt.playlist.find_column')
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_all_fields_implicit(self, mock_encoding: MagicMock, mock_find_column: MagicMock, mock_extract_tsv: MagicMock) -> None:
+    def test_extract_all_fields_implicit(self, mock_extract_tsv: MagicMock) -> None:
         '''Tests that all fields are extracted when no options are specified.'''
-        # set up mocks
-        mock_find_column.side_effect = TestExtract.ALL_COLUMNS
         mock_extract_tsv.return_value = TestExtract.ALL_FIELDS
 
         # call test target
@@ -146,12 +132,8 @@ class TestExtract(unittest.TestCase):
 
     @patch('builtins.print')
     @patch('sys.exit')
-    @patch('djmgmt.playlist.find_column')
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_unsupported_extension(self, mock_encoding: MagicMock, mock_find_column: MagicMock, mock_exit: MagicMock, mock_print: MagicMock) -> None:
+    def test_extract_unsupported_extension(self, mock_exit: MagicMock, mock_print: MagicMock) -> None:
         '''Tests that an error is raised for unsupported file extensions.'''
-        # set up mocks
-        mock_find_column.side_effect = TestExtract.ALL_COLUMNS
         mock_path_invalid = '/mock/playlist.xyz'
 
         # call test target
@@ -189,16 +171,16 @@ class TestExtractTSV(unittest.TestCase):
         return TestExtractTSV.MockTSV(headers, rows)
     
     def setUp(self) -> None:
-        '''Set up test fixtures.'''
-        self.mock_path = '/mock/playlist.tsv'
-        self.mock_data = self.create_mock_data()
+        self.mock_path      = '/mock/playlist.tsv'
+        self.mock_data      = self.create_mock_data()
+        self.mock_encoding  = patch('djmgmt.common.get_encoding').start()
+        self.mock_file_open = patch('builtins.open', new_callable=mock_open).start()
+        self.addCleanup(patch.stopall)
+        self.mock_encoding.return_value = 'utf-8'
 
-    @patch('builtins.open', new_callable=mock_open)
-    @patch('djmgmt.common.get_encoding', return_value='utf-8')
-    def test_extract_tsv_all_columns(self, mock_encoding: MagicMock, mock_file_open: MagicMock) -> None:
+    def test_extract_tsv_all_columns(self) -> None:
         '''Tests extracting all columns from a TSV file.'''
-        # set up mock data
-        mock_file_open.return_value.readlines.return_value = self.mock_data.get_lines()
+        self.mock_file_open.return_value.readlines.return_value = self.mock_data.get_lines()
 
         # call test target
         result = playlist.extract_tsv(self.mock_path, [0, 1, 2, 3, 4, 5])
