@@ -28,6 +28,9 @@ COLLECTION_XML = f'''
     </COLLECTION>
 '''.strip()
 
+# XML fixture: empty COLLECTION element
+COLLECTION_XML_EMPTY = '<COLLECTION Entries="0"></COLLECTION>'
+
 # XML fixture: empty DJ_PLAYLISTS document used as a template base
 XML_BASE = f'''
 <?xml version="1.0" encoding="UTF-8"?>
@@ -59,3 +62,32 @@ def _create_track_xml(index: int) -> str:
             Location="file://localhost/Users/user/Music/DJ/MOCK_FILE_{index}.aiff">
         </TRACK>
     '''.strip()
+
+
+def _build_collection_xml(tracks: list[str]) -> str:
+    '''Builds a COLLECTION XML string wrapping the given track XML strings.'''
+    track_content = '\n    '.join(tracks)
+    return f'<COLLECTION Entries="{len(tracks)}">\n    {track_content}\n</COLLECTION>'
+
+
+def _build_dj_playlists_xml(tracks: list[str], pruned_keys: list[str]) -> str:
+    '''Builds a DJ_PLAYLISTS XML string with PRODUCT, COLLECTION,
+    and PLAYLISTS/ROOT/CUE Analysis/_pruned structure.
+    '''
+    track_content  = '\n        '.join(tracks)
+    pruned_content = '\n                '.join(f'<TRACK Key="{k}"/>' for k in pruned_keys)
+    return f'''<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+    <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+    <COLLECTION Entries="{len(tracks)}">
+        {track_content}
+    </COLLECTION>
+    <PLAYLISTS>
+        <NODE Type="0" Name="ROOT" Count="2">
+            <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
+            <NODE Name="_pruned" Type="1" KeyType="0" Entries="{len(pruned_keys)}">
+                {pruned_content}
+            </NODE>
+        </NODE>
+    </PLAYLISTS>
+</DJ_PLAYLISTS>'''.strip()

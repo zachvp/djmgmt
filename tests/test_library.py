@@ -10,7 +10,10 @@ from djmgmt.tags import Tags
 from tests.fixtures import (
     MOCK_INPUT_DIR, MOCK_OUTPUT_DIR,
     TRACK_XML, COLLECTION_XML, XML_BASE,
+    COLLECTION_XML_EMPTY,
     _create_track_xml,
+    _build_collection_xml,
+    _build_dj_playlists_xml,
 )
 
 # Constants specific to library tests
@@ -29,31 +32,15 @@ def _build_single_track_collection_xml(mock_file: str) -> str:
     '''Builds a DJ_PLAYLISTS XML string with one existing track in COLLECTION and _pruned.
     Used by TestRecordCollection tests that need a pre-populated collection as mock input.
     '''
-    return f'''
-        <?xml version="1.0" encoding="UTF-8"?>
-
-        <DJ_PLAYLISTS Version="1.0.0">
-            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-            <COLLECTION Entries="1">
-                <TRACK {constants.ATTR_TRACK_ID}="1"
-                {constants.ATTR_TITLE}="{MOCK_TITLE}"
-                {constants.ATTR_ARTIST}="{MOCK_ARTIST}"
-                {constants.ATTR_ALBUM}="{MOCK_ALBUM}"
-                {constants.ATTR_GENRE}="{MOCK_GENRE}"
-                {constants.ATTR_KEY}="{MOCK_TONALITY}"
-                {constants.ATTR_DATE_ADDED}="{MOCK_DATE_ADDED}"
-                {constants.ATTR_LOCATION}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />
-            </COLLECTION>
-            <PLAYLISTS>
-                <NODE Type="0" Name="ROOT" Count="2">
-                    <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="1">
-                        <TRACK Key="1" />
-                    </NODE>
-                </NODE>
-            </PLAYLISTS>
-        </DJ_PLAYLISTS>
-        '''.strip()
+    track_xml = (f'<TRACK {constants.ATTR_TRACK_ID}="1"'
+                 f' {constants.ATTR_TITLE}="{MOCK_TITLE}"'
+                 f' {constants.ATTR_ARTIST}="{MOCK_ARTIST}"'
+                 f' {constants.ATTR_ALBUM}="{MOCK_ALBUM}"'
+                 f' {constants.ATTR_GENRE}="{MOCK_GENRE}"'
+                 f' {constants.ATTR_KEY}="{MOCK_TONALITY}"'
+                 f' {constants.ATTR_DATE_ADDED}="{MOCK_DATE_ADDED}"'
+                 f' {constants.ATTR_LOCATION}="file://localhost{MOCK_INPUT_DIR}/{mock_file}" />')
+    return _build_dj_playlists_xml([track_xml], ['1'])
 
 
 # Assertion helpers
@@ -301,48 +288,17 @@ TRACK_XML_COLLECTION = '''
 '''.strip()
 
 # collection XML that contains 2 tracks present in the '_pruned' playlist, and 1 track that only exists in the collection
-DJ_PLAYLISTS_XML = f'''
-<?xml version="1.0" encoding="UTF-8"?>
-
-<DJ_PLAYLISTS Version="1.0.0">
-    <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-    <COLLECTION Entries="3">
-    {TRACK_XML_COLLECTION}
-    {TRACK_XML_PLAYLIST_SIMPLE}
-    {TRACK_XML_PLAYLIST_ENCODED}
-    </COLLECTION>
-    <PLAYLISTS>
-        <NODE Type="0" Name="ROOT" Count="2">
-            <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-            <NODE Name="_pruned" Type="1" KeyType="0" Entries="2">
-            <TRACK Key="1"/>
-            <TRACK Key="2"/>
-            </NODE>
-        </NODE>
-    </PLAYLISTS>
-</DJ_PLAYLISTS>
-'''.strip()
+DJ_PLAYLISTS_XML = _build_dj_playlists_xml(
+    [TRACK_XML_COLLECTION, TRACK_XML_PLAYLIST_SIMPLE, TRACK_XML_PLAYLIST_ENCODED],
+    ['1', '2']
+)
 
 class TestFilterPathMappings(unittest.TestCase):
     # _pruned playlist is present but empty (no TRACK children)
-    XML_EMPTY_PLAYLIST = f'''
-        <?xml version="1.0" encoding="UTF-8"?>
-
-        <DJ_PLAYLISTS Version="1.0.0">
-            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-            <COLLECTION Entries="1">
-            {TRACK_XML_COLLECTION}
-            {TRACK_XML_PLAYLIST_SIMPLE}
-            </COLLECTION>
-            <PLAYLISTS>
-                <NODE Type="0" Name="ROOT" Count="2">
-                    <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="1">
-                    </NODE>
-                </NODE>
-            </PLAYLISTS>
-        </DJ_PLAYLISTS>
-        '''.strip()
+    XML_EMPTY_PLAYLIST = _build_dj_playlists_xml(
+        [TRACK_XML_COLLECTION, TRACK_XML_PLAYLIST_SIMPLE],
+        []
+    )
 
     def test_success_mappings_simple(self) -> None:
         '''Tests that the given simple mapping passes through the filter.'''
@@ -547,25 +503,7 @@ class TestGetPlayedTracks(unittest.TestCase):
         self.assertEqual(actual, ['0', '1'])
 
 class TestGetUnplayedTracks(unittest.TestCase):
-    XML_PRUNED = f'''
-        <?xml version="1.0" encoding="UTF-8"?>
-
-        <DJ_PLAYLISTS Version="1.0.0">
-            <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-            <COLLECTION Entries="0">
-            
-            </COLLECTION>
-            <PLAYLISTS>
-                <NODE Type="0" Name="ROOT" Count="2">
-                    <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-                    <NODE Name="_pruned" Type="1" KeyType="0" Entries="0">
-                        <TRACK Key="0"/>
-                        <TRACK Key="1"/>
-                    </NODE>
-                </NODE>
-            </PLAYLISTS>
-        </DJ_PLAYLISTS>
-        '''.strip()
+    XML_PRUNED = _build_dj_playlists_xml([], ['0', '1'])
     
     @patch('djmgmt.library.get_played_tracks')
     def test_success(self,
@@ -655,29 +593,6 @@ class TestCollectionTemplate(unittest.TestCase):
 
 class TestRecordTracks(unittest.TestCase):
     '''Tests for library.record_tracks - the shared function for recording playlists.'''
-
-    XML_INPUT = f'''
-    <?xml version="1.0" encoding="UTF-8"?>
-
-    <DJ_PLAYLISTS Version="1.0.0">
-        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="3">
-            {_create_track_xml(0)}
-            {_create_track_xml(1)}
-            {_create_track_xml(2)}
-        </COLLECTION>
-        <PLAYLISTS>
-            <NODE Type="0" Name="ROOT" Count="2">
-                <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-                <NODE Name="_pruned" Type="1" KeyType="0" Entries="3">
-                    <TRACK Key="0"/>
-                    <TRACK Key="1"/>
-                    <TRACK Key="2"/>
-                </NODE>
-            </NODE>
-        </PLAYLISTS>
-    </DJ_PLAYLISTS>
-    '''.strip()
 
     def test_success_unplayed_playlist(self) -> None:
         '''Tests that tracks are correctly written to the unplayed playlist.'''
@@ -1148,19 +1063,10 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
     def test_success(self) -> None:
         '''Tests that track metadata is extracted correctly from collection.'''
-        # Setup XML
-        collection_xml = '''
-            <COLLECTION Entries="1">
-                <TRACK
-                    TrackID="1"
-                    Name="Test Track"
-                    Artist="Test Artist"
-                    Album="Test Album"
-                    Location="file://localhost/Users/user/Music/DJ/test.aiff">
-                </TRACK>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Name="Test Track" Artist="Test Artist"'
+            ' Album="Test Album" Location="file://localhost/Users/user/Music/DJ/test.aiff"/>',
+        ]))
         source_path = '/Users/user/Music/DJ/test.aiff'
 
         # Call function
@@ -1176,9 +1082,7 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
     def test_track_not_found(self) -> None:
         '''Tests that None is returned when track is not found in collection.'''
-        # Setup empty collection
-        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(COLLECTION_XML_EMPTY)
         source_path = '/nonexistent/path.aiff'
 
         # Call function
@@ -1189,16 +1093,9 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
     def test_missing_metadata_fields(self) -> None:
         '''Tests that empty strings are returned for missing metadata fields.'''
-        # Setup XML with minimal attributes
-        collection_xml = '''
-            <COLLECTION Entries="1">
-                <TRACK
-                    TrackID="1"
-                    Location="file://localhost/Users/user/Music/DJ/test.aiff">
-                </TRACK>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Location="file://localhost/Users/user/Music/DJ/test.aiff"/>',
+        ]))
         source_path = '/Users/user/Music/DJ/test.aiff'
 
         # Call function
@@ -1214,19 +1111,10 @@ class TestExtractTrackMetadata(unittest.TestCase):
 
     def test_url_encoded_path(self) -> None:
         '''Tests that URL-encoded characters in path are handled correctly.'''
-        # Setup XML with URL-encoded path
-        collection_xml = '''
-            <COLLECTION Entries="1">
-                <TRACK
-                    TrackID="1"
-                    Name="Test Track"
-                    Artist="Test Artist"
-                    Album="Test Album"
-                    Location="file://localhost/Users/user/Music%20Library/test%20(mix).aiff">
-                </TRACK>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Name="Test Track" Artist="Test Artist"'
+            ' Album="Test Album" Location="file://localhost/Users/user/Music%20Library/test%20(mix).aiff"/>',
+        ]))
         source_path = '/Users/user/Music Library/test (mix).aiff'
 
         # Call function
@@ -1244,17 +1132,9 @@ class TestBuildTrackIndex(unittest.TestCase):
 
     def test_success_single_track(self) -> None:
         '''Tests that a single track is indexed by its Location attribute.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="1">
-                <TRACK
-                    TrackID="1"
-                    Name="Test Track"
-                    Location="file://localhost/path/to/track.aiff">
-                </TRACK>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Name="Test Track" Location="file://localhost/path/to/track.aiff"/>',
+        ]))
 
         # Call function
         result = library._build_track_index(collection)
@@ -1266,15 +1146,11 @@ class TestBuildTrackIndex(unittest.TestCase):
 
     def test_success_multiple_tracks(self) -> None:
         '''Tests that multiple tracks are indexed correctly.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="3">
-                <TRACK TrackID="1" Name="Track 1" Location="file://localhost/path/track1.aiff"/>
-                <TRACK TrackID="2" Name="Track 2" Location="file://localhost/path/track2.aiff"/>
-                <TRACK TrackID="3" Name="Track 3" Location="file://localhost/path/track3.aiff"/>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Name="Track 1" Location="file://localhost/path/track1.aiff"/>',
+            '<TRACK TrackID="2" Name="Track 2" Location="file://localhost/path/track2.aiff"/>',
+            '<TRACK TrackID="3" Name="Track 3" Location="file://localhost/path/track3.aiff"/>',
+        ]))
 
         # Call function
         result = library._build_track_index(collection)
@@ -1287,9 +1163,7 @@ class TestBuildTrackIndex(unittest.TestCase):
 
     def test_success_empty_collection(self) -> None:
         '''Tests that an empty collection returns an empty index.'''
-        # Setup
-        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(COLLECTION_XML_EMPTY)
 
         # Call function
         result = library._build_track_index(collection)
@@ -1299,14 +1173,10 @@ class TestBuildTrackIndex(unittest.TestCase):
 
     def test_success_track_without_location(self) -> None:
         '''Tests that tracks without Location attribute are skipped.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="2">
-                <TRACK TrackID="1" Name="Track With Location" Location="file://localhost/path/track.aiff"/>
-                <TRACK TrackID="2" Name="Track Without Location"/>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Name="Track With Location" Location="file://localhost/path/track.aiff"/>',
+            '<TRACK TrackID="2" Name="Track Without Location"/>',
+        ]))
 
         # Call function
         result = library._build_track_index(collection)
@@ -1320,66 +1190,22 @@ class TestMergeCollections(unittest.TestCase):
     '''Tests for library.merge_collections.'''
 
     # XML templates for testing
-    XML_PRIMARY = '''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <DJ_PLAYLISTS Version="1.0.0">
-        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="2">
-            <TRACK TrackID="1" Name="Track A" Artist="Artist A" Location="file://localhost/path/trackA.aiff"/>
-            <TRACK TrackID="2" Name="Track B" Artist="Artist B" Location="file://localhost/path/trackB.aiff"/>
-        </COLLECTION>
-        <PLAYLISTS>
-            <NODE Type="0" Name="ROOT" Count="1">
-                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            </NODE>
-        </PLAYLISTS>
-    </DJ_PLAYLISTS>
-    '''.strip()
-
-    XML_SECONDARY = '''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <DJ_PLAYLISTS Version="1.0.0">
-        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="2">
-            <TRACK TrackID="3" Name="Track C" Artist="Artist C" Location="file://localhost/path/trackC.aiff"/>
-            <TRACK TrackID="4" Name="Track D" Artist="Artist D" Location="file://localhost/path/trackD.aiff"/>
-        </COLLECTION>
-        <PLAYLISTS>
-            <NODE Type="0" Name="ROOT" Count="1">
-                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            </NODE>
-        </PLAYLISTS>
-    </DJ_PLAYLISTS>
-    '''.strip()
-
-    XML_OVERLAPPING = '''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <DJ_PLAYLISTS Version="1.0.0">
-        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="2">
-            <TRACK TrackID="5" Name="Track A Updated" Artist="Artist A Updated" Location="file://localhost/path/trackA.aiff"/>
-            <TRACK TrackID="6" Name="Track E" Artist="Artist E" Location="file://localhost/path/trackE.aiff"/>
-        </COLLECTION>
-        <PLAYLISTS>
-            <NODE Type="0" Name="ROOT" Count="1">
-                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            </NODE>
-        </PLAYLISTS>
-    </DJ_PLAYLISTS>
-    '''.strip()
-
-    XML_EMPTY = '''
-    <?xml version="1.0" encoding="UTF-8"?>
-    <DJ_PLAYLISTS Version="1.0.0">
-        <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-        <COLLECTION Entries="0"></COLLECTION>
-        <PLAYLISTS>
-            <NODE Type="0" Name="ROOT" Count="1">
-                <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            </NODE>
-        </PLAYLISTS>
-    </DJ_PLAYLISTS>
-    '''.strip()
+    XML_PRIMARY = _build_dj_playlists_xml(
+        ['<TRACK TrackID="1" Name="Track A" Artist="Artist A" Location="file://localhost/path/trackA.aiff"/>',
+         '<TRACK TrackID="2" Name="Track B" Artist="Artist B" Location="file://localhost/path/trackB.aiff"/>'],
+        []
+    )
+    XML_SECONDARY = _build_dj_playlists_xml(
+        ['<TRACK TrackID="3" Name="Track C" Artist="Artist C" Location="file://localhost/path/trackC.aiff"/>',
+         '<TRACK TrackID="4" Name="Track D" Artist="Artist D" Location="file://localhost/path/trackD.aiff"/>'],
+        []
+    )
+    XML_OVERLAPPING = _build_dj_playlists_xml(
+        ['<TRACK TrackID="5" Name="Track A Updated" Artist="Artist A Updated" Location="file://localhost/path/trackA.aiff"/>',
+         '<TRACK TrackID="6" Name="Track E" Artist="Artist E" Location="file://localhost/path/trackE.aiff"/>'],
+        []
+    )
+    XML_EMPTY = _build_dj_playlists_xml([], [])
 
     def setUp(self) -> None:
         self.mock_load_collection = patch('djmgmt.library.load_collection').start()
@@ -1508,13 +1334,9 @@ class TestBuildTrackIdToLocation(unittest.TestCase):
 
     def test_success_single_track(self) -> None:
         '''Tests that a single track is mapped from TrackID to Location.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="1">
-                <TRACK TrackID="123" Name="Test Track" Location="file://localhost/path/to/track.aiff"/>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="123" Name="Test Track" Location="file://localhost/path/to/track.aiff"/>',
+        ]))
 
         # Call function
         result = library._build_track_id_to_location(collection)
@@ -1525,15 +1347,11 @@ class TestBuildTrackIdToLocation(unittest.TestCase):
 
     def test_success_multiple_tracks(self) -> None:
         '''Tests that multiple tracks are mapped correctly.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="3">
-                <TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>
-                <TRACK TrackID="2" Location="file://localhost/path/track2.aiff"/>
-                <TRACK TrackID="3" Location="file://localhost/path/track3.aiff"/>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>',
+            '<TRACK TrackID="2" Location="file://localhost/path/track2.aiff"/>',
+            '<TRACK TrackID="3" Location="file://localhost/path/track3.aiff"/>',
+        ]))
 
         # Call function
         result = library._build_track_id_to_location(collection)
@@ -1546,9 +1364,7 @@ class TestBuildTrackIdToLocation(unittest.TestCase):
 
     def test_success_empty_collection(self) -> None:
         '''Tests that an empty collection returns an empty mapping.'''
-        # Setup
-        collection_xml = '<COLLECTION Entries="0"></COLLECTION>'
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(COLLECTION_XML_EMPTY)
 
         # Call function
         result = library._build_track_id_to_location(collection)
@@ -1558,15 +1374,11 @@ class TestBuildTrackIdToLocation(unittest.TestCase):
 
     def test_success_track_missing_id_or_location(self) -> None:
         '''Tests that tracks missing TrackID or Location are skipped.'''
-        # Setup
-        collection_xml = '''
-            <COLLECTION Entries="3">
-                <TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>
-                <TRACK TrackID="2"/>
-                <TRACK Location="file://localhost/path/track3.aiff"/>
-            </COLLECTION>
-        '''.strip()
-        collection = ET.fromstring(collection_xml)
+        collection = ET.fromstring(_build_collection_xml([
+            '<TRACK TrackID="1" Location="file://localhost/path/track1.aiff"/>',
+            '<TRACK TrackID="2"/>',
+            '<TRACK Location="file://localhost/path/track3.aiff"/>',
+        ]))
 
         # Call function
         result = library._build_track_id_to_location(collection)
@@ -1581,21 +1393,7 @@ class TestGetPlaylistTrackKeys(unittest.TestCase):
 
     def test_success_with_tracks(self) -> None:
         '''Tests extracting track keys from a playlist with tracks.'''
-        # Setup
-        root_xml = '''
-            <DJ_PLAYLISTS>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="3">
-                            <TRACK Key="1"/>
-                            <TRACK Key="2"/>
-                            <TRACK Key="3"/>
-                        </NODE>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-        root = ET.fromstring(root_xml)
+        root = ET.fromstring(_build_dj_playlists_xml([], ['1', '2', '3']))
 
         # Call function
         result = library._get_playlist_track_keys(root, constants.XPATH_PRUNED)
@@ -1605,17 +1403,7 @@ class TestGetPlaylistTrackKeys(unittest.TestCase):
 
     def test_success_empty_playlist(self) -> None:
         '''Tests extracting keys from an empty playlist.'''
-        # Setup
-        root_xml = '''
-            <DJ_PLAYLISTS>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="0"/>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-        root = ET.fromstring(root_xml)
+        root = ET.fromstring(_build_dj_playlists_xml([], []))
 
         # Call function
         result = library._get_playlist_track_keys(root, constants.XPATH_PRUNED)
@@ -1648,41 +1436,16 @@ class TestMergePlaylistReferences(unittest.TestCase):
     def test_success_disjoint_playlists(self) -> None:
         '''Tests merging playlists with no overlapping tracks.'''
         # Setup - primary has tracks 1,2; secondary has tracks 3,4
-        primary_root_xml = '''
-            <DJ_PLAYLISTS>
-                <COLLECTION Entries="2">
-                    <TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>
-                    <TRACK TrackID="2" Location="file://localhost/path/trackB.aiff"/>
-                </COLLECTION>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="2">
-                            <TRACK Key="1"/>
-                            <TRACK Key="2"/>
-                        </NODE>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-        secondary_root_xml = '''
-            <DJ_PLAYLISTS>
-                <COLLECTION Entries="2">
-                    <TRACK TrackID="3" Location="file://localhost/path/trackC.aiff"/>
-                    <TRACK TrackID="4" Location="file://localhost/path/trackD.aiff"/>
-                </COLLECTION>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="2">
-                            <TRACK Key="3"/>
-                            <TRACK Key="4"/>
-                        </NODE>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-
-        primary_root = ET.fromstring(primary_root_xml)
-        secondary_root = ET.fromstring(secondary_root_xml)
+        primary_root = ET.fromstring(_build_dj_playlists_xml(
+            ['<TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>',
+             '<TRACK TrackID="2" Location="file://localhost/path/trackB.aiff"/>'],
+            ['1', '2']
+        ))
+        secondary_root = ET.fromstring(_build_dj_playlists_xml(
+            ['<TRACK TrackID="3" Location="file://localhost/path/trackC.aiff"/>',
+             '<TRACK TrackID="4" Location="file://localhost/path/trackD.aiff"/>'],
+            ['3', '4']
+        ))
         primary_collection = primary_root.find(constants.XPATH_COLLECTION)
         secondary_collection = secondary_root.find(constants.XPATH_COLLECTION)
         assert primary_collection is not None
@@ -1709,37 +1472,14 @@ class TestMergePlaylistReferences(unittest.TestCase):
     def test_success_overlapping_by_location(self) -> None:
         '''Tests that overlapping tracks (same location) are deduplicated.'''
         # Setup - both playlists reference trackA at same location but different IDs
-        primary_root_xml = '''
-            <DJ_PLAYLISTS>
-                <COLLECTION Entries="1">
-                    <TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>
-                </COLLECTION>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="1">
-                            <TRACK Key="1"/>
-                        </NODE>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-        secondary_root_xml = '''
-            <DJ_PLAYLISTS>
-                <COLLECTION Entries="1">
-                    <TRACK TrackID="99" Location="file://localhost/path/trackA.aiff"/>
-                </COLLECTION>
-                <PLAYLISTS>
-                    <NODE Type="0" Name="ROOT">
-                        <NODE Name="_pruned" Type="1" Entries="1">
-                            <TRACK Key="99"/>
-                        </NODE>
-                    </NODE>
-                </PLAYLISTS>
-            </DJ_PLAYLISTS>
-        '''.strip()
-
-        primary_root = ET.fromstring(primary_root_xml)
-        secondary_root = ET.fromstring(secondary_root_xml)
+        primary_root = ET.fromstring(_build_dj_playlists_xml(
+            ['<TRACK TrackID="1" Location="file://localhost/path/trackA.aiff"/>'],
+            ['1']
+        ))
+        secondary_root = ET.fromstring(_build_dj_playlists_xml(
+            ['<TRACK TrackID="99" Location="file://localhost/path/trackA.aiff"/>'],
+            ['99']
+        ))
         primary_collection = primary_root.find(constants.XPATH_COLLECTION)
         secondary_collection = secondary_root.find(constants.XPATH_COLLECTION)
         assert primary_collection is not None
