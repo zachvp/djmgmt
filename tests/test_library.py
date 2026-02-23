@@ -25,7 +25,6 @@ MOCK_DATE_ADDED      = 'mock_date_added'
 
 
 # Builder functions
-
 def _build_single_track_collection_xml(mock_file: str) -> str:
     '''Builds a DJ_PLAYLISTS XML string with one existing track in COLLECTION and _pruned.
     Used by TestRecordCollection tests that need a pre-populated collection as mock input.
@@ -58,74 +57,73 @@ def _build_single_track_collection_xml(mock_file: str) -> str:
 
 
 # Assertion helpers
-
-def _assert_dj_playlists_structure(tc: unittest.TestCase,
+def _assert_dj_playlists_structure(test_case: unittest.TestCase,
                                     dj_playlists: ET.Element,
                                     expected_track_count: int) -> None:
     '''Asserts the standard DJ_PLAYLISTS wrapper structure produced by record_collection:
     PRODUCT node, COLLECTION with correct count, PLAYLISTS/ROOT/_pruned structure.
     '''
-    tc.assertEqual(len(dj_playlists), 3)
-    tc.assertEqual(dj_playlists.tag, 'DJ_PLAYLISTS')
-    tc.assertEqual(dj_playlists.attrib, {'Version': '1.0.0'})
+    test_case.assertEqual(len(dj_playlists), 3)
+    test_case.assertEqual(dj_playlists.tag, 'DJ_PLAYLISTS')
+    test_case.assertEqual(dj_playlists.attrib, {'Version': '1.0.0'})
 
     # Check PRODUCT node
     product = dj_playlists[0]
-    tc.assertEqual(product.tag, 'PRODUCT')
-    tc.assertEqual(product.attrib, {'Name': 'rekordbox', 'Version': '6.8.5', 'Company': 'AlphaTheta'})
+    test_case.assertEqual(product.tag, 'PRODUCT')
+    test_case.assertEqual(product.attrib, {'Name': 'rekordbox', 'Version': '6.8.5', 'Company': 'AlphaTheta'})
 
     # Check COLLECTION node
     collection = dj_playlists[1]
-    tc.assertEqual(collection.tag, 'COLLECTION')
-    tc.assertEqual(collection.attrib, {'Entries': str(expected_track_count)})
-    tc.assertEqual(len(collection), expected_track_count)
+    test_case.assertEqual(collection.tag, 'COLLECTION')
+    test_case.assertEqual(collection.attrib, {'Entries': str(expected_track_count)})
+    test_case.assertEqual(len(collection), expected_track_count)
 
     # Check PLAYLISTS/ROOT structure
     playlists = dj_playlists[2]
-    tc.assertEqual(len(playlists), 1)
+    test_case.assertEqual(len(playlists), 1)
     playlist_root = playlists[0]
-    tc.assertEqual(playlist_root.tag, 'NODE')
-    tc.assertEqual(playlist_root.attrib, {'Type': '0', 'Name': 'ROOT', 'Count': '2'})
-    tc.assertEqual(len(playlist_root), 2)
+    test_case.assertEqual(playlist_root.tag, 'NODE')
+    test_case.assertEqual(playlist_root.attrib, {'Type': '0', 'Name': 'ROOT', 'Count': '2'})
+    test_case.assertEqual(len(playlist_root), 2)
 
     cue_analysis = playlist_root[0]
-    tc.assertEqual(cue_analysis.tag, 'NODE')
-    tc.assertEqual(cue_analysis.attrib, {'Name': 'CUE Analysis Playlist', 'Type': '1', 'KeyType': '0', 'Entries': '0'})
-    tc.assertEqual(len(cue_analysis), 0)
+    test_case.assertEqual(cue_analysis.tag, 'NODE')
+    test_case.assertEqual(cue_analysis.attrib, {'Name': 'CUE Analysis Playlist', 'Type': '1', 'KeyType': '0', 'Entries': '0'})
+    test_case.assertEqual(len(cue_analysis), 0)
 
     pruned = playlist_root[1]
-    tc.assertEqual(pruned.tag, 'NODE')
-    tc.assertIn(constants.ATTR_TITLE, pruned.attrib)
-    tc.assertEqual(pruned.attrib[constants.ATTR_TITLE], '_pruned')
+    test_case.assertEqual(pruned.tag, 'NODE')
+    test_case.assertIn(constants.ATTR_TITLE, pruned.attrib)
+    test_case.assertEqual(pruned.attrib[constants.ATTR_TITLE], '_pruned')
 
 
-def _assert_track_attrs_from_tags(tc: unittest.TestCase, track: ET.Element) -> None:
+def _assert_track_attrs_from_tags(test_case: unittest.TestCase, track: ET.Element) -> None:
     '''Asserts that a TRACK element has attributes matching the standard mock Tags values.'''
-    tc.assertEqual(track.tag, 'TRACK')
-    tc.assertEqual(len(track), 0)
+    test_case.assertEqual(track.tag, 'TRACK')
+    test_case.assertEqual(len(track), 0)
 
-    tc.assertIn(constants.ATTR_TRACK_ID, track.attrib)
-    tc.assertRegex(track.attrib[constants.ATTR_TRACK_ID], r'\d+')
+    test_case.assertIn(constants.ATTR_TRACK_ID, track.attrib)
+    test_case.assertRegex(track.attrib[constants.ATTR_TRACK_ID], r'\d+')
 
-    tc.assertIn(constants.ATTR_TITLE, track.attrib)
-    tc.assertEqual(track.attrib[constants.ATTR_TITLE], MOCK_TITLE)
+    test_case.assertIn(constants.ATTR_TITLE, track.attrib)
+    test_case.assertEqual(track.attrib[constants.ATTR_TITLE], MOCK_TITLE)
 
-    tc.assertIn(constants.ATTR_ARTIST, track.attrib)
-    tc.assertEqual(track.attrib[constants.ATTR_ARTIST], MOCK_ARTIST)
+    test_case.assertIn(constants.ATTR_ARTIST, track.attrib)
+    test_case.assertEqual(track.attrib[constants.ATTR_ARTIST], MOCK_ARTIST)
 
-    tc.assertIn(constants.ATTR_ALBUM, track.attrib)
-    tc.assertEqual(track.attrib[constants.ATTR_ALBUM], MOCK_ALBUM)
+    test_case.assertIn(constants.ATTR_ALBUM, track.attrib)
+    test_case.assertEqual(track.attrib[constants.ATTR_ALBUM], MOCK_ALBUM)
 
-    tc.assertIn(constants.ATTR_DATE_ADDED, track.attrib)
-    tc.assertRegex(track.attrib[constants.ATTR_DATE_ADDED], r'\d{4}-\d{2}-\d{2}')
+    test_case.assertIn(constants.ATTR_DATE_ADDED, track.attrib)
+    test_case.assertRegex(track.attrib[constants.ATTR_DATE_ADDED], r'\d{4}-\d{2}-\d{2}')
 
-    tc.assertIn(constants.ATTR_GENRE, track.attrib)
-    tc.assertEqual(track.attrib[constants.ATTR_GENRE], MOCK_GENRE)
+    test_case.assertIn(constants.ATTR_GENRE, track.attrib)
+    test_case.assertEqual(track.attrib[constants.ATTR_GENRE], MOCK_GENRE)
 
-    tc.assertIn('Tonality', track.attrib)
-    tc.assertEqual(track.attrib['Tonality'], MOCK_TONALITY)
+    test_case.assertIn('Tonality', track.attrib)
+    test_case.assertEqual(track.attrib['Tonality'], MOCK_TONALITY)
 
-    tc.assertIn(constants.ATTR_LOCATION, track.attrib)
+    test_case.assertIn(constants.ATTR_LOCATION, track.attrib)
 
 # Test classes
 class TestGenerateDatePaths(unittest.TestCase):
