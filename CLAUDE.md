@@ -156,6 +156,33 @@ Configuration is in `pyrightconfig.json`.
 - Extracts: artist, album, title, genre, key, cover image
 - Perceptual image hashing for cover art comparison
 
+**playlist.py**: DJ mix management
+- Parses Rekordbox TSV playlist exports
+- `Mix` dataclass tracking recordings, playlists, cover art, Soundcloud URLs
+- Manages structured mix data via CSV
+- Extracts track lists from TSV playlist files
+
+**genre.py**: Genre analysis and reporting
+- Outputs genre counts from Rekordbox XML collections
+- Identifies tracks missing from playlists
+
+**tags_sort.py**: Directory structure standardization
+- Sorts music files into artist/album or date-based directory structures from metadata
+- Validates directories against expected structure
+
+**batch_general.py**: Bulk file operations
+- Moves files in bulk from TSV input file listings
+
+**restore_metadata.py**: Collection restoration
+- Reconstructs corrected Rekordbox collection from an accurate reference collection
+- Restores DateAdded attributes using generated track identifiers
+
+**ui/**: Streamlit web interface
+- `app.py`: Main Streamlit application with config editor
+- `pages/`: Page modules for library, music, playlist, sync, tags_info
+- `components/`: Reusable UI components (function selector, recent file input)
+- `utils/`: Configuration management and page base classes
+
 ### XML Collection Structure
 
 The Rekordbox XML format (`collection.xml`) contains:
@@ -184,10 +211,10 @@ This structure:
 ### Remote Sync Configuration
 
 Server connection defined in `constants.py`:
-- Host: `corevega.local`
-- Rsync daemon on port 12000
-- Module: `navidrome`
-- Protocol: `rsync://user@host:port/module`
+- `COREVEGA_HOST`: `corevega.local`
+- `RSYNC_PORT`: `12000`
+- `RSYNC_MODULE_NAVIDROME`: `navidrome`
+- `RSYNC_URL`: `rsync://zachvp@corevega.local:12000`
 
 Sync process validates rsync daemon availability before transfer.
 
@@ -198,11 +225,15 @@ Sync process validates rsync daemon availability before transfer.
 `EXTENSIONS`: Supported audio formats: `.mp3`, `.wav`, `.aif`, `.aiff`, `.flac`
 
 State files stored in `state/`:
-- `processed-collection.xml`: Current library state
+- `collection-template.xml`: Template for new collections
 - `sync_state.txt`: Last synced date context
-- `output/`: Various output files (missing art, track identifiers)
+- `output/processed-collection.xml`: Current library state
+- `output/dynamic-collection.xml`: Dynamic playlist output
+- `output/merged-collection.xml`: Merged collections
+- `output/missing-art.txt`: Tracks missing cover art
+- `output/playlists/`: Playlist output files
 
-Logs written to `src/logs/` directory.
+Logs written to `logs/` directory (at project root).
 
 ## Subsonic API Integration
 
@@ -213,7 +244,7 @@ The `subsonic_client.py` module interacts with the Navidrome server:
 
 ## Common Patterns
 
-**Logging**: All scripts use `common.configure_log()` to set up file-based logging in `src/logs/`
+**Logging**: All scripts use `common.configure_log()` to set up file-based logging in `logs/`
 
 **Path Collection**: Use `common.collect_paths(root, filter={extensions})` to recursively gather file paths
 
@@ -221,6 +252,8 @@ The `subsonic_client.py` module interacts with the Navidrome server:
 
 **Async Encoding**: Use `asyncio.run()` to execute batch encoding operations with configurable thread count
 
-**Interactive Mode**: Most functions support `--interactive` flag for confirmation prompts
+**Interactive Mode**: Some functions support `--interactive` flag for confirmation prompts
+
+**Tests**:
 - In test assertions, always use appropriate "assert{DataType}Equal" assertions depending on the data type. For example use  "assertListEqual" to compare lists,  "assertDictEqual" to compare dicts, and so on.
-- Except in the context of annotations (e.g., `@patch`), reference `@staticmethod` methods via class name, NOT `self`. So favor `ClassName.static_method()` rather than `self.static_method()`
+- Except in the context of annotations (e.g., `@patch`), reference `@staticmethod` methods and constants via class name, NOT `self`. So favor `ClassName.static_method()` rather than `self.static_method()`
