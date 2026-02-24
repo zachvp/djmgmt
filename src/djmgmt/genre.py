@@ -3,6 +3,7 @@ Outputs genres and track counts according to the given rekordbox XML collection 
 '''
 
 import os
+import sys
 import argparse
 from collections import defaultdict
 import xml.etree.ElementTree as ET
@@ -168,15 +169,15 @@ class Namespace(argparse.Namespace):
         SOURCE_PRUNED
     }    
 
-def parse_args(valid_modes: set[str], valid_sources: set[str]) -> type[Namespace]:
+def parse_args(valid_modes: set[str], valid_sources: set[str], argv: list[str]) -> type[Namespace]:
     parser = argparse.ArgumentParser(description=__doc__)
-    
+
     # required
     parser.add_argument('input', type=str, help="The input path to the XML collection.")
     parser.add_argument('mode', type=str, help=f"The script output mode. One of '{valid_modes}'.")
     parser.add_argument('source', type=str, help=f"The Rekordbox source. One of '{valid_sources}'")
 
-    args = parser.parse_args(namespace=Namespace)
+    args = parser.parse_args(argv, namespace=Namespace)
     args.input = os.path.normpath(args.input)
 
     if args.mode not in valid_modes:
@@ -219,5 +220,8 @@ def script(args: type[Namespace]) -> None:
     elif args.mode == Namespace.MODE_PATHS:
         output_collection_filter(collection)
 
+def main(argv: list[str]) -> None:
+    script(parse_args(Namespace.MODES, Namespace.SOURCES, argv[1:]))
+
 if __name__ == '__main__':
-    script(parse_args(Namespace.MODES, Namespace.SOURCES))
+    main(sys.argv)
