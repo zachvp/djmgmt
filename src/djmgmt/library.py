@@ -217,6 +217,121 @@ def _add_playlist_tracks(base_root: ET.Element, tracks: list[str], playlist_xpat
 
     return base_root
 
+def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
+    '''Builds a mapping from Location attribute to TRACK element.
+
+    Args:
+        collection: The COLLECTION node containing TRACK elements
+
+    Returns:
+        Dict mapping Location URL to TRACK element
+    '''
+    index: dict[str, ET.Element] = {}
+    for track in collection:
+        location = track.get(constants.ATTR_LOCATION)
+        if location:
+            index[location] = track
+        else:
+            logging.warning(f"No location exists for track {track.get(constants.ATTR_TRACK_ID)}")
+    return index
+
+def _build_track_id_to_location(collection: ET.Element) -> dict[str, str]:
+    '''Builds a mapping from TrackID to Location for playlist reference resolution.
+
+    Args:
+        collection: The COLLECTION node containing TRACK elements
+
+    Returns:
+        Dict mapping TrackID to Location URL
+    '''
+    mapping: dict[str, str] = {}
+    for track in collection:
+        track_id = track.get(constants.ATTR_TRACK_ID)
+        location = track.get(constants.ATTR_LOCATION)
+        if track_id and location:
+            mapping[track_id] = location
+    return mapping
+
+
+def _get_playlist_track_keys(root: ET.Element, playlist_xpath: str) -> set[str]:
+    '''Gets all track Key values from a playlist.
+
+    Args:
+        root: The XML root element
+        playlist_xpath: XPath to the playlist node
+
+    Returns:
+        Set of track Key values (TrackIDs referenced by the playlist)
+    '''
+    try:
+        playlist = find_node(root, playlist_xpath)
+    except ValueError:
+        return set()
+
+    keys: set[str] = set()
+    for track in playlist.findall(constants.TAG_TRACK):
+        key = track.get(constants.ATTR_TRACK_KEY)
+        if key:
+            keys.add(key)
+    return keys
+
+
+def _merge_playlist_references(
+    primary_root: ET.Element,
+    secondary_root: ET.Element,
+    primary_collection: ET.Element,
+    secondary_collection: ET.Element,
+    merged_track_index: dict[str, ET.Element],
+    playlist_xpath: str
+) -> set[str]:
+    '''Merges playlist track references from two collections.
+
+    Resolves TrackID references to Locations, then maps back to the merged
+    collection's TrackIDs. Deduplicates by Location to handle ID conflicts.
+
+    Args:
+        primary_root: Primary XML root
+        secondary_root: Secondary XML root
+        primary_collection: Primary COLLECTION node
+        secondary_collection: Secondary COLLECTION node
+        merged_track_index: Location -> TRACK mapping of merged collection
+        playlist_xpath: XPath to the playlist to merge
+
+    Returns:
+        Set of TrackIDs for the merged playlist
+    '''
+    # build TrackID -> Location mappings for both collections
+    primary_id_to_loc = _build_track_id_to_location(primary_collection)
+    secondary_id_to_loc = _build_track_id_to_location(secondary_collection)
+
+    # get playlist track keys from both
+    primary_keys = _get_playlist_track_keys(primary_root, playlist_xpath)
+    secondary_keys = _get_playlist_track_keys(secondary_root, playlist_xpath)
+
+    # resolve keys to locations (deduplicate by location)
+    merged_locations: set[str] = set()
+
+    for key in primary_keys:
+        location = primary_id_to_loc.get(key)
+        if location:
+            merged_locations.add(location)
+
+    for key in secondary_keys:
+        location = secondary_id_to_loc.get(key)
+        if location:
+            merged_locations.add(location)
+
+    # map locations back to merged TrackIDs
+    merged_keys: set[str] = set()
+    for location in merged_locations:
+        track = merged_track_index.get(location)
+        if track is not None:
+            track_id = track.get(constants.ATTR_TRACK_ID)
+            if track_id:
+                merged_keys.add(track_id)
+
+    return merged_keys
+
 # External helpers
 def date_path(date: str, mapping: dict[int, str]) -> str:
     '''Returns a date-formatted directory path string. e.g:
@@ -418,11 +533,11 @@ def write_root(root: ET.Element, file_path: str) -> None:
     tree = ET.ElementTree(root)
     tree.write(file_path, encoding='UTF-8', xml_declaration=True)
 
-# Primary functions
-def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
-    collection = load_collection(args.collection)
-    collection = find_node(collection, constants.XPATH_COLLECTION)
-    return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
+def get_pipe_output(structure: list[FileMapping]) -> str:
+    output = []
+    for item in structure:
+        output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
+    return ''.join(output).strip()
 
 def generate_date_paths(collection: ET.Element,
                         root_path: str,
@@ -459,46 +574,6 @@ def generate_date_paths(collection: ET.Element,
         paths.append((track_path_old, track_path_new))
     
     return paths
-
-def get_pipe_output(structure: list[FileMapping]) -> str:
-    output = []
-    for item in structure:
-        output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
-    return ''.join(output).strip()
-
-def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
-    from .tags import Tags
-    
-    identifiers: list[str] = []
-    
-    for node in collection:
-        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
-        # check if a playlist is provided
-        if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
-            logging.debug(f"skip non-playlist track: '{node_syspath}'")
-            continue
-        # load track tags, check for errors
-        tags = Tags.load(node_syspath)
-        if not tags or not tags.artist or not tags.title:
-            logging.error(f"incomplete tags: {tags}")
-            continue
-        
-        identifiers.append(tags.basic_identifier())
-    
-    return identifiers
-
-def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
-    names: list[str] = []
-    for node in collection:
-        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
-        # check if a playlist is provided
-        if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
-            logging.debug(f"skip non-playlist track: '{node_syspath}'")
-            continue
-        name = os.path.basename(node_syspath)
-        name = os.path.splitext(name)[0]
-        names.append(name)
-    return names
 
 def record_collection(source: str, base_collection_path: str, output_collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
@@ -598,155 +673,6 @@ def record_collection(source: str, base_collection_path: str, output_collection_
         tracks_updated=updated_tracks
     )
 
-def record_dynamic_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
-    '''Updates both the 'dynamic.played' and 'dynamic.unplayed' playlists in the output XML collection.
-
-    Args:
-        input_collection_path: Path to the input collection XML file
-        output_collection_path: Path where the output collection XML will be written
-
-    Returns:
-        The modified root element
-    '''
-    # load the collection and base roots
-    collection_root = load_collection(input_collection_path)
-    base_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
-
-    # copy collection to base
-    base_collection = find_node(base_root, constants.XPATH_COLLECTION)
-    collection = find_node(collection_root, constants.XPATH_COLLECTION)
-    base_collection.clear()
-    base_collection.attrib = collection.attrib
-    for track in collection:
-        base_collection.append(track)
-
-    # update all playlists on the same base_root
-    _add_pruned_tracks(collection_root, base_root)
-    _add_played_tracks(collection_root, base_root)
-    _add_unplayed_tracks(collection_root, base_root)
-
-    # write the result to file
-    write_root(base_root, output_collection_path)
-
-    return base_root
-
-def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
-    '''Builds a mapping from Location attribute to TRACK element.
-
-    Args:
-        collection: The COLLECTION node containing TRACK elements
-
-    Returns:
-        Dict mapping Location URL to TRACK element
-    '''
-    index: dict[str, ET.Element] = {}
-    for track in collection:
-        location = track.get(constants.ATTR_LOCATION)
-        if location:
-            index[location] = track
-        else:
-            logging.warning(f"No location exists for track {track.get(constants.ATTR_TRACK_ID)}")
-    return index
-
-
-def _build_track_id_to_location(collection: ET.Element) -> dict[str, str]:
-    '''Builds a mapping from TrackID to Location for playlist reference resolution.
-
-    Args:
-        collection: The COLLECTION node containing TRACK elements
-
-    Returns:
-        Dict mapping TrackID to Location URL
-    '''
-    mapping: dict[str, str] = {}
-    for track in collection:
-        track_id = track.get(constants.ATTR_TRACK_ID)
-        location = track.get(constants.ATTR_LOCATION)
-        if track_id and location:
-            mapping[track_id] = location
-    return mapping
-
-
-def _get_playlist_track_keys(root: ET.Element, playlist_xpath: str) -> set[str]:
-    '''Gets all track Key values from a playlist.
-
-    Args:
-        root: The XML root element
-        playlist_xpath: XPath to the playlist node
-
-    Returns:
-        Set of track Key values (TrackIDs referenced by the playlist)
-    '''
-    try:
-        playlist = find_node(root, playlist_xpath)
-    except ValueError:
-        return set()
-
-    keys: set[str] = set()
-    for track in playlist.findall(constants.TAG_TRACK):
-        key = track.get(constants.ATTR_TRACK_KEY)
-        if key:
-            keys.add(key)
-    return keys
-
-
-def _merge_playlist_references(
-    primary_root: ET.Element,
-    secondary_root: ET.Element,
-    primary_collection: ET.Element,
-    secondary_collection: ET.Element,
-    merged_track_index: dict[str, ET.Element],
-    playlist_xpath: str
-) -> set[str]:
-    '''Merges playlist track references from two collections.
-
-    Resolves TrackID references to Locations, then maps back to the merged
-    collection's TrackIDs. Deduplicates by Location to handle ID conflicts.
-
-    Args:
-        primary_root: Primary XML root
-        secondary_root: Secondary XML root
-        primary_collection: Primary COLLECTION node
-        secondary_collection: Secondary COLLECTION node
-        merged_track_index: Location -> TRACK mapping of merged collection
-        playlist_xpath: XPath to the playlist to merge
-
-    Returns:
-        Set of TrackIDs for the merged playlist
-    '''
-    # build TrackID -> Location mappings for both collections
-    primary_id_to_loc = _build_track_id_to_location(primary_collection)
-    secondary_id_to_loc = _build_track_id_to_location(secondary_collection)
-
-    # get playlist track keys from both
-    primary_keys = _get_playlist_track_keys(primary_root, playlist_xpath)
-    secondary_keys = _get_playlist_track_keys(secondary_root, playlist_xpath)
-
-    # resolve keys to locations (deduplicate by location)
-    merged_locations: set[str] = set()
-
-    for key in primary_keys:
-        location = primary_id_to_loc.get(key)
-        if location:
-            merged_locations.add(location)
-
-    for key in secondary_keys:
-        location = secondary_id_to_loc.get(key)
-        if location:
-            merged_locations.add(location)
-
-    # map locations back to merged TrackIDs
-    merged_keys: set[str] = set()
-    for location in merged_locations:
-        track = merged_track_index.get(location)
-        if track is not None:
-            track_id = track.get(constants.ATTR_TRACK_ID)
-            if track_id:
-                merged_keys.add(track_id)
-
-    return merged_keys
-
-
 def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     '''Merges two Rekordbox XML collections into a single root element.
 
@@ -817,6 +743,77 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     logging.info(f"Merged collections: {len(track_index)} tracks, {len(merged_pruned_keys)} pruned")
     return output_root
 
+# Primary functions
+def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
+    collection = load_collection(args.collection)
+    collection = find_node(collection, constants.XPATH_COLLECTION)
+    return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
+
+def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
+    from .tags import Tags
+    
+    identifiers: list[str] = []
+    
+    for node in collection:
+        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
+        # check if a playlist is provided
+        if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
+            logging.debug(f"skip non-playlist track: '{node_syspath}'")
+            continue
+        # load track tags, check for errors
+        tags = Tags.load(node_syspath)
+        if not tags or not tags.artist or not tags.title:
+            logging.error(f"incomplete tags: {tags}")
+            continue
+        
+        identifiers.append(tags.basic_identifier())
+    
+    return identifiers
+
+def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
+    names: list[str] = []
+    for node in collection:
+        node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
+        # check if a playlist is provided
+        if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
+            logging.debug(f"skip non-playlist track: '{node_syspath}'")
+            continue
+        name = os.path.basename(node_syspath)
+        name = os.path.splitext(name)[0]
+        names.append(name)
+    return names
+
+def record_dynamic_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
+    '''Updates both the 'dynamic.played' and 'dynamic.unplayed' playlists in the output XML collection.
+
+    Args:
+        input_collection_path: Path to the input collection XML file
+        output_collection_path: Path where the output collection XML will be written
+
+    Returns:
+        The modified root element
+    '''
+    # load the collection and base roots
+    collection_root = load_collection(input_collection_path)
+    base_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
+
+    # copy collection to base
+    base_collection = find_node(base_root, constants.XPATH_COLLECTION)
+    collection = find_node(collection_root, constants.XPATH_COLLECTION)
+    base_collection.clear()
+    base_collection.attrib = collection.attrib
+    for track in collection:
+        base_collection.append(track)
+
+    # update all playlists on the same base_root
+    _add_pruned_tracks(collection_root, base_root)
+    _add_played_tracks(collection_root, base_root)
+    _add_unplayed_tracks(collection_root, base_root)
+
+    # write the result to file
+    write_root(base_root, output_collection_path)
+
+    return base_root
 
 # Main
 if __name__ == '__main__':
