@@ -9,6 +9,7 @@ Format
 
 import argparse
 import os
+import sys
 import csv
 import re
 import logging
@@ -497,14 +498,11 @@ def generate_m3u8(
 
 
 # main
-if __name__ == '__main__':
-    import sys
-    
-    # log config
+def main(argv: list[str]) -> None:
     common.configure_log_module(__file__)
-    
-    args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
-    
+
+    args = parse_args(Namespace.FUNCTIONS, argv[1:])
+
     if args.function == Namespace.FUNCTION_EXTRACT_PLAYLIST:
         result = extract(args.function, args.number, args.title, args.artist, args.genre)
         print('\n'.join(result))
@@ -515,3 +513,6 @@ if __name__ == '__main__':
                   cover_image_path=args.cover_image_path,
                   transcoded_file_path=args.transcoded_file_path,
                   csv_file_path=args.csv_file_path)
+
+if __name__ == '__main__':
+    main(sys.argv)
