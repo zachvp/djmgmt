@@ -24,6 +24,16 @@ class TestFilenameNoExt(unittest.TestCase):
         self.assertEqual(actual, 'test_common')
 
 class TestConfigureLog(unittest.TestCase):
+    def setUp(self) -> None:
+        # store the existing log handlers before the configure log function manipulates them
+        root = logging.getLogger()
+        self._saved_handlers = root.handlers[:]
+
+    def tearDown(self) -> None:
+        # restore the orignal log handlers
+        root = logging.getLogger()
+        root.handlers = self._saved_handlers
+
     @patch('logging.basicConfig')
     @patch('os.path.exists')
     @patch('os.makedirs')

@@ -1,4 +1,5 @@
 import unittest
+import io
 import os
 import zipfile
 from argparse import Namespace
@@ -1116,6 +1117,7 @@ class TestParseArgs(unittest.TestCase):
     def setUp(self) -> None:
         self.mock_exit   = patch('sys.exit').start()
         self.mock_exists = patch('os.path.exists').start()
+        patch('sys.stderr', new=io.StringIO()).start()
         self.addCleanup(patch.stopall)
         self.mock_exists.return_value = True
 

@@ -1,5 +1,6 @@
 # TODO: add coverage for rsync_healthcheck
 
+import io
 import os
 import unittest
 import subprocess
@@ -736,6 +737,7 @@ class TestParseArgs(unittest.TestCase):
 
     def setUp(self) -> None:
         self.mock_exit = patch('sys.exit').start()
+        patch('sys.stderr', new=io.StringIO()).start()
         self.addCleanup(patch.stopall)
 
     def test_valid_sync(self) -> None:

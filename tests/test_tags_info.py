@@ -1,3 +1,4 @@
+import io
 import unittest
 from unittest.mock import patch, MagicMock
 
@@ -173,6 +174,10 @@ class TestPromptCompareTags(unittest.TestCase):
 
 class TestParseArgs(unittest.TestCase):
     '''Tests for tags_info.parse_args and argument validation.'''
+
+    def setUp(self) -> None:
+        patch('sys.stderr', new=io.StringIO()).start()
+        self.addCleanup(patch.stopall)
 
     def test_valid_log_duplicates(self) -> None:
         '''Tests that log_duplicates can be called with only --input.'''
