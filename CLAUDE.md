@@ -94,13 +94,13 @@ This is a DJ management toolkit for organizing, encoding, tagging, and syncing m
 
 ```bash
 # Run all tests
-python3 -m unittest discover -s ./tests -p "test_*.py" -qq
+python -m unittest discover -s ./tests -p "test_*.py" -q
 
 # Run a specific test file
-python3 -m unittest test.test_common -qq
+python -m unittest tests.test_common -q
 
 # Run a specific test case
-python3 -m unittest test.test_common.TestCollectPaths -qq
+python -m unittest tests.test_common.TestCollectPaths -q
 ```
 
 ## Type Checking
@@ -111,7 +111,7 @@ The project uses Pyright for type checking:
 pyright src/
 ```
 
-Configuration is in `pyrightconfig.json`. Note that `src/audacity_script_sample.py` is ignored.
+Configuration is in `pyrightconfig.json`.
 
 ## Architecture
 
