@@ -333,30 +333,6 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         # Assert the expected function output result -- should be empty for unsupported files
         self.assertListEqual(actual, [])
         
-    @patch('djmgmt.encode.encode_lossless')
-    def test_success_cli(self, mock_encode: MagicMock) -> None:
-        '''Tests that the CLI wrapper function calls the expected core function with appropriate arguments.'''
-        # Call target function
-        args = Namespace(input='/mock/input',
-                         output='/mock/output',
-                         extension='mock_ext',
-                         store_path='/mock/store/path',
-                         store_skipped=True,
-                         dry_run=True)
-        encode.encode_lossless_cli(args)
-        
-        # Assert that the existing arguments are passed properly
-        expected_args = (args.input, args.output)
-        expected_kwargs = {
-            'extension'      : args.extension,
-            'store_path_dir' : args.store_path,
-            'store_skipped'  : args.store_skipped,
-            'dry_run'        : args.dry_run
-        }
-        
-        self.assertTupleEqual(mock_encode.call_args.args, expected_args)
-        self.assertDictEqual(mock_encode.call_args.kwargs, expected_kwargs)
-
 class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
     @patch('djmgmt.encode.run_command_async')
     @patch('djmgmt.encode.ffmpeg_lossy')
@@ -439,62 +415,66 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result[0][0], SOURCE_FILE)
         self.assertEqual(result[0][1], DEST_FILE)
 
-    @patch('djmgmt.encode.encode_lossy')
+class TestMain(unittest.TestCase):
+    @patch('djmgmt.common.configure_log_module')
+    @patch('djmgmt.encode.encode_lossless', new_callable=AsyncMock)
+    def test_lossless(self, mock_encode: AsyncMock, mock_configure_log: MagicMock) -> None:
+        '''Tests that main() dispatches to encode_lossless with the correct arguments.'''
+        encode.main(['encode', Namespace.FUNCTION_LOSSLESS,
+                     '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
+                     '--extension', '.aiff', '--store-path', '/mock/store',
+                     '--store-skipped', '--dry-run'])
+
+        mock_encode.assert_called_once_with(MOCK_INPUT, MOCK_OUTPUT,
+                                            extension='.aiff',
+                                            store_path_dir='/mock/store',
+                                            store_skipped=True,
+                                            dry_run=True)
+
+    @patch('djmgmt.common.configure_log_module')
+    @patch('djmgmt.encode.encode_lossy', new_callable=AsyncMock)
     @patch('djmgmt.common.add_output_path')
     @patch('djmgmt.common.collect_paths')
-    def test_success_cli(self,
-                         mock_collect_paths: MagicMock,
-                         mock_add_output_path: MagicMock,
-                         mock_encode_lossy: MagicMock) -> None:
-        
-        # Call target function
-        args = Namespace(input=MOCK_INPUT, output=MOCK_OUTPUT, extension='.mp3', dry_run=True)
-        encode.encode_lossy_cli(args)
-        
-        # Assert expectations
-        mock_collect_paths.assert_called_once_with(args.input)
-        mock_add_output_path.assert_called_once_with(args.output, mock_collect_paths.return_value, args.input)
-        mock_encode_lossy.assert_called_once_with(mock_add_output_path.return_value, args.extension, dry_run=args.dry_run)
+    def test_lossy(self,
+                   mock_collect_paths: MagicMock,
+                   mock_add_output_path: MagicMock,
+                   mock_encode: AsyncMock,
+                   mock_configure_log: MagicMock) -> None:
+        '''Tests that main() dispatches to encode_lossy with the correct arguments.'''
+        encode.main(['encode', Namespace.FUNCTION_LOSSY,
+                     '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
+                     '--extension', '.mp3'])
 
-class TestMissingArtCLI(unittest.TestCase):
+        mock_collect_paths.assert_called_once_with(MOCK_INPUT)
+        mock_add_output_path.assert_called_once_with(MOCK_OUTPUT, mock_collect_paths.return_value, MOCK_INPUT)
+        mock_encode.assert_called_once_with(mock_add_output_path.return_value, '.mp3', dry_run=False)
+
+    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.common.write_paths')
-    @patch('djmgmt.encode.find_missing_art_xml')
-    def test_success_xml(self,
-                         mock_find_missing_art_xml: MagicMock,
-                         mock_write_paths: MagicMock) -> None:
-        '''Tests that the missing art XML function is called properly and the missing art paths are written.'''
-        # Set up mocks
-        mock_paths = MagicMock()
-        mock_find_missing_art_xml.return_value = mock_paths
-        
-        # Call target function
-        args = Namespace(function=Namespace.FUNCTION_MISSING_ART,
-                         input=MOCK_INPUT,
-                         output=MOCK_OUTPUT,
-                         scan_mode=Namespace.SCAN_MODE_XML)
-        encode.missing_art_cli(args)
-        
-        # Assert expectations
-        mock_find_missing_art_xml.assert_called_once_with(args.input, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
-        mock_write_paths.assert_called_once_with(mock_paths, args.output)
-        
+    @patch('djmgmt.encode.find_missing_art_xml', new_callable=AsyncMock)
+    def test_missing_art_xml(self,
+                             mock_find_xml: AsyncMock,
+                             mock_write_paths: MagicMock,
+                             mock_configure_log: MagicMock) -> None:
+        '''Tests that main() dispatches to find_missing_art_xml and writes results.'''
+        encode.main(['encode', Namespace.FUNCTION_MISSING_ART,
+                     '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
+                     '--scan-mode', Namespace.SCAN_MODE_XML])
+
+        mock_find_xml.assert_called_once_with(MOCK_INPUT, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
+        mock_write_paths.assert_called_once_with(mock_find_xml.return_value, MOCK_OUTPUT)
+
+    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.common.write_paths')
-    @patch('djmgmt.encode.find_missing_art_os')
-    def test_success_os(self,
-                        mock_find_missing_art_os: MagicMock,
-                        mock_write_paths: MagicMock) -> None:
-        '''Tests that the missing art OS function is called properly and the missing art paths are written.'''
-        # Set up mocks
-        mock_paths = MagicMock()
-        mock_find_missing_art_os.return_value = mock_paths
-        
-        # Call target function
-        args = Namespace(function=Namespace.FUNCTION_MISSING_ART,
-                         input=MOCK_INPUT,
-                         output=MOCK_OUTPUT,
-                         scan_mode=Namespace.SCAN_MODE_OS)
-        encode.missing_art_cli(args)
-        
-        # Assert expectations
-        mock_find_missing_art_os.assert_called_once_with(args.input, threads=72)
-        mock_write_paths.assert_called_once_with(mock_paths, args.output)
+    @patch('djmgmt.encode.find_missing_art_os', new_callable=AsyncMock)
+    def test_missing_art_os(self,
+                            mock_find_os: AsyncMock,
+                            mock_write_paths: MagicMock,
+                            mock_configure_log: MagicMock) -> None:
+        '''Tests that main() dispatches to find_missing_art_os and writes results.'''
+        encode.main(['encode', Namespace.FUNCTION_MISSING_ART,
+                     '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
+                     '--scan-mode', Namespace.SCAN_MODE_OS])
+
+        mock_find_os.assert_called_once_with(MOCK_INPUT, threads=72)
+        mock_write_paths.assert_called_once_with(mock_find_os.return_value, MOCK_OUTPUT)

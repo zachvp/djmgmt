@@ -8,7 +8,6 @@ import os
 import sys
 import shlex
 import logging
-import sys
 import asyncio
 from asyncio import Task
 from typing import Any
@@ -284,13 +283,6 @@ async def run_command_async(command: list[str]) -> tuple[int, str]:
         return (process.returncode, stderr)
 
 # primary functions
-def encode_lossless_cli(args: Namespace) -> list[FileMapping]:
-    return asyncio.run(encode_lossless(args.input,
-                                       args.output,
-                                       extension=args.extension,
-                                       store_path_dir=args.store_path,
-                                       store_skipped=args.store_skipped,
-                                       dry_run=args.dry_run))
 
 # TODO: add support for FLAC
 async def encode_lossless(input_dir: str,
@@ -407,12 +399,6 @@ async def encode_lossless(input_dir: str,
             logging.info(f"wrote skipped files to '{store_path_skipped}'")
     
     return processed_files
-
-def encode_lossy_cli(args: Namespace) -> list[FileMapping]:
-    '''Parse each path mapping entry into an encoding operation.'''
-    path_mappings = common.collect_paths(args.input)
-    path_mappings = common.add_output_path(args.output, path_mappings, args.input)
-    return asyncio.run(encode_lossy(path_mappings, args.extension, dry_run=args.dry_run))
 
 async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4, dry_run: bool = False) -> list[FileMapping]:
     '''Encodes the given input, output mappings in lossy format with the given extension. Uses FFMPEG as backend.
@@ -564,27 +550,18 @@ async def find_missing_art_xml(collection_file_path: str, collection_xpath: str,
     missing += await run_missing_art_tasks(tasks)
     return missing
 
-def missing_art_cli(args: Namespace) -> None:
-    # TODO: add timing
-    # TODO: refactor into wrapper + internal functions
-    coroutine = None
-    missing = []
-    if args.scan_mode == Namespace.SCAN_MODE_XML:        
-        coroutine = find_missing_art_xml(args.input, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
-    else:
-        coroutine = find_missing_art_os(args.input, threads=72)
-    
-    # run the configured function and write the result to the given file
-    missing = asyncio.run(coroutine)
-    common.write_paths(missing, args.output)
-
 # Main
-if __name__ == '__main__':
+def main(argv: list[str]) -> None:
     common.configure_log_module(__file__, level=logging.DEBUG)
-    script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
+    script_args = parse_args(Namespace.FUNCTIONS, argv[1:])
 
     if script_args.function == Namespace.FUNCTION_LOSSLESS:
-        result = encode_lossless_cli(script_args)
+        result = asyncio.run(encode_lossless(script_args.input,
+                                             script_args.output,
+                                             extension=script_args.extension,
+                                             store_path_dir=script_args.store_path,
+                                             store_skipped=script_args.store_skipped,
+                                             dry_run=script_args.dry_run))
         if script_args.dry_run:
             print(f'\n[DRY-RUN] Would encode {len(result)} files:')
             for source, dest in result:
@@ -592,7 +569,9 @@ if __name__ == '__main__':
         else:
             print(f'\nEncoded {len(result)} files')
     elif script_args.function == Namespace.FUNCTION_LOSSY:
-        result = encode_lossy_cli(script_args)
+        path_mappings = common.collect_paths(script_args.input)
+        path_mappings = common.add_output_path(script_args.output, path_mappings, script_args.input)
+        result = asyncio.run(encode_lossy(path_mappings, script_args.extension, dry_run=script_args.dry_run))
         if script_args.dry_run:
             print(f'\n[DRY-RUN] Would encode {len(result)} files:')
             for source, dest in result:
@@ -600,4 +579,12 @@ if __name__ == '__main__':
         else:
             print(f'\nEncoded {len(result)} files')
     elif script_args.function == Namespace.FUNCTION_MISSING_ART:
-        missing_art_cli(script_args)
+        if script_args.scan_mode == Namespace.SCAN_MODE_XML:
+            coroutine = find_missing_art_xml(script_args.input, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
+        else:
+            coroutine = find_missing_art_os(script_args.input, threads=72)
+        missing = asyncio.run(coroutine)
+        common.write_paths(missing, script_args.output)
+
+if __name__ == '__main__':
+    main(sys.argv)
