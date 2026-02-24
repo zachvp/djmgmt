@@ -642,10 +642,6 @@ def prune_non_music(source: str, valid_extensions: set[str], dry_run: bool = Fal
                 raise RuntimeError(msg)
     return pruned
 
-def sweep_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
-    '''CLI wrapper for the core sweep function.'''
-    sweep(args.input, args.output, valid_extensions, prefix_hints)
-
 def flatten_hierarchy(source: str, output: str, dry_run: bool = False) -> list[FileMapping]:
     '''Recursively moves all files from nested directories to the output root, removing the directory structure.
 
@@ -689,43 +685,6 @@ def flatten_hierarchy(source: str, output: str, dry_run: bool = False) -> list[F
             logging.debug(f"skip: {input_path}")
     logging.debug(f"flattened all files ({len(flattened)})\n{flattened}")
     return flattened
-
-def flatten_hierarchy_cli(args: Namespace) -> None:
-    '''CLI wrapper for the core flatten_hierarchy function.'''
-    flatten_hierarchy(args.input, args.output, args.interactive)
-
-def extract_cli(args: Namespace) -> None:
-    '''CLI wrapper for the core extract function.'''
-    extract(args.input, args.output, args.interactive)
-
-def compress_all_cli(args: Namespace) -> None:
-    '''CLI wrapper that compresses each subdirectory in the input path into separate zip archives.
-
-    Example:
-        Given structure:
-            /input/
-            ├── album1/
-            └── album2/
-
-        Creates:
-            /output/album1.zip
-            /output/album2.zip
-    '''
-    for working_dir, directories, _ in os.walk(args.input):
-        for directory in directories:
-            compress_dir(os.path.join(working_dir, directory), os.path.join(args.output, directory))
-
-def prune_non_user_dirs_cli(args: Namespace) -> None:
-    '''CLI wrapper for the core `prune_non_user_dirs` function.'''
-    prune_non_user_dirs(args.input, args.interactive)
-    
-def prune_non_music_cli(args: Namespace, valid_extensions: set[str]) -> None:
-    '''CLI wrapper for the core prune_non_music function.'''
-    prune_non_music(args.input, valid_extensions, args.interactive)
-
-def process_cli(args: Namespace, valid_extensions: set[str], prefix_hints: set[str]) -> None:
-    '''CLI wrapper for the core `process` function.'''
-    process(args.input, args.output, valid_extensions, prefix_hints)
 
 def update_library(new_music_dir_path: str,
                    library_path: str,
@@ -798,54 +757,59 @@ def update_library(new_music_dir_path: str,
                                changed_mappings=changed,
                                sync_result=sync_result)
 
-if __name__ == '__main__':
-    import sys
-    
-    # log config
+# main
+def main(argv: list[str]) -> None:
+    '''Entry point for the music module.
+
+    Args:
+        argv: Argument list (e.g. sys.argv), where argv[0] is the script name.
+    '''
     common.configure_log_module(__file__)
+    args = parse_args(Namespace.FUNCTIONS, Namespace.FUNCTIONS_SINGLE_ARG, argv[1:])
+    logging.info(f"will execute: '{args.function}'")
 
-    # parse arguments
-    script_args = parse_args(Namespace.FUNCTIONS, Namespace.FUNCTIONS_SINGLE_ARG, sys.argv[1:])
-    logging.info(f"will execute: '{script_args.function}'")
-
-    # function dispatch
-    if script_args.function == Namespace.FUNCTION_SWEEP:
-        sweep_cli(script_args, constants.EXTENSIONS, PREFIX_HINTS)
-    elif script_args.function == Namespace.FUNCTION_FLATTEN:
-        flatten_hierarchy_cli(script_args)
-    elif script_args.function == Namespace.FUNCTION_EXTRACT:
-        extract_cli(script_args)
-    elif script_args.function == Namespace.FUNCTION_COMPRESS:
-        compress_all_cli(script_args)
-    elif script_args.function == Namespace.FUNCTION_PRUNE:
-        prune_non_user_dirs_cli(script_args)
-    elif script_args.function == Namespace.FUNCTION_PRUNE_NON_MUSIC:
-        prune_non_music_cli(script_args, constants.EXTENSIONS)
-    elif script_args.function == Namespace.FUNCTION_PROCESS:
-        process_cli(script_args, constants.EXTENSIONS, PREFIX_HINTS)
-    elif script_args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
-        result = update_library(script_args.input,
-                                script_args.output,
-                                script_args.client_mirror_path,
-                                script_args.collection_export_dir_path,
-                                script_args.processed_collection_path,
-                                script_args.merged_collection_path,
+    if args.function == Namespace.FUNCTION_SWEEP:
+        sweep(args.input, args.output, constants.EXTENSIONS, PREFIX_HINTS, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_FLATTEN:
+        flatten_hierarchy(args.input, args.output, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_EXTRACT:
+        extract(args.input, args.output, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_COMPRESS:
+        for working_dir, directories, _ in os.walk(args.input):
+            for directory in directories:
+                compress_dir(os.path.join(working_dir, directory), os.path.join(args.output, directory))
+    elif args.function == Namespace.FUNCTION_PRUNE:
+        prune_non_user_dirs(args.input, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_PRUNE_NON_MUSIC:
+        prune_non_music(args.input, constants.EXTENSIONS, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_PROCESS:
+        process(args.input, args.output, constants.EXTENSIONS, PREFIX_HINTS, dry_run=args.dry_run)
+    elif args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
+        result = update_library(args.input,
+                                args.output,
+                                args.client_mirror_path,
+                                args.collection_export_dir_path,
+                                args.processed_collection_path,
+                                args.merged_collection_path,
                                 constants.EXTENSIONS,
                                 PREFIX_HINTS,
-                                dry_run=script_args.dry_run)
-        if script_args.dry_run:
+                                dry_run=args.dry_run)
+        if args.dry_run:
             common.log_dry_run('process', f"{len(result.process_result.processed_files)} files")
             common.log_dry_run('write', f"{len(result.process_result.missing_art_paths)} missing art files")
             common.log_dry_run('extract', f"{result.process_result.archives_extracted} archives")
             common.log_dry_run('encode', f"{result.process_result.files_encoded} lossless files")
             common.log_dry_run_data('process_result', result.process_result)
-            
-            common.log_dry_run('record_collection', f"for {script_args.output} files")
+
+            common.log_dry_run('record_collection', f"for {args.output} files")
             common.log_dry_run_data('record_result', result.record_result)
-            
+
             common.log_dry_run('sync', f"to server")
             common.log_dry_run_data('sync_result', result.sync_result)
-            
+
             common.log_dry_run('sync', f"{len(result.changed_mappings)} changed mappings")
             common.log_dry_run_data('changed_mappings', result.changed_mappings)
 
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)

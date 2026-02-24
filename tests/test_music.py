@@ -2,7 +2,6 @@ import unittest
 import io
 import os
 import zipfile
-from argparse import Namespace
 import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock, call
 from zipfile import ZipInfo
@@ -464,34 +463,6 @@ class TestExtract(unittest.TestCase):
         self.mock_extract_all.assert_not_called()
         self.assertEqual(actual, [])
 
-class TestCompressAllCLI(unittest.TestCase):
-    '''Even though this function calls os.walk, it's not a good use case for common.collect_paths,
-    because that collects all absolute filepaths. The music.compress_all_cli function needs all directories, not file paths.'''
-    
-    @patch('djmgmt.music.compress_dir')
-    @patch('os.walk')
-    def test_success(self,
-                     mock_walk: MagicMock,
-                     mock_compress_dir: MagicMock) -> None:
-        '''Tests that all directories within a source directory are compressed.'''
-        # mock_paths = [f"{MOCK_INPUT_DIR}/mock_dir_0/file_0.foo", f"{MOCK_INPUT_DIR}/mock/nested/file_1.foo"]
-        mock_walk.return_value = [(MOCK_INPUT_DIR, ['mock_dir_0', 'mock_dir_1'], []),
-                                  (f"{MOCK_INPUT_DIR}/mock_dir_0", [], ['file_0.foo']),
-                                  (f"{MOCK_INPUT_DIR}/mock_dir_1", ['nested'], []),
-                                  (f"{MOCK_INPUT_DIR}/mock_dir_1/nested", [], ['file_1.foo'])]
-        
-        # Call target function
-        args = Namespace(input=MOCK_INPUT_DIR, output=MOCK_OUTPUT_DIR)
-        music.compress_all_cli(args) # type: ignore
-        
-        # Assert expectations: all directories and subdirectories should be compressed
-        mock_walk.assert_called_once_with(MOCK_INPUT_DIR)
-        mock_compress_dir.assert_has_calls([
-            call(f"{MOCK_INPUT_DIR}/mock_dir_0", f"{MOCK_OUTPUT_DIR}/mock_dir_0"),
-            call(f"{MOCK_INPUT_DIR}/mock_dir_1", f"{MOCK_OUTPUT_DIR}/mock_dir_1"),
-            call(f"{MOCK_INPUT_DIR}/mock_dir_1/nested", f"{MOCK_OUTPUT_DIR}/nested")
-        ])
-
 class TestPruneNonUserDirs(unittest.TestCase):
     def setUp(self) -> None:
         self.mock_get_dirs     = patch('djmgmt.music.get_dirs').start()
@@ -539,14 +510,6 @@ class TestPruneNonUserDirs(unittest.TestCase):
         self.assertEqual(len(dry_run_logs), 1)
         self.assertIn('remove directory', dry_run_logs[0])
         self.assertIn(expected_path, dry_run_logs[0])
-
-    @patch('djmgmt.music.prune_non_user_dirs')
-    def test_success_cli(self, mock_prune_empty: MagicMock) -> None:
-        '''Tests that the CLI wrapper calls the correct function.'''
-        args = Namespace(input=MOCK_INPUT_DIR, interactive=False)
-        music.prune_non_user_dirs_cli(args) # type: ignore
-
-        mock_prune_empty.assert_called_once_with(MOCK_INPUT_DIR, False)
 
 class TestPruneNonMusicFiles(unittest.TestCase):
     def setUp(self) -> None:
@@ -725,14 +688,6 @@ class TestPruneNonMusicFiles(unittest.TestCase):
         dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
         self.assertEqual(len(dry_run_logs), 1)
         self.assertIn('remove directory', dry_run_logs[0])
-
-    @patch('djmgmt.music.prune_non_music')
-    def test_success_cli(self, mock_prune_non_music: MagicMock) -> None:
-        '''Tests that the CLI wrapper function exists and is called properly.'''
-        # Call target function and assert expectations
-        mock_namespace = Namespace(input='/mock/input/', output='/mock/output/', interactive=False)
-        music.prune_non_music_cli(mock_namespace, set())  # type: ignore
-        mock_prune_non_music.assert_called_once_with(mock_namespace.input, set(), mock_namespace.interactive)
 
 class TestProcess(unittest.TestCase):
     def setUp(self) -> None:
@@ -930,22 +885,6 @@ class TestProcess(unittest.TestCase):
         # Use assertEqual for scalar fields
         self.assertEqual(result.archives_extracted, 0)
         self.assertEqual(result.files_encoded, 1)
-
-class TestProcessCLI(unittest.TestCase):
-    @patch('djmgmt.music.process')
-    def test_success(self, mock_process: MagicMock) -> None:
-        '''Tests that the process function is called with the expected arguments.'''
-        # Call target function
-        mock_valid_extensions = {'a'}
-        mock_prefix_hints = {'b'}
-        args = Namespace(input=MOCK_INPUT_DIR, output=MOCK_OUTPUT_DIR)
-        music.process_cli(args, mock_valid_extensions, mock_prefix_hints) # type: ignore
-        
-        # Assert expectations
-        mock_process.assert_called_once_with(MOCK_INPUT_DIR,
-                                             MOCK_OUTPUT_DIR,
-                                             mock_valid_extensions,
-                                             mock_prefix_hints)
 
 class TestUpdateLibrary(unittest.TestCase):
     # Test constants for update_library paths
@@ -1299,3 +1238,91 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.input, '/in')
         self.assertEqual(args.output, '/in')  # output defaults to input for single-arg functions
         self.assertTrue(args.dry_run)
+
+class TestMain(unittest.TestCase):
+    '''Tests for music.main'''
+
+    def setUp(self) -> None:
+        patch('djmgmt.common.configure_log_module').start()
+        self.addCleanup(patch.stopall)
+
+    @patch('djmgmt.music.sweep')
+    def test_sweep(self, mock_sweep: MagicMock) -> None:
+        '''Tests that sweep is called with input, output, extensions, and hints.'''
+        music.main(['music', 'sweep', '--input', MOCK_INPUT_DIR, '--output', MOCK_OUTPUT_DIR])
+
+        mock_sweep.assert_called_once_with(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, constants.EXTENSIONS, music.PREFIX_HINTS, dry_run=False)
+
+    @patch('djmgmt.music.flatten_hierarchy')
+    def test_flatten(self, mock_flatten: MagicMock) -> None:
+        '''Tests that flatten_hierarchy is called with input path (output defaults to input).'''
+        music.main(['music', 'flatten', '--input', MOCK_INPUT_DIR])
+
+        mock_flatten.assert_called_once_with(MOCK_INPUT_DIR, MOCK_INPUT_DIR, dry_run=False)
+
+    @patch('djmgmt.music.extract')
+    def test_extract(self, mock_extract: MagicMock) -> None:
+        '''Tests that extract is called with input and output paths.'''
+        music.main(['music', 'extract', '--input', MOCK_INPUT_DIR, '--output', MOCK_OUTPUT_DIR])
+
+        mock_extract.assert_called_once_with(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, dry_run=False)
+
+    @patch('djmgmt.music.compress_dir')
+    @patch('os.walk')
+    def test_compress(self, mock_walk: MagicMock, mock_compress_dir: MagicMock) -> None:
+        '''Tests that compress_dir is called for each subdirectory.
+        Note: compress uses os.walk rather than common.collect_paths because it needs directories, not file paths.'''
+        mock_walk.return_value = [(MOCK_INPUT_DIR, ['mock_dir_0', 'mock_dir_1'], []),
+                                  (f"{MOCK_INPUT_DIR}/mock_dir_0", [], ['file_0.foo']),
+                                  (f"{MOCK_INPUT_DIR}/mock_dir_1", ['nested'], []),
+                                  (f"{MOCK_INPUT_DIR}/mock_dir_1/nested", [], ['file_1.foo'])]
+
+        music.main(['music', 'compress', '--input', MOCK_INPUT_DIR])
+
+        mock_walk.assert_called_once_with(MOCK_INPUT_DIR)
+        mock_compress_dir.assert_has_calls([
+            call(f"{MOCK_INPUT_DIR}/mock_dir_0", f"{MOCK_INPUT_DIR}/mock_dir_0"),
+            call(f"{MOCK_INPUT_DIR}/mock_dir_1", f"{MOCK_INPUT_DIR}/mock_dir_1"),
+            call(f"{MOCK_INPUT_DIR}/mock_dir_1/nested", f"{MOCK_INPUT_DIR}/nested"),
+        ])
+
+    @patch('djmgmt.music.prune_non_user_dirs')
+    def test_prune(self, mock_prune: MagicMock) -> None:
+        '''Tests that prune_non_user_dirs is called with input path.'''
+        music.main(['music', 'prune', '--input', MOCK_INPUT_DIR])
+
+        mock_prune.assert_called_once_with(MOCK_INPUT_DIR, dry_run=False)
+
+    @patch('djmgmt.music.prune_non_music')
+    def test_prune_non_music(self, mock_prune: MagicMock) -> None:
+        '''Tests that prune_non_music is called with input path and extensions.'''
+        music.main(['music', 'prune_non_music', '--input', MOCK_INPUT_DIR])
+
+        mock_prune.assert_called_once_with(MOCK_INPUT_DIR, constants.EXTENSIONS, dry_run=False)
+
+    @patch('djmgmt.music.process')
+    def test_process(self, mock_process: MagicMock) -> None:
+        '''Tests that process is called with input, output, extensions, and hints.'''
+        music.main(['music', 'process', '--input', MOCK_INPUT_DIR, '--output', MOCK_OUTPUT_DIR])
+
+        mock_process.assert_called_once_with(MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, constants.EXTENSIONS, music.PREFIX_HINTS, dry_run=False)
+
+    @patch('djmgmt.music.update_library')
+    @patch('os.path.exists')
+    def test_update_library(self, mock_exists: MagicMock, mock_update_library: MagicMock) -> None:
+        '''Tests that update_library is called with all required arguments.'''
+        mock_exists.return_value = True
+
+        music.main(['music', 'update_library',
+                    '--input', MOCK_INPUT_DIR,
+                    '--output', MOCK_OUTPUT_DIR,
+                    '--client-mirror-path', '/mock/mirror',
+                    '--collection-export-dir-path', '/mock/exports',
+                    '--processed-collection-path', '/mock/processed.xml',
+                    '--merged-collection-path', '/mock/merged.xml'])
+
+        mock_update_library.assert_called_once_with(
+            MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, '/mock/mirror', '/mock/exports',
+            '/mock/processed.xml', '/mock/merged.xml',
+            constants.EXTENSIONS, music.PREFIX_HINTS,
+            dry_run=False)
