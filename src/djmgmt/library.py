@@ -13,7 +13,6 @@ attribute of '01/02/23 (Jan 2, 2023)', the new path will be
 
 import sys
 import os
-import shutil
 import xml.etree.ElementTree as ET
 import argparse
 import logging
@@ -49,36 +48,6 @@ class Namespace(argparse.Namespace):
     FUNCTION_RECORD_DYNAMIC = 'record_dynamic'
 
     FUNCTIONS = {FUNCTION_DATE_PATHS, FUNCTION_IDENTIFIERS, FUNCTION_FILENAMES, FUNCTION_RECORD_DYNAMIC}
-
-# Dataclasses
-@dataclass
-class TrackMetadata:
-    '''Represents metadata for a track from the XML collection.'''
-    title: str
-    artist: str
-    album: str
-    path: str
-    date_added: str
-    total_time: str
-
-@dataclass
-class RecordResult:
-    '''Results from recording tracks to XML collection.'''
-    # TODO: include XML collection path, remove collection_root
-    collection_root: ET.Element
-    tracks_added: int
-    tracks_updated: int
-
-# Dataclass helpers
-def _create_track_metadata(track_node: ET.Element) -> TrackMetadata:
-    return TrackMetadata(
-        title=track_node.get(constants.ATTR_TITLE, ''),
-        artist=track_node.get(constants.ATTR_ARTIST, ''),
-        album=track_node.get(constants.ATTR_ALBUM, ''),
-        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
-        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
-        path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
-    )
 
 def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
@@ -122,6 +91,36 @@ def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
     _validate_function_args(parser, args)
 
     return args
+
+# Dataclasses
+@dataclass
+class TrackMetadata:
+    '''Represents metadata for a track from the XML collection.'''
+    title: str
+    artist: str
+    album: str
+    path: str
+    date_added: str
+    total_time: str
+
+@dataclass
+class RecordResult:
+    '''Results from recording tracks to XML collection.'''
+    # TODO: include XML collection path, remove collection_root
+    collection_root: ET.Element
+    tracks_added: int
+    tracks_updated: int
+
+# Dataclass helpers
+def _create_track_metadata(track_node: ET.Element) -> TrackMetadata:
+    return TrackMetadata(
+        title=track_node.get(constants.ATTR_TITLE, ''),
+        artist=track_node.get(constants.ATTR_ARTIST, ''),
+        album=track_node.get(constants.ATTR_ALBUM, ''),
+        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
+        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
+        path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
+    )
 
 # Internal helpers
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
