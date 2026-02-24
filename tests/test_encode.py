@@ -1,3 +1,4 @@
+import io
 import unittest
 import os
 from unittest.mock import patch, MagicMock, call, AsyncMock
@@ -416,6 +417,10 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result[0][1], DEST_FILE)
 
 class TestMain(unittest.TestCase):
+    def setUp(self) -> None:
+        patch('sys.stdout', new=io.StringIO()).start()
+        self.addCleanup(patch.stopall)
+
     @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.encode.encode_lossless', new_callable=AsyncMock)
     def test_lossless(self, mock_encode: AsyncMock, mock_configure_log: MagicMock) -> None:
