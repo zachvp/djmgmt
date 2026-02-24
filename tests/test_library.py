@@ -1,7 +1,7 @@
 import unittest
 import os
 import xml.etree.ElementTree as ET
-from unittest.mock import patch, MagicMock, call
+from unittest.mock import patch, MagicMock, call, mock_open
 from typing import cast
 
 from djmgmt import library
@@ -1567,3 +1567,85 @@ class TestGetPlaylistTrackIds(unittest.TestCase):
         result = library.get_playlist_track_ids(node)
 
         self.assertListEqual(result, [])
+
+class TestMain(unittest.TestCase):
+    '''Tests for library.main'''
+
+    def setUp(self) -> None:
+        patch('djmgmt.common.configure_log_module').start()
+        self.addCleanup(patch.stopall)
+
+    @patch('builtins.print')
+    @patch('djmgmt.library.get_pipe_output')
+    @patch('djmgmt.library.generate_date_paths')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_date_paths(self,
+                        mock_load: MagicMock,
+                        mock_find: MagicMock,
+                        mock_generate: MagicMock,
+                        mock_pipe: MagicMock,
+                        mock_print: MagicMock) -> None:
+        '''Tests that date_paths loads the collection, generates paths, and prints output.'''
+        mock_generate.return_value = [('/old/path.aiff', '/new/path.aiff')]
+        mock_pipe.return_value = '/old/path.aiff|/new/path.aiff'
+
+        library.main(['library', 'date_paths',
+                      '--collection', MOCK_XML_INPUT_PATH,
+                      '--root-path', MOCK_INPUT_DIR])
+
+        mock_load.assert_called_once_with(MOCK_XML_INPUT_PATH)
+        mock_find.assert_called_once()
+        mock_generate.assert_called_once_with(mock_find.return_value, MOCK_INPUT_DIR, metadata_path=False)
+        mock_print.assert_called_once_with(mock_pipe.return_value)
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('djmgmt.library.collect_identifiers')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_identifiers(self,
+                         mock_load: MagicMock,
+                         mock_find: MagicMock,
+                         mock_collect: MagicMock,
+                         mock_file: MagicMock) -> None:
+        '''Tests that identifiers are collected, sorted, and written to the output file.'''
+        mock_collect.return_value = ['id_b', 'id_a']
+
+        library.main(['library', 'identifiers',
+                      '--collection', MOCK_XML_INPUT_PATH,
+                      '--output', MOCK_XML_OUTPUT_PATH])
+
+        mock_load.assert_called_once_with(MOCK_XML_INPUT_PATH)
+        mock_collect.assert_called_once()
+        mock_file.assert_called_once_with(MOCK_XML_OUTPUT_PATH, 'w', encoding='utf-8')
+        mock_file().writelines.assert_called_once_with(['id_a\n', 'id_b\n'])
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('djmgmt.library.collect_filenames')
+    @patch('djmgmt.library.find_node')
+    @patch('djmgmt.library.load_collection')
+    def test_filenames(self,
+                       mock_load: MagicMock,
+                       mock_find: MagicMock,
+                       mock_collect: MagicMock,
+                       mock_file: MagicMock) -> None:
+        '''Tests that filenames are collected, sorted, and written to the output file.'''
+        mock_collect.return_value = ['name_b', 'name_a']
+
+        library.main(['library', 'filenames',
+                      '--collection', MOCK_XML_INPUT_PATH,
+                      '--output', MOCK_XML_OUTPUT_PATH])
+
+        mock_load.assert_called_once_with(MOCK_XML_INPUT_PATH)
+        mock_collect.assert_called_once()
+        mock_file.assert_called_once_with(MOCK_XML_OUTPUT_PATH, 'w', encoding='utf-8')
+        mock_file().writelines.assert_called_once_with(['name_a\n', 'name_b\n'])
+
+    @patch('djmgmt.library.record_dynamic_tracks')
+    def test_record_dynamic(self, mock_record: MagicMock) -> None:
+        '''Tests that record_dynamic_tracks is called with the collection and output paths.'''
+        library.main(['library', 'record_dynamic',
+                      '--collection', MOCK_XML_INPUT_PATH,
+                      '--output', MOCK_XML_OUTPUT_PATH])
+
+        mock_record.assert_called_once_with(MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)

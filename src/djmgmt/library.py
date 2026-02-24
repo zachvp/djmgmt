@@ -11,7 +11,6 @@ attribute of '01/02/23 (Jan 2, 2023)', the new path will be
 * The XML collection file paths point to this flat music library.
 '''
 
-import sys
 import os
 import xml.etree.ElementTree as ET
 import argparse
@@ -742,12 +741,6 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     logging.info(f"Merged collections: {len(track_index)} tracks, {len(merged_pruned_keys)} pruned")
     return output_root
 
-# Primary functions
-def generate_date_paths_cli(args: Namespace) -> list[FileMapping]:
-    collection = load_collection(args.collection)
-    collection = find_node(collection, constants.XPATH_COLLECTION)
-    return generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)
-
 def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
     from .tags import Tags
     
@@ -814,34 +807,44 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
 
     return base_root
 
-# Main
-if __name__ == '__main__':
-    # setup
+# main
+def main(argv: list[str]) -> None:
+    '''Entry point for the library module.
+
+    Args:
+        argv: Argument list (e.g. sys.argv), where argv[0] is the script name.
+    '''
     common.configure_log_module(__file__, level=logging.DEBUG)
-    script_args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
+    args = parse_args(Namespace.FUNCTIONS, argv[1:])
 
-    if script_args.root_path:
-        logging.info(f"args root path: '{script_args.root_path}'")
+    if args.root_path:
+        logging.info(f"args root path: '{args.root_path}'")
 
-    if script_args.function == Namespace.FUNCTION_DATE_PATHS:
-        print(get_pipe_output(generate_date_paths_cli(script_args)))
-    elif script_args.function == Namespace.FUNCTION_IDENTIFIERS or script_args.function == Namespace.FUNCTION_FILENAMES:
-        tree = load_collection(script_args.collection)
+    if args.function == Namespace.FUNCTION_DATE_PATHS:
+        collection = load_collection(args.collection)
+        collection = find_node(collection, constants.XPATH_COLLECTION)
+        print(get_pipe_output(generate_date_paths(collection, args.root_path, metadata_path=args.metadata_path)))
+    elif args.function == Namespace.FUNCTION_IDENTIFIERS or args.function == Namespace.FUNCTION_FILENAMES:
+        tree = load_collection(args.collection)
         pruned = find_node(tree, constants.XPATH_PRUNED)
         collection = find_node(tree, constants.XPATH_COLLECTION)
-        
+
         # collect the playlist IDs
         playlist_ids: set[str] = set()
         for track in pruned:
             playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
-        if script_args.function == Namespace.FUNCTION_IDENTIFIERS:
+        if args.function == Namespace.FUNCTION_IDENTIFIERS:
             items = collect_identifiers(collection, playlist_ids)
         else:
             items = collect_filenames(collection, playlist_ids)
-        
+
         items.sort()
         lines = [f"{id}\n" for id in items]
-        with open(script_args.output, 'w', encoding='utf-8') as file:
+        with open(args.output, 'w', encoding='utf-8') as file:
             file.writelines(lines)
-    elif script_args.function == Namespace.FUNCTION_RECORD_DYNAMIC:
-        record_dynamic_tracks(script_args.collection, script_args.output)
+    elif args.function == Namespace.FUNCTION_RECORD_DYNAMIC:
+        record_dynamic_tracks(args.collection, args.output)
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)
