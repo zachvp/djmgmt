@@ -205,13 +205,15 @@ def compare_tags_with_diff(source: str, comparison: str) -> list[tuple[str, str,
     return changed_paths
 
 # main
-if __name__ == '__main__':
-    import sys
-    from . import common
-    
+def main(argv: list[str]) -> None:
+    '''Entry point for the tags_info module.
+
+    Args:
+        argv: Argument list (e.g. sys.argv), where argv[0] is the script name.
+    '''
     common.configure_log_module(__file__, level=logging.DEBUG)
-    args = parse_args(Namespace.FUNCTIONS, sys.argv[1:])
-    
+    args = parse_args(Namespace.FUNCTIONS, argv[1:])
+
     logging.info(f"running function '{args.function}'")
     if args.function == Namespace.FUNCTION_LOG_DUPLICATES:
         # TODO: write duplicates to file
@@ -236,3 +238,7 @@ if __name__ == '__main__':
         else:
             for paths in changed:
                 print(paths)
+
+if __name__ == '__main__':
+    import sys
+    main(sys.argv)

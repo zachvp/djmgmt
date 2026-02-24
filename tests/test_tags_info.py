@@ -1,6 +1,6 @@
 import io
 import unittest
-from unittest.mock import patch, MagicMock
+from unittest.mock import patch, MagicMock, mock_open
 
 # Test target imports
 from djmgmt import tags_info
@@ -268,3 +268,53 @@ class TestParseArgs(unittest.TestCase):
         self.assertEqual(args.input, os.path.normpath('source/'))
         self.assertEqual(args.output, os.path.normpath('output/'))
         self.assertEqual(args.comparison, os.path.normpath('compare/'))
+
+class TestMain(unittest.TestCase):
+    '''Tests for tags_info.main'''
+
+    def setUp(self) -> None:
+        patch('djmgmt.common.configure_log_module').start()
+        self.addCleanup(patch.stopall)
+
+    @patch('djmgmt.tags_info.log_duplicates')
+    def test_log_duplicates(self, mock_log_duplicates: MagicMock) -> None:
+        '''Tests that log_duplicates is called with the input path.'''
+        tags_info.main(['tags_info', 'log_duplicates', '--input', MOCK_INPUT_DIR])
+
+        mock_log_duplicates.assert_called_once_with(MOCK_INPUT_DIR)
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('djmgmt.tags_info.collect_identifiers')
+    def test_write_identifiers(self, mock_collect_identifiers: MagicMock, mock_file: MagicMock) -> None:
+        '''Tests that collect_identifiers output is sorted and written to file.'''
+        mock_collect_identifiers.return_value = ['id_b', 'id_a']
+
+        tags_info.main(['tags_info', 'write_identifiers', '--input', MOCK_INPUT_DIR, '--output', '/mock/output.txt'])
+
+        mock_collect_identifiers.assert_called_once_with(MOCK_INPUT_DIR)
+        mock_file.assert_called_once_with('/mock/output.txt', 'w', encoding='utf-8')
+        mock_file().writelines.assert_called_once_with(['id_a\n', 'id_b\n'])
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('djmgmt.tags_info.collect_filenames')
+    def test_write_paths(self, mock_collect_filenames: MagicMock, mock_file: MagicMock) -> None:
+        '''Tests that collect_filenames output is sorted and written to file.'''
+        mock_collect_filenames.return_value = ['path_b', 'path_a']
+
+        tags_info.main(['tags_info', 'write_paths', '--input', MOCK_INPUT_DIR, '--output', '/mock/output.txt'])
+
+        mock_collect_filenames.assert_called_once_with(MOCK_INPUT_DIR)
+        mock_file.assert_called_once_with('/mock/output.txt', 'w', encoding='utf-8')
+        mock_file().writelines.assert_called_once_with(['path_a\n', 'path_b\n'])
+
+    @patch('builtins.open', new_callable=mock_open)
+    @patch('djmgmt.tags_info.compare_tags')
+    def test_compare(self, mock_compare_tags: MagicMock, mock_file: MagicMock) -> None:
+        '''Tests that compare_tags output is written to file.'''
+        mock_compare_tags.return_value = [('/src/file.mp3', '/cmp/file.mp3')]
+
+        tags_info.main(['tags_info', 'compare', '--input', '/mock/source',
+                        '--output', '/mock/output.txt', '--comparison', '/mock/compare'])
+
+        mock_compare_tags.assert_called_once_with('/mock/source', '/mock/compare')
+        mock_file.assert_called_once_with('/mock/output.txt', 'w', encoding='utf-8')
