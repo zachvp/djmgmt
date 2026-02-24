@@ -15,6 +15,7 @@ Definitions
 '''
 
 import argparse
+import datetime
 import os
 import sys
 import logging
@@ -82,28 +83,39 @@ class Namespace(argparse.Namespace):
     
 class SavedDateContext:
     FILE_SYNC =f"{constants.PROJECT_ROOT}{os.sep}state{os.sep}sync_state.txt"
-    FILE_SYNC_KEY = 'sync_date'
-    
+
+    @staticmethod
+    def to_timestamp(context: str) -> int:
+        '''Converts a date_context string to a Unix timestamp (midnight UTC).'''
+        parts = context.split('/')
+        year = int(parts[0])
+        month = int(parts[1].split()[0])
+        day = int(parts[2])
+        return int(datetime.datetime(year, month, day, tzinfo=datetime.timezone.utc).timestamp())
+
     @staticmethod
     def save(context: str) -> None:
         '''Persists the date context to disk.'''
+        timestamp = SavedDateContext.to_timestamp(context)
         with open(SavedDateContext.FILE_SYNC, encoding='utf-8', mode='w') as state:
-            state.write(f"{SavedDateContext.FILE_SYNC_KEY}: {context}")
-    
+            state.write(f"{context}, {timestamp}")
+
     @staticmethod
-    def load() -> str:
+    def load() -> tuple[str, int] | None:
         '''Loads the saved context from disk.'''
         with open(SavedDateContext.FILE_SYNC, encoding='utf-8', mode='r') as state: # todo: optimize to only open if recent change
             saved_state = state.readline()
             if saved_state:
-                return saved_state.split(':')[1].strip()
-        return ''
+                context, ts_str = saved_state.rsplit(',', 1)
+                return (context.strip(), int(ts_str.strip()))
+        return None
 
     @staticmethod
     def is_processed(date_context: str) -> bool:
-        date_context_processed = SavedDateContext.load()
-        if date_context_processed:
-            if date_context <= date_context_processed:
+        saved = SavedDateContext.load()
+        if saved:
+            _, saved_timestamp = saved
+            if SavedDateContext.to_timestamp(date_context) <= saved_timestamp:
                 logging.info(f"already processed date context: {date_context}")
                 return True
         logging.info(f"date context is unprocessed: {date_context}")
@@ -241,9 +253,9 @@ def format_timing(timestamp: float) -> str:
         return f"{hours}h {minutes}m {seconds:.3f}s"
     return f"{timestamp:.3f}s"
 
-def key_date_context(mapping: FileMapping) -> str:
+def key_date_context(mapping: FileMapping) -> int:
     date_context = common.find_date_context(mapping[1])
-    return date_context[0] if date_context else ''
+    return SavedDateContext.to_timestamp(date_context[0]) if date_context else 0
     
 def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_run: bool = False) -> tuple[int, str]:
     '''Uses rsync to transfer files using remote daemon.
@@ -555,11 +567,12 @@ def run_music(mappings: list[FileMapping],
     # filter mappings based on end_date if provided
     if end_date:
         filtered_mappings: list[FileMapping] = []
+        end_timestamp = SavedDateContext.to_timestamp(end_date)
         for mapping in mappings:
             date_context = common.find_date_context(mapping[1])
-            if date_context and date_context[0] <= end_date:
+            if date_context and SavedDateContext.to_timestamp(date_context[0]) <= end_timestamp:
                 filtered_mappings.append(mapping)
-            elif date_context and date_context[0] > end_date:
+            elif date_context and SavedDateContext.to_timestamp(date_context[0]) > end_timestamp:
                 logging.info(f"skipping mapping with date context '{date_context[0]}' (after end_date '{end_date}')")
 
         logging.info(f"filtered mappings from {len(mappings)} to {len(filtered_mappings)} based on end_date '{end_date}'")

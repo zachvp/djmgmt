@@ -41,7 +41,7 @@ class TestIsProcessed(unittest.TestCase):
     def setUp(self) -> None:
         self.mock_load = patch('djmgmt.sync.SavedDateContext.load').start()
         self.addCleanup(patch.stopall)
-        self.mock_load.return_value = DATE_PROCESSED_CURRENT
+        self.mock_load.return_value = (DATE_PROCESSED_CURRENT, sync.SavedDateContext.to_timestamp(DATE_PROCESSED_CURRENT))
 
     # Past dates
     def test_is_processed_past(self) -> None:
@@ -357,7 +357,7 @@ class TestSyncMappings(unittest.TestCase):
         self.mock_save       = patch('djmgmt.sync.SavedDateContext.save').start()
         self.mock_sync_batch = patch('djmgmt.sync.sync_batch').start()
         self.addCleanup(patch.stopall)
-        self.mock_load.return_value = ''
+        self.mock_load.return_value = None
 
     def test_success_one_context(self) -> None:
         '''Tests that a single batch with mappings in the same date context is synced properly.'''
@@ -417,7 +417,7 @@ class TestSyncMappings(unittest.TestCase):
 
     def test_success_outdated_context_single(self) -> None:
         '''Tests that a mapping with a date context older than the saved date context does not save any date context.'''
-        self.mock_load.return_value = '2100/01 january/ 01'
+        self.mock_load.return_value = ('2100/01 january/01', sync.SavedDateContext.to_timestamp('2100/01 january/01'))
         mappings = [
             ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
         ]
@@ -429,7 +429,7 @@ class TestSyncMappings(unittest.TestCase):
 
     def test_success_outdated_context_multiple(self) -> None:
         '''Tests that a mapping with a date context older than the saved date context does not save any date context.'''
-        self.mock_load.return_value = '2100/01 january/ 01'
+        self.mock_load.return_value = ('2100/01 january/01', sync.SavedDateContext.to_timestamp('2100/01 january/01'))
         mappings = [
             ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
             ('input/path/track_0.mp3', '/output/2025/05 may/21/artist/album/track_0.mp3'),
