@@ -3,6 +3,7 @@ This script performs bulk operations on a list of files contained in the input f
 '''
 
 import os
+import sys
 import shutil
 import argparse
 from typing import Callable
@@ -122,9 +123,11 @@ def batch_file_operation(args: Namespace) -> None:
             action(input_path, args.output)
 
 # Main
-if __name__ == '__main__':
-    import sys
-    script_args = parse_args(Namespace.SCRIPT_FUNCTIONS, sys.argv[1:])
+def main(argv: list[str]) -> None:
+    script_args = parse_args(Namespace.SCRIPT_FUNCTIONS, argv[1:])
 
     if script_args.function == Namespace.FUNCTION_MOVE:
         batch_file_operation(script_args)
+
+if __name__ == '__main__':
+    main(sys.argv)
