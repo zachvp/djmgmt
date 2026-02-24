@@ -175,20 +175,6 @@ def syspath_to_collection_path(file_path: str) -> str:
     '''Transforms the given system path to an XML file path'''
     return f"{constants.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
 
-def swap_root(path: str, old_root: str, root: str) -> str:
-    '''Returns the given path with its root replaced.
-
-    Arguments:
-        path -- The directory path
-        root -- The new root to use
-    '''
-    if not root.endswith(os.path.sep):
-        root += os.path.sep
-
-    root = path.replace(old_root, root)
-
-    return root
-
 def load_collection(path: str) -> ET.Element:
     '''Returns the root node of the XML collection at `path`.'''
     message = f"unable to parse collection at '{path}'"
@@ -477,35 +463,6 @@ def get_pipe_output(structure: list[FileMapping]) -> str:
     for item in structure:
         output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
     return ''.join(output).strip()
-
-def move_files(args: type[Namespace], path_mappings: list[str]) -> None:
-    '''Moves files according to the paths input mapping.'''
-    for mapping in path_mappings:
-        source, dest = mapping.split(constants.FILE_OPERATION_DELIMITER)
-
-        # interactive session
-        if args.interactive:
-            choice = input(f"info: will move file from '{source}' to '{dest}', continue? [Y/n]")
-            if len(choice) > 0 and choice not in 'Yy':
-                logging.info("exit: user quit")
-                sys.exit()
-
-        # get the destination file's directory
-        dest_dir =  '/'.join(dest.split('/')[:-1])
-
-        # validate
-        if not os.path.exists(source):
-            logging.info(f"skip: source path '{source}' does not exist")
-            continue
-        if os.path.exists(dest):
-            logging.info(f"skip: destination path '{dest}' exists")
-            continue
-
-        # create dir if it doesn't exist
-        if not os.path.exists(dest_dir):
-            os.makedirs(dest_dir)
-
-        shutil.move(source, dest)
 
 def collect_identifiers(collection: ET.Element, playlist_ids: set[str] = set()) -> list[str]:
     from .tags import Tags

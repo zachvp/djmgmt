@@ -116,7 +116,6 @@ def _assert_track_attrs_from_tags(test_case: unittest.TestCase, track: ET.Elemen
 class TestGenerateDatePaths(unittest.TestCase):
     def setUp(self) -> None:
         self.mock_col_path   = patch('djmgmt.library.collection_path_to_syspath').start()
-        self.mock_swap_root  = patch('djmgmt.library.swap_root').start()
         self.mock_full_path  = patch('djmgmt.library.full_path').start()
         self.mock_date_ctx   = patch('djmgmt.common.find_date_context').start()
         self.mock_remove_sub = patch('djmgmt.common.remove_subpath').start()
@@ -126,7 +125,6 @@ class TestGenerateDatePaths(unittest.TestCase):
         self.mock_col_path.return_value   = '/Users/user/Music/DJ/MOCK_FILE.aiff'
         self.mock_date_ctx.return_value   = ('2020/02 february/03', 5)
         self.mock_remove_sub.return_value = '/mock/root/2020/02 february/03/MOCK_FILE.aiff'
-        self.mock_swap_root.return_value  = '/mock/root/Music/DJ/2020/02 february/03/MOCK_FILE.aiff'
 
     def test_success_default_parameters(self) -> None:
         '''Tests that a collection with a single track yields the expected input/output path mapping
