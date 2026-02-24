@@ -1,10 +1,9 @@
-# extract info from rekordbox playlist export
-
 '''
-Format
-    Tab-separated
-    Fields depend on rekordbox view settings, here is an example line format
-        "#   Track Title BPM Artist  Genre   Date Added  Time    Key DJ Play Count"
+# Summary
+Functions for managing DJ mix playlists and Rekordbox playlist exports.
+
+    - extract:  Outputs track information (number, title, artist, genre) from a Rekordbox playlist export file.
+    - press:    Records a new DJ mix entry to a CSV file with metadata such as recording date, playlist path, and Soundcloud URL.
 '''
 
 import argparse

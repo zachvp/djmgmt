@@ -3,7 +3,7 @@
 Functions to scan and manipulate a batch of music files.
 
     - sweep:           Moves all music files and archives from source to target
-    - flatten:         Recusrively flattens all files in a given directory
+    - flatten:         Recursively flattens all files in a given directory
     - extract:         Extract files from all archives in a given directory.
     - compress:        Zips the contents of a given directory.
     - prune:           Removes all empty folders and non-music files from a directory.

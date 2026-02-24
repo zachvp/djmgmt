@@ -1,14 +1,11 @@
 '''
 # Summary
-Given a Rekordbox music collection, moves each file to a directory path that corresponds to the date it was added.
+Functions for managing a Rekordbox XML collection and its associated file paths.
 
-For example, if the music library file 'TrackA.aiff' has a corresponding 'DateAdded'
-attribute of '01/02/23 (Jan 2, 2023)', the new path will be
-    '/library_root/2023/01 january/02/Artist/Album/TrackA.aiff'
-
-# Assumptions
-* The music library source files are in a flat directory structure. Any tracks in subfolders will be ignored.
-* The XML collection file paths point to this flat music library.
+    - date_paths:      Generates date-structured path mappings (YYYY/MM month/DD/Artist/Album/) from a Rekordbox XML collection.
+    - filenames:       Extracts normalized filenames from the _pruned playlist and writes them to an output file.
+    - identifiers:     Extracts artist-title identifier strings from the _pruned playlist and writes them to an output file.
+    - record_dynamic:  Updates the 'dynamic.played' and 'dynamic.unplayed' playlists in an output XML collection.
 '''
 
 import os

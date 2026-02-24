@@ -1,5 +1,10 @@
 '''
-encode tracks scripts
+# Summary
+Functions for audio transcoding using ffmpeg.
+
+    - lossless:      Encodes lossless audio files exceeding 44.1kHz/16-bit to the target lossless format.
+    - lossy:         Encodes audio files to lossy format (MP3 at 320kbps), preserving cover art from video streams.
+    - missing_art:   Identifies tracks missing cover artwork from a Rekordbox XML collection or filesystem scan.
 '''
 
 import subprocess

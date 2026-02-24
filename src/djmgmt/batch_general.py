@@ -1,5 +1,8 @@
 '''
-This script performs bulk operations on a list of files contained in the input file.
+# Summary
+Functions for bulk file operations driven by a TSV input file.
+
+    - move:  Moves files listed in a TSV input file to a specified output directory.
 '''
 
 import os

@@ -1,17 +1,10 @@
 '''
 # Summary
-    1. Scans an input directory of date-structured audio files in chronological order.
-    2. Transfers each audio file into the output directory, maintaining the
-        date and subdirectory structure of the source directory.
-      2a. Suspends process when scan switches from one day to another.
+Functions to transfer audio files and playlists to a remote media server.
 
-Definitions
-    date-structured directory:
-        /year/month/day/** (e.g. /2020/january/01/artist/album/audio.file)
-    year:       4-digit positive int (e.g. 2023)
-    month:      english month name (e.g. january)
-    day:        2-digit positive int (e.g 05)
-    audio.file: must be an audio file type
+    - music:     Syncs date-structured music files to the media server by encoding to MP3, rsyncing in chronological batches, and triggering a remote library scan.
+    - playlist:  Generates a Navidrome M3U8 playlist from a Rekordbox collection and rsyncs it to the media server.
+    - preview:   Previews files that would be synced to a client mirror from the _pruned playlist, showing new tracks and metadata changes.
 '''
 
 import argparse
