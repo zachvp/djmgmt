@@ -367,6 +367,20 @@ def get_unplayed_tracks(root: ET.Element) -> list[str]:
             unplayed_tracks.append(track_id)
     return unplayed_tracks
 
+def add_pruned_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+    '''Updates the '_pruned' playlist in the base XML root with tracks from the input collection.
+
+    Args:
+        collection_root: The input XML root containing the source _pruned playlist
+        base_root: The XML root element to modify
+
+    Returns:
+        The modified root element
+    '''
+    pruned_node = find_node(collection_root, constants.XPATH_PRUNED)
+    pruned_ids = get_playlist_track_ids(pruned_node)
+    return add_playlist_tracks(base_root, pruned_ids, constants.XPATH_PRUNED)
+
 def add_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
     '''Updates the 'dynamic.played' playlist in the base XML root.
 
@@ -627,9 +641,6 @@ def record_collection(source: str, base_collection_path: str, output_collection_
         tracks_updated=updated_tracks
     )
 
-# TODO: update to use latest collection at known path if no input path provided
-# TODO: update to write to dynamic path defined as constant if output path not provided
-# TODO: ^ requires arg parsing refactor.
 def record_dynamic_tracks(input_collection_path: str, output_collection_path: str) -> ET.Element:
     '''Updates both the 'dynamic.played' and 'dynamic.unplayed' playlists in the output XML collection.
 
@@ -652,7 +663,8 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     for track in collection:
         base_collection.append(track)
 
-    # update both playlists on the same base_root
+    # update all playlists on the same base_root
+    add_pruned_tracks(collection_root, base_root)
     add_played_tracks(collection_root, base_root)
     add_unplayed_tracks(collection_root, base_root)
 
@@ -660,7 +672,6 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     write_root(base_root, output_collection_path)
 
     return base_root
-
 
 def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
     '''Builds a mapping from Location attribute to TRACK element.

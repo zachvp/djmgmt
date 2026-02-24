@@ -640,11 +640,13 @@ class TestRecordDynamicTracks(unittest.TestCase):
     @patch.object(ET.ElementTree, 'write')
     @patch('djmgmt.library.add_unplayed_tracks')
     @patch('djmgmt.library.add_played_tracks')
+    @patch('djmgmt.library.add_pruned_tracks')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
     def test_success(self,
                      mock_load_collection: MagicMock,
                      mock_find_node: MagicMock,
+                     mock_add_pruned: MagicMock,
                      mock_add_played: MagicMock,
                      mock_add_unplayed: MagicMock,
                      mock_xml_write: MagicMock) -> None:
@@ -657,6 +659,7 @@ class TestRecordDynamicTracks(unittest.TestCase):
 
         mock_load_collection.side_effect = [mock_collection_root, mock_base_root]
         mock_find_node.side_effect = [mock_base_collection, mock_collection]
+        mock_add_pruned.return_value = mock_base_root
         mock_add_played.return_value = mock_base_root
         mock_add_unplayed.return_value = mock_base_root
 
@@ -670,10 +673,33 @@ class TestRecordDynamicTracks(unittest.TestCase):
         # Verify collection was copied
         mock_base_collection.clear.assert_called_once()
 
+        mock_add_pruned.assert_called_once_with(mock_collection_root, mock_base_root)
         mock_add_played.assert_called_once_with(mock_collection_root, mock_base_root)
         mock_add_unplayed.assert_called_once_with(mock_collection_root, mock_base_root)
         mock_xml_write.assert_called_once_with(MOCK_OUTPUT_DIR, encoding='UTF-8', xml_declaration=True)
         self.assertEqual(result, mock_base_root)
+
+class TestAddPrunedTracks(unittest.TestCase):
+    '''Tests for library.add_pruned_tracks.'''
+
+    def test_success(self) -> None:
+        '''Tests that _pruned playlist is populated from input collection.'''
+        input_xml = _build_dj_playlists_xml(
+            [_create_track_xml(1), _create_track_xml(2)],
+            ['1', '2']
+        )
+        collection_root = ET.fromstring(input_xml)
+        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
+        base_root = template_tree.getroot()
+
+        result = library.add_pruned_tracks(collection_root, base_root)
+
+        pruned_node = result.find(constants.XPATH_PRUNED)
+        self.assertIsNotNone(pruned_node)
+        assert pruned_node is not None
+        self.assertEqual(pruned_node.get('Entries'), '2')
+        tracks = pruned_node.findall(constants.TAG_TRACK)
+        self.assertListEqual([t.get('Key') for t in tracks], ['1', '2'])
 
 class TestRecordCollection(unittest.TestCase):
     '''Tests for library.record_collection.'''
