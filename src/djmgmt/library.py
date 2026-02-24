@@ -50,6 +50,7 @@ class Namespace(argparse.Namespace):
 
     FUNCTIONS = {FUNCTION_DATE_PATHS, FUNCTION_IDENTIFIERS, FUNCTION_FILENAMES, FUNCTION_RECORD_DYNAMIC}
 
+# Dataclasses
 @dataclass
 class TrackMetadata:
     '''Represents metadata for a track from the XML collection.'''
@@ -67,6 +68,17 @@ class RecordResult:
     collection_root: ET.Element
     tracks_added: int
     tracks_updated: int
+
+# Dataclass helpers
+def _create_track_metadata(track_node: ET.Element) -> TrackMetadata:
+    return TrackMetadata(
+        title=track_node.get(constants.ATTR_TITLE, ''),
+        artist=track_node.get(constants.ATTR_ARTIST, ''),
+        album=track_node.get(constants.ATTR_ALBUM, ''),
+        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
+        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
+        path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
+    )
 
 def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
@@ -111,7 +123,7 @@ def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
 
     return args
 
-
+# Internal helpers
 def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
     '''Validate function-specific required arguments.'''
 
@@ -119,21 +131,7 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
     if not args.collection:
         parser.error(f"'{args.function}' requires --collection")
 
-# helper functions
-def date_path(date: str, mapping: dict[int, str]) -> str:
-    '''Returns a date-formatted directory path string. e.g:
-        YYYY/MM MONTH_NAME / DD
-        2024/ 01 january / 02
-    
-    Arguments:
-        date -- The YYYY-MM-DD date string to transform
-        mapping -- The human-readable definitions for the months
-    '''
-    year, month, day = date.split('-')
-
-    return f"{year}/{month} {mapping[int(month)]}/{day}"
-
-def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], include_metadata: bool=False) -> str:
+def _full_path(node: ET.Element, library_root: str, mapping: dict[int, str], include_metadata: bool=False) -> str:
     '''Returns a formatted directory path based on the node's DateAdded field.
 
     Arguments:
@@ -159,6 +157,79 @@ def full_path(node: ET.Element, library_root: str, mapping: dict[int, str], incl
         path = os.path.join(path, artist, album)   # append metadata
     path = os.path.join(path, path_components[-1]) # append file name
     return path
+
+def _add_pruned_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+    '''Updates the '_pruned' playlist in the base XML root with tracks from the input collection.
+
+    Args:
+        collection_root: The input XML root containing the source _pruned playlist
+        base_root: The XML root element to modify
+
+    Returns:
+        The modified root element
+    '''
+    pruned_node = find_node(collection_root, constants.XPATH_PRUNED)
+    pruned_ids = get_playlist_track_ids(pruned_node)
+    return _add_playlist_tracks(base_root, pruned_ids, constants.XPATH_PRUNED)
+
+def _add_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+    '''Updates the 'dynamic.played' playlist in the base XML root.
+
+    Args:
+        collection_root: The input XML root containing the source collection
+        base_root: The XML root element to modify
+
+    Returns:
+        The modified root element
+    '''
+    played = get_played_tracks(collection_root)
+    return _add_playlist_tracks(base_root, played, constants.XPATH_PLAYED)
+
+def _add_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
+    '''Updates the 'dynamic.unplayed' playlist in the base XML root.
+
+    Args:
+        collection_root: The input XML root containing the source collection
+        base_root: The XML root element to modify
+
+    Returns:
+        The modified root element
+    '''
+    unplayed = get_unplayed_tracks(collection_root)
+    return _add_playlist_tracks(base_root, unplayed, constants.XPATH_UNPLAYED)
+
+def _add_playlist_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath: str) -> ET.Element:
+    '''Updates a playlist in the given XML root with the specified tracks.
+
+    Args:
+        base_root: The XML root element to modify (can be called multiple times on same instance)
+        tracks: List of track IDs (TRACK.Key values) to add to playlist
+        playlist_xpath: XPath expression to locate target playlist node
+
+    Returns:
+        The modified root element
+    '''
+    # populate the target playlist
+    playlist_node = find_node(base_root, playlist_xpath)
+    for track_id in tracks:
+        ET.SubElement(playlist_node, constants.TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
+    playlist_node.set('Entries', str(len(tracks)))
+
+    return base_root
+
+# External helpers
+def date_path(date: str, mapping: dict[int, str]) -> str:
+    '''Returns a date-formatted directory path string. e.g:
+        YYYY/MM MONTH_NAME / DD
+        2024/ 01 january / 02
+    
+    Arguments:
+        date -- The YYYY-MM-DD date string to transform
+        mapping -- The human-readable definitions for the months
+    '''
+    year, month, day = date.split('-')
+
+    return f"{year}/{month} {mapping[int(month)]}/{day}"
 
 def collection_path_to_syspath(path: str) -> str:
     '''Transforms the given XML collection path to a directory path.
@@ -231,7 +302,7 @@ def get_playlist_track_ids(playlist_node: ET.Element) -> list[str]:
     for track in playlist_node.findall(constants.TAG_TRACK):
         track_id = track.get(constants.ATTR_TRACK_KEY)
         if track_id is None:
-            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {create_track_metadata(track)}")
+            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {_create_track_metadata(track)}")
         if track_id is not None:
             track_ids.append(track_id)
     return track_ids
@@ -269,16 +340,6 @@ def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, pl
     filtered = [mapping for mapping in mappings if mapping[0] in track_paths]
     return filtered
 
-def create_track_metadata(track_node: ET.Element) -> TrackMetadata:
-    return TrackMetadata(
-        title=track_node.get(constants.ATTR_TITLE, ''),
-        artist=track_node.get(constants.ATTR_ARTIST, ''),
-        album=track_node.get(constants.ATTR_ALBUM, ''),
-        date_added=track_node.get(constants.ATTR_DATE_ADDED, ''),
-        total_time=track_node.get(constants.ATTR_TOTAL_TIME, '0'),
-        path=collection_path_to_syspath(track_node.get(constants.ATTR_LOCATION, ''))
-    )
-
 def extract_track_metadata_by_path(collection: ET.Element, syspath: str) -> TrackMetadata | None:
     '''Extracts track metadata from XML collection by file path.
 
@@ -300,7 +361,7 @@ def extract_track_metadata_by_path(collection: ET.Element, syspath: str) -> Trac
         logging.warning(f'Track not found in collection: {syspath}')
         return None
 
-    return create_track_metadata(track_node)
+    return _create_track_metadata(track_node)
 
 def extract_track_metadata_by_id(collection: ET.Element, track_id: str) -> TrackMetadata | None:
     '''Extracts track metadata from XML collection by TrackID.
@@ -319,7 +380,7 @@ def extract_track_metadata_by_id(collection: ET.Element, track_id: str) -> Track
         return None
 
     # Get location and convert to system path
-    return create_track_metadata(track_node)
+    return _create_track_metadata(track_node)
 
 def get_played_tracks(root: ET.Element) -> list[str]:
     '''Returns a list of TRACK.Key/ID strings for all playlist tracks in the 'mixtapes' folder.'''
@@ -352,65 +413,6 @@ def get_unplayed_tracks(root: ET.Element) -> list[str]:
         if track_id not in played_tracks:
             unplayed_tracks.append(track_id)
     return unplayed_tracks
-
-def add_pruned_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
-    '''Updates the '_pruned' playlist in the base XML root with tracks from the input collection.
-
-    Args:
-        collection_root: The input XML root containing the source _pruned playlist
-        base_root: The XML root element to modify
-
-    Returns:
-        The modified root element
-    '''
-    pruned_node = find_node(collection_root, constants.XPATH_PRUNED)
-    pruned_ids = get_playlist_track_ids(pruned_node)
-    return add_playlist_tracks(base_root, pruned_ids, constants.XPATH_PRUNED)
-
-def add_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
-    '''Updates the 'dynamic.played' playlist in the base XML root.
-
-    Args:
-        collection_root: The input XML root containing the source collection
-        base_root: The XML root element to modify
-
-    Returns:
-        The modified root element
-    '''
-    played = get_played_tracks(collection_root)
-    return add_playlist_tracks(base_root, played, constants.XPATH_PLAYED)
-
-def add_unplayed_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
-    '''Updates the 'dynamic.unplayed' playlist in the base XML root.
-
-    Args:
-        collection_root: The input XML root containing the source collection
-        base_root: The XML root element to modify
-
-    Returns:
-        The modified root element
-    '''
-    unplayed = get_unplayed_tracks(collection_root)
-    return add_playlist_tracks(base_root, unplayed, constants.XPATH_UNPLAYED)
-
-def add_playlist_tracks(base_root: ET.Element, tracks: list[str], playlist_xpath: str) -> ET.Element:
-    '''Updates a playlist in the given XML root with the specified tracks.
-
-    Args:
-        base_root: The XML root element to modify (can be called multiple times on same instance)
-        tracks: List of track IDs (TRACK.Key values) to add to playlist
-        playlist_xpath: XPath expression to locate target playlist node
-
-    Returns:
-        The modified root element
-    '''
-    # populate the target playlist
-    playlist_node = find_node(base_root, playlist_xpath)
-    for track_id in tracks:
-        ET.SubElement(playlist_node, constants.TAG_TRACK, {constants.ATTR_TRACK_KEY : track_id})
-    playlist_node.set('Entries', str(len(tracks)))
-
-    return base_root
 
 def write_root(root: ET.Element, file_path: str) -> None:
     tree = ET.ElementTree(root)
@@ -446,7 +448,7 @@ def generate_date_paths(collection: ET.Element,
         
         # build each entry for the old and new path
         track_path_old = node_syspath
-        track_path_new = full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=metadata_path)
+        track_path_new = _full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=metadata_path)
         track_path_new = collection_path_to_syspath(track_path_new)
         
         context = common.find_date_context(track_path_new)
@@ -498,8 +500,6 @@ def collect_filenames(collection: ET.Element, playlist_ids: set[str] = set()) ->
         names.append(name)
     return names
 
-# TODO: extend to save backup of previous X versions
-# TODO: implement merge XML function
 def record_collection(source: str, base_collection_path: str, output_collection_path: str, dry_run: bool = False) -> RecordResult:
     '''Updates the tracks for the 'COLLECTION' and '_pruned' playlist in the given XML `collection_path`
     with all music files in the `source` directory.
@@ -621,9 +621,9 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
         base_collection.append(track)
 
     # update all playlists on the same base_root
-    add_pruned_tracks(collection_root, base_root)
-    add_played_tracks(collection_root, base_root)
-    add_unplayed_tracks(collection_root, base_root)
+    _add_pruned_tracks(collection_root, base_root)
+    _add_played_tracks(collection_root, base_root)
+    _add_unplayed_tracks(collection_root, base_root)
 
     # write the result to file
     write_root(base_root, output_collection_path)

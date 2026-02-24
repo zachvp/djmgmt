@@ -116,7 +116,7 @@ def _assert_track_attrs_from_tags(test_case: unittest.TestCase, track: ET.Elemen
 class TestGenerateDatePaths(unittest.TestCase):
     def setUp(self) -> None:
         self.mock_col_path   = patch('djmgmt.library.collection_path_to_syspath').start()
-        self.mock_full_path  = patch('djmgmt.library.full_path').start()
+        self.mock_full_path  = patch('djmgmt.library._full_path').start()
         self.mock_date_ctx   = patch('djmgmt.common.find_date_context').start()
         self.mock_remove_sub = patch('djmgmt.common.remove_subpath').start()
         self.addCleanup(patch.stopall)
@@ -199,7 +199,7 @@ class TestFullPath(unittest.TestCase):
         mock_date_path.return_value = '2020/02 february/03'
         
         # Call test function
-        actual = library.full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH)
+        actual = library._full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH)
         
         # Assert expectations
         expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_FILE_1.aiff'
@@ -215,7 +215,7 @@ class TestFullPath(unittest.TestCase):
         mock_date_path.return_value = '2020/02 february/03'
 
         # Call test function
-        actual = library.full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=True)
+        actual = library._full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=True)
 
         # Assert expectations
         expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_ARTIST_1/MOCK_ALBUM_1/MOCK_FILE_1.aiff'
@@ -547,7 +547,7 @@ class TestRecordTracks(unittest.TestCase):
 
         # Call target function
         track_ids = ['0', '2']
-        result = library.add_playlist_tracks(base_root, track_ids, constants.XPATH_UNPLAYED)
+        result = library._add_playlist_tracks(base_root, track_ids, constants.XPATH_UNPLAYED)
 
         # Verify the unplayed playlist was populated
         unplayed_node = result.find(constants.XPATH_UNPLAYED)
@@ -567,7 +567,7 @@ class TestRecordTracks(unittest.TestCase):
 
         # Call target function
         track_ids = ['1']
-        result = library.add_playlist_tracks(base_root, track_ids, constants.XPATH_PLAYED)
+        result = library._add_playlist_tracks(base_root, track_ids, constants.XPATH_PLAYED)
 
         # Verify the played playlist was populated
         played_node = result.find(constants.XPATH_PLAYED)
@@ -581,7 +581,7 @@ class TestRecordTracks(unittest.TestCase):
 class TestRecordUnplayedTracks(unittest.TestCase):
     '''Tests for library.record_unplayed_tracks.'''
 
-    @patch('djmgmt.library.add_playlist_tracks')
+    @patch('djmgmt.library._add_playlist_tracks')
     @patch('djmgmt.library.get_unplayed_tracks')
     def test_success(self,
                      mock_get_unplayed: MagicMock,
@@ -594,7 +594,7 @@ class TestRecordUnplayedTracks(unittest.TestCase):
         mock_add_playlist_tracks.return_value = MagicMock()
 
         # Call target function
-        result = library.add_unplayed_tracks(mock_collection_root, mock_base_root)
+        result = library._add_unplayed_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
         mock_get_unplayed.assert_called_once_with(mock_collection_root)
@@ -608,7 +608,7 @@ class TestRecordUnplayedTracks(unittest.TestCase):
 class TestRecordPlayedTracks(unittest.TestCase):
     '''Tests for library.record_played_tracks.'''
 
-    @patch('djmgmt.library.add_playlist_tracks')
+    @patch('djmgmt.library._add_playlist_tracks')
     @patch('djmgmt.library.get_played_tracks')
     def test_success(self,
                      mock_get_played: MagicMock,
@@ -621,7 +621,7 @@ class TestRecordPlayedTracks(unittest.TestCase):
         mock_add_playlist_tracks.return_value = MagicMock()
 
         # Call target function
-        result = library.add_played_tracks(mock_collection_root, mock_base_root)
+        result = library._add_played_tracks(mock_collection_root, mock_base_root)
 
         # Assert expectations
         mock_get_played.assert_called_once_with(mock_collection_root)
@@ -636,9 +636,9 @@ class TestRecordDynamicTracks(unittest.TestCase):
     '''Tests for library.record_dynamic_tracks.'''
 
     @patch.object(ET.ElementTree, 'write')
-    @patch('djmgmt.library.add_unplayed_tracks')
-    @patch('djmgmt.library.add_played_tracks')
-    @patch('djmgmt.library.add_pruned_tracks')
+    @patch('djmgmt.library._add_unplayed_tracks')
+    @patch('djmgmt.library._add_played_tracks')
+    @patch('djmgmt.library._add_pruned_tracks')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
     def test_success(self,
@@ -690,7 +690,7 @@ class TestAddPrunedTracks(unittest.TestCase):
         template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
-        result = library.add_pruned_tracks(collection_root, base_root)
+        result = library._add_pruned_tracks(collection_root, base_root)
 
         pruned_node = result.find(constants.XPATH_PRUNED)
         self.assertIsNotNone(pruned_node)
