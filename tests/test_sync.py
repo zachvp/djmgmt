@@ -978,29 +978,26 @@ class TestRunPlaylist(unittest.TestCase):
         self.assertIn('dynamic_unplayed.m3u8', local_path)
         self.assertIn('playlists/dynamic_unplayed.m3u8', rsync_path)
 
-class TestRunPlaylistCli(unittest.TestCase):
-    '''Tests for sync.run_playlist_cli.'''
+class TestMain(unittest.TestCase):
+    '''Tests for sync.main().'''
 
+    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.sync.run_playlist')
-    def test_extracts_args_and_calls_core(self, mock_run_playlist: MagicMock) -> None:
-        '''Tests that CLI wrapper extracts Namespace fields and calls run_playlist with plain parameters.'''
-        args = sync.Namespace()
-        args.collection = '/mock/collection.xml'
-        args.playlist_path = 'dynamic.unplayed'
-        args.dry_run = False
-
-        sync.run_playlist_cli(args)
+    def test_playlist(self, mock_run_playlist: MagicMock, mock_configure_log: MagicMock) -> None:
+        '''Tests that main() dispatches to run_playlist with the correct arguments.'''
+        sync.main(['sync', sync.Namespace.FUNCTION_PLAYLIST,
+                   '--collection', '/mock/collection.xml',
+                   '--playlist-path', 'dynamic.unplayed'])
 
         mock_run_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=False)
 
+    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.sync.run_playlist')
-    def test_threads_dry_run(self, mock_run_playlist: MagicMock) -> None:
-        '''Tests that dry_run=True is threaded from args to run_playlist.'''
-        args = sync.Namespace()
-        args.collection = '/mock/collection.xml'
-        args.playlist_path = 'dynamic.unplayed'
-        args.dry_run = True
-
-        sync.run_playlist_cli(args)
+    def test_playlist_dry_run(self, mock_run_playlist: MagicMock, mock_configure_log: MagicMock) -> None:
+        '''Tests that main() threads dry_run=True to run_playlist.'''
+        sync.main(['sync', sync.Namespace.FUNCTION_PLAYLIST,
+                   '--collection', '/mock/collection.xml',
+                   '--playlist-path', 'dynamic.unplayed',
+                   '--dry-run'])
 
         mock_run_playlist.assert_called_once_with('/mock/collection.xml', 'dynamic.unplayed', dry_run=True)

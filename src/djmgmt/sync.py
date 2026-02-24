@@ -16,6 +16,7 @@ Definitions
 
 import argparse
 import os
+import sys
 import logging
 import time
 import xml.etree.ElementTree as ET
@@ -616,18 +617,11 @@ def run_playlist(collection: str, playlist_dot_path: str, dry_run: bool = False)
     logging.info(f"playlist sync complete: {len(tracks)} tracks")
     return (local_path, rsync_implied_path)
 
-def run_playlist_cli(args: Namespace) -> None:
-    '''CLI wrapper for the core `run_playlist` function.'''
-    run_playlist(args.collection, args.playlist_path, dry_run=args.dry_run)
-
 # TODO add interactive mode to confirm sync state before any sync batch is possible
-if __name__ == '__main__':
-    import sys
-    # setup
+def main(argv: list[str]) -> None:
     common.configure_log_module(__file__, level=logging.DEBUG)
-    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES, sys.argv[1:])
+    script_args = parse_args(Namespace.FUNCTIONS, Namespace.SCAN_MODES, Namespace.SYNC_MODES, argv[1:])
 
-    # run the given command
     logging.info(f"running function '{script_args.function}'")
     if script_args.function == Namespace.FUNCTION_MUSIC:
         from . import library
@@ -642,7 +636,7 @@ if __name__ == '__main__':
             logging.debug(f"batches:\n{sync_result.batches}")
             for batch in sync_result.batches:
                 logging.debug(f"{batch.date_context}: {batch.files_processed} files")
-        
+
     elif script_args.function == Namespace.FUNCTION_PREVIEW:
         from . import library
 
@@ -685,4 +679,7 @@ if __name__ == '__main__':
             print(f'Summary: {len(new_tracks)} new, {len(changed_tracks)} changed')
 
     elif script_args.function == Namespace.FUNCTION_PLAYLIST:
-        run_playlist_cli(script_args)
+        run_playlist(script_args.collection, script_args.playlist_path, dry_run=script_args.dry_run)
+
+if __name__ == '__main__':
+    main(sys.argv)
