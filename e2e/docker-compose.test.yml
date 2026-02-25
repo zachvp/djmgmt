@@ -67,6 +67,7 @@ services:
       - RSYNC_PORT=873
       - RSYNC_USER=testuser
       - RSYNC_MODULE=data
+      - RSYNC_PASSWORD=testpass
 
       # djmgmt configuration
       - DJMGMT_STATE_DIR=/tmp/djmgmt/state
