@@ -23,7 +23,8 @@ from . import constants
 from .library import TrackMetadata
 from .common import FileMapping
 
-# Data classes
+# region Data
+
 @dataclass
 class SyncBatchResult:
     '''Results from syncing a single date context batch.'''
@@ -37,7 +38,16 @@ class SyncResult:
     mappings: list[FileMapping]
     batches: list[SyncBatchResult]
 
-# Classes
+@dataclass
+class SyncPreviewTrack:
+    '''Represents a track that would be synced, with metadata and sync status.'''
+    metadata: TrackMetadata
+    change_type: str  # 'new' or 'changed'
+
+# endregion
+
+# region Configuration
+
 class Namespace(argparse.Namespace):
     '''Command-line arguments for sync module.'''
 
@@ -74,7 +84,7 @@ class Namespace(argparse.Namespace):
     SYNC_MODE_REMOTE = 'remote'
 
     SYNC_MODES = {SYNC_MODE_LOCAL, SYNC_MODE_REMOTE}
-    
+
 class SavedDateContext:
     FILE_SYNC = config.SYNC_STATE_PATH
 
@@ -115,96 +125,17 @@ class SavedDateContext:
         logging.info(f"date context is unprocessed: {date_context}")
         return False
 
-@dataclass
-class SyncPreviewTrack:
-    '''Represents a track that would be synced, with metadata and sync status.'''
-    metadata: TrackMetadata
-    change_type: str  # 'new' or 'changed'
+# endregion
 
-def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str],
-               argv: list[str]) -> Namespace:
-    '''Parse command line arguments.
+# region Utilities
 
+def format_timing(timestamp: float) -> str:
+    if timestamp > 60:
+        hours, remainder = divmod(timestamp, 3600)
+        minutes, seconds = divmod(remainder, 60)
+        return f"{hours}h {minutes}m {seconds:.3f}s"
+    return f"{timestamp:.3f}s"
 
-    Args:
-        valid_functions: Set of valid function names
-        valid_scan_modes: Set of valid scan mode names
-        valid_sync_modes: Set of valid sync mode names
-        argv: Optional argument list for testing (defaults to sys.argv)
-    '''
-    parser = argparse.ArgumentParser()
-
-    # Required: function only
-    parser.add_argument('function', type=str,
-                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
-
-    # Optional: all function parameters (alphabetical)
-    # TODO: condense these so more sharing across functions
-    parser.add_argument('--client-mirror-path', '-m', type=str,
-                       help="Client mirror path (for preview_sync)")
-    parser.add_argument('--collection', '-c', type=str,
-                       help="Rekordbox XML collection file path (for preview_sync)")
-    parser.add_argument('--dry-run', '-d', action='store_true',
-                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
-    parser.add_argument('--end-date', type=str,
-                       help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date")
-    parser.add_argument('--input', '-i', type=str,
-                       help="Input directory (date-structured: /year/month/day/...)")
-    parser.add_argument('--library-path', '-l', type=str,
-                       help="Library path (for preview_sync)")
-    parser.add_argument('--output', '-o', type=str,
-                       help="Output directory to populate")
-    parser.add_argument('--playlist-path', '-p', type=str,
-                       help="Dot-separated Rekordbox playlist path (e.g. 'dynamic.unplayed')")
-    parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
-                       help="Scan mode for the server")
-    parser.add_argument('--sync-mode', type=str, choices=list(valid_sync_modes),
-                       default=Namespace.SYNC_MODE_REMOTE,
-                       help="Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'")
-
-    # Parse into Namespace
-    args = parser.parse_args(argv, namespace=Namespace())
-
-    # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output', 'collection', 'client_mirror_path', 'library_path'])
-
-    # Validate function
-    if args.function not in valid_functions:
-        parser.error(f"invalid function '{args.function}'\n"
-                    f"expect one of: {', '.join(sorted(valid_functions))}")
-
-    # Function-specific validation
-    _validate_function_args(parser, args)
-
-    return args
-
-def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
-    '''Validate function-specific required arguments.'''
-
-    if args.function == Namespace.FUNCTION_PREVIEW:
-        # preview_sync requires different arguments
-        if not args.collection:
-            parser.error(f"'{args.function}' requires --collection")
-        if not args.client_mirror_path:
-            parser.error(f"'{args.function}' requires --client-mirror-path")
-        if not args.library_path:
-            parser.error(f"'{args.function}' requires --library-path")
-    elif args.function == Namespace.FUNCTION_PLAYLIST:
-        if not args.collection:
-            parser.error(f"'{args.function}' requires --collection")
-        if not args.playlist_path:
-            parser.error(f"'{args.function}' requires --playlist-path")
-    else:
-        # Other functions require --input, --output, and --scan-mode
-        if not args.input:
-            parser.error(f"'{args.function}' requires --input")
-        if not args.output:
-            parser.error(f"'{args.function}' requires --output")
-        # only remote sync requires scan mode
-        if args.sync_mode == Namespace.SYNC_MODE_REMOTE and not args.scan_mode:
-            parser.error(f"'{args.function}' requires --scan-mode")
-
-# Helper functions
 def relative_paths(paths: list[str], parent: str) -> list[str]:
     '''Returns a collection with the given paths transformed to be relative to the given parent directory.
 
@@ -220,14 +151,18 @@ def relative_paths(paths: list[str], parent: str) -> list[str]:
         normalized.append(os.path.relpath(path, start=parent))
     return normalized
 
+# endregion
+
+# region Transfer
+
 def transform_implied_path(path: str) -> str | None:
     '''Rsync-specific. Transforms the given path into a format that will include the required subdirectories.
         Example:
         path: /Users/user/developer/test-private/data/tracks-output/2022/04 april/24/1-Gloria_Jones_-_Tainted_Love_(single_version).mp3
-            -> 
+            ->
              /Users/user/developer/test-private/data/tracks-output/./2022/04 april/24/
     '''
-    
+
     components = path.split(os.sep)[1:]
     if not common.find_date_context(path):
         return None
@@ -240,17 +175,21 @@ def transform_implied_path(path: str) -> str | None:
             break
     return transformed
 
-def format_timing(timestamp: float) -> str:
-    if timestamp > 60:
-        hours, remainder = divmod(timestamp, 3600)
-        minutes, seconds = divmod(remainder, 60)
-        return f"{hours}h {minutes}m {seconds:.3f}s"
-    return f"{timestamp:.3f}s"
+def rsync_healthcheck() -> bool:
+        import subprocess
+        import shlex
 
-def key_date_context(mapping: FileMapping) -> int:
-    date_context = common.find_date_context(mapping[1])
-    return SavedDateContext.to_timestamp(date_context[0]) if date_context else 0
-    
+        # check that rsync is running
+        command = shlex.split(f"rsync {config.RSYNC_URL}")
+        try:
+            subprocess.run(command, check=True, capture_output=True)
+            logging.info('rsync daemon is running')
+            return True
+        except subprocess.CalledProcessError as error:
+            # TODO: refactor be lambda function in common
+            logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
+            return False
+
 def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_run: bool = False) -> tuple[int, str]:
     '''Uses rsync to transfer files using remote daemon.
 
@@ -293,6 +232,43 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_r
         logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
         return (error.returncode, error.stderr)
 
+# endregion
+
+# region Sync Engine
+
+def key_date_context(mapping: FileMapping) -> int:
+    date_context = common.find_date_context(mapping[1])
+    return SavedDateContext.to_timestamp(date_context[0]) if date_context else 0
+
+def create_sync_mappings(root: ET.Element, output_dir: str) -> list[FileMapping]:
+    '''Creates a mapping list of system paths based on the given XML collection and output directory.
+    Each list entry maps from a source collection file path to a target date-structured file path.
+    See organize_library_dates.generate_date_paths for more info.'''
+    from . import library
+
+    # collect the target playlist IDs to sync
+    pruned = library.find_node(root, constants.XPATH_PRUNED)
+    playlist_ids: set[str] = {
+        track.attrib[constants.ATTR_TRACK_KEY]
+        for track in pruned
+    }
+
+    # generate the paths to sync based on the target playlist
+    collection_node = library.find_node(root, constants.XPATH_COLLECTION)
+    mappings = library.generate_date_paths(collection_node,
+                                           output_dir,
+                                           playlist_ids=playlist_ids,
+                                           metadata_path=False)
+
+    # filter out processed date contexts from the mappings
+    filtered_mappings: list[FileMapping] = []
+    for input_path, output_path in mappings:
+        context = common.find_date_context(output_path)
+        if context and not SavedDateContext.is_processed(context[0]):
+            filtered_mappings.append((input_path, output_path))
+
+    return filtered_mappings
+
 # TODO: add error handling for encoding
 def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_scan: bool, sync_mode: str, dry_run: bool = False) -> SyncBatchResult:
     '''Transfers all files in the batch to the given destination, then tells the music server to perform a scan.
@@ -330,7 +306,7 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
     if transfer_path:
         logging.info(f"transferring files from {source}")
         returncode, _ = transfer_files(transfer_path, config.RSYNC_URL, config.RSYNC_MODULE, dry_run=dry_run)
-        
+
         success = returncode == 0
         # no actual paths are created in dry run mode, so rsync is unable to sync anything
         if dry_run:
@@ -383,7 +359,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
     # validation
     if len(mappings) < 1:
         return []
-    
+
     # core data
     batch: list[FileMapping] = []
     dest_previous = mappings[0][1]
@@ -460,49 +436,9 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
 
     return batch_results
 
-def rsync_healthcheck() -> bool:
-        import subprocess
-        import shlex
-        
-        # check that rsync is running
-        command = shlex.split(f"rsync {config.RSYNC_URL}")
-        try:
-            subprocess.run(command, check=True, capture_output=True)
-            logging.info('rsync daemon is running')
-            return True
-        except subprocess.CalledProcessError as error:
-            # TODO: refactor be lambda function in common
-            logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
-            return False
-    
-def create_sync_mappings(root: ET.Element, output_dir: str) -> list[FileMapping]:
-    '''Creates a mapping list of system paths based on the given XML collection and output directory.
-    Each list entry maps from a source collection file path to a target date-structured file path.
-    See organize_library_dates.generate_date_paths for more info.'''
-    from . import library
+# endregion
 
-    # collect the target playlist IDs to sync
-    pruned = library.find_node(root, constants.XPATH_PRUNED)
-    playlist_ids: set[str] = {
-        track.attrib[constants.ATTR_TRACK_KEY]
-        for track in pruned
-    }
-
-    # generate the paths to sync based on the target playlist
-    collection_node = library.find_node(root, constants.XPATH_COLLECTION)
-    mappings = library.generate_date_paths(collection_node,
-                                           output_dir,
-                                           playlist_ids=playlist_ids,
-                                           metadata_path=False)
-
-    # filter out processed date contexts from the mappings
-    filtered_mappings: list[FileMapping] = []
-    for input_path, output_path in mappings:
-        context = common.find_date_context(output_path)
-        if context and not SavedDateContext.is_processed(context[0]):
-            filtered_mappings.append((input_path, output_path))
-
-    return filtered_mappings
+# region Features
 
 def preview_sync(collection: ET.Element,
                 client_mirror_path: str,
@@ -539,7 +475,6 @@ def preview_sync(collection: ET.Element,
 
     return preview_tracks
 
-# Primary functions
 def run_music(mappings: list[FileMapping],
               full_scan: bool = True,
               sync_mode: str = Namespace.SYNC_MODE_REMOTE,
@@ -624,6 +559,93 @@ def run_playlist(collection: str, playlist_dot_path: str, dry_run: bool = False)
     logging.info(f"playlist sync complete: {len(tracks)} tracks")
     return (local_path, rsync_implied_path)
 
+# endregion
+
+# region CLI
+
+def parse_args(valid_functions: set[str], valid_scan_modes: set[str], valid_sync_modes: set[str],
+               argv: list[str]) -> Namespace:
+    '''Parse command line arguments.
+
+
+    Args:
+        valid_functions: Set of valid function names
+        valid_scan_modes: Set of valid scan mode names
+        valid_sync_modes: Set of valid sync mode names
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
+    parser = argparse.ArgumentParser()
+
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    # TODO: condense these so more sharing across functions
+    parser.add_argument('--client-mirror-path', '-m', type=str,
+                       help="Client mirror path (for preview_sync)")
+    parser.add_argument('--collection', '-c', type=str,
+                       help="Rekordbox XML collection file path (for preview_sync)")
+    parser.add_argument('--dry-run', '-d', action='store_true',
+                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
+    parser.add_argument('--end-date', type=str,
+                       help="Optional end date context (e.g., '2025/10 october/09'). Sync will stop after processing this date")
+    parser.add_argument('--input', '-i', type=str,
+                       help="Input directory (date-structured: /year/month/day/...)")
+    parser.add_argument('--library-path', '-l', type=str,
+                       help="Library path (for preview_sync)")
+    parser.add_argument('--output', '-o', type=str,
+                       help="Output directory to populate")
+    parser.add_argument('--playlist-path', '-p', type=str,
+                       help="Dot-separated Rekordbox playlist path (e.g. 'dynamic.unplayed')")
+    parser.add_argument('--scan-mode', type=str, choices=list(valid_scan_modes),
+                       help="Scan mode for the server")
+    parser.add_argument('--sync-mode', type=str, choices=list(valid_sync_modes),
+                       default=Namespace.SYNC_MODE_REMOTE,
+                       help="Sync mode: 'local' (encode only) or 'remote' (encode + transfer). Default: 'remote'")
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['input', 'output', 'collection', 'client_mirror_path', 'library_path'])
+
+    # Validate function
+    if args.function not in valid_functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # Function-specific validation
+    _validate_function_args(parser, args)
+
+    return args
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    if args.function == Namespace.FUNCTION_PREVIEW:
+        # preview_sync requires different arguments
+        if not args.collection:
+            parser.error(f"'{args.function}' requires --collection")
+        if not args.client_mirror_path:
+            parser.error(f"'{args.function}' requires --client-mirror-path")
+        if not args.library_path:
+            parser.error(f"'{args.function}' requires --library-path")
+    elif args.function == Namespace.FUNCTION_PLAYLIST:
+        if not args.collection:
+            parser.error(f"'{args.function}' requires --collection")
+        if not args.playlist_path:
+            parser.error(f"'{args.function}' requires --playlist-path")
+    else:
+        # Other functions require --input, --output, and --scan-mode
+        if not args.input:
+            parser.error(f"'{args.function}' requires --input")
+        if not args.output:
+            parser.error(f"'{args.function}' requires --output")
+        # only remote sync requires scan mode
+        if args.sync_mode == Namespace.SYNC_MODE_REMOTE and not args.scan_mode:
+            parser.error(f"'{args.function}' requires --scan-mode")
+
 # TODO add interactive mode to confirm sync state before any sync batch is possible
 def main(argv: list[str]) -> None:
     common.configure_log_module(__file__, level=logging.DEBUG)
@@ -687,6 +709,8 @@ def main(argv: list[str]) -> None:
 
     elif script_args.function == Namespace.FUNCTION_PLAYLIST:
         run_playlist(script_args.collection, script_args.playlist_path, dry_run=script_args.dry_run)
+
+# endregion
 
 if __name__ == '__main__':
     main(sys.argv)
