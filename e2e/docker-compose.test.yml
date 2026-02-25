@@ -76,6 +76,7 @@ services:
     volumes:
       - .:/e2e
       - djmgmt-state:/tmp/djmgmt
+      - ./logs:/tmp/djmgmt/logs
     networks:
       - e2e-test-network
 

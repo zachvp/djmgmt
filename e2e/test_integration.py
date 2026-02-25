@@ -20,8 +20,12 @@ import tempfile
 import time
 import unittest
 
-from djmgmt import config, constants, encode, music, subsonic_client, sync
+from djmgmt import common, config, constants, encode, music, subsonic_client, sync
 from djmgmt.common import FileMapping
+
+
+def setUpModule() -> None:
+    common.configure_log('test_integration')
 
 _SCAN_TIMEOUT_S = 30
 
