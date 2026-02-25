@@ -12,6 +12,49 @@ from collections.abc import Collection
 from . import library
 from . import constants
 
+# region Configuration
+
+class Namespace(argparse.Namespace):
+    # required arguments
+    input: str
+    mode: str
+    source: str
+
+    # optional arguments
+    genres: bool
+    counts: bool
+
+    # constants
+    ## modes
+    MODE_SHORT = 'short'
+    MODE_LONG = 'long'
+    MODE_MISSING = 'missing'
+    MODE_CATEGORY = 'category'
+    MODE_RENAMED = 'renamed'
+    MODE_PATHS = 'paths'
+
+    MODES: set[str] = {
+            MODE_SHORT,
+            MODE_LONG,
+            MODE_MISSING,
+            MODE_CATEGORY,
+            MODE_RENAMED,
+            MODE_PATHS
+        }
+
+    ## sources
+    SOURCE_COLLECTION = 'collection'
+    SOURCE_PRUNED = 'pruned'
+
+    SOURCES: set[str] = {
+        SOURCE_COLLECTION,
+        SOURCE_PRUNED
+    }
+
+# endregion
+
+# region Features
+
 # print the tracks present in collection, but not the given playlist
 def output_missing_tracks(playlist_ids: set[str], collection: ET.Element) -> list[str]:
     readout = []
@@ -85,25 +128,6 @@ def output_genre_category(playlist_ids: set[str], collection: ET.Element) -> lis
         print(c)
     return categories
 
-def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set[str]:
-    map_data = create_genre_map('data/read/genre-shorthand-mapping.txt')
-    genres: set[str] = set()
-
-    for track in collection:
-        if track.attrib[constants.ATTR_TRACK_ID] in playlist_ids:
-            genre_elements = track.attrib[constants.ATTR_GENRE].split('/')
-            if '' in genre_elements:
-                genre_elements.remove('')
-            renamed : list[str] = ['' for _ in range(len(genre_elements))]
-
-            for i, e in enumerate(genre_elements):
-                renamed[i] = map_data[e]
-                # print(f"{i}: {map_data[e]}")
-            genres.add('.'.join(renamed))
-    for g in genres:
-        print(g)
-    return genres
-
 def create_genre_map(path: str) -> dict[str, str]:
     map_data: dict[str, str] = {}
     validation: set[str] = set()
@@ -123,6 +147,25 @@ def create_genre_map(path: str) -> dict[str, str]:
 
     return map_data
 
+def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set[str]:
+    map_data = create_genre_map('data/read/genre-shorthand-mapping.txt')
+    genres: set[str] = set()
+
+    for track in collection:
+        if track.attrib[constants.ATTR_TRACK_ID] in playlist_ids:
+            genre_elements = track.attrib[constants.ATTR_GENRE].split('/')
+            if '' in genre_elements:
+                genre_elements.remove('')
+            renamed : list[str] = ['' for _ in range(len(genre_elements))]
+
+            for i, e in enumerate(genre_elements):
+                renamed[i] = map_data[e]
+                # print(f"{i}: {map_data[e]}")
+            genres.add('.'.join(renamed))
+    for g in genres:
+        print(g)
+    return genres
+
 def output_collection_filter(root: ET.Element) -> list[str]:
     output : list[str] = []
     for track in root:
@@ -132,42 +175,9 @@ def output_collection_filter(root: ET.Element) -> list[str]:
         print(line)
     return output
 
-class Namespace(argparse.Namespace):
-    # required arguments
-    input: str
-    mode: str
-    source: str
-    
-    # optional arguments
-    genres: bool
-    counts: bool
-    
-    # constants
-    ## modes
-    MODE_SHORT = 'short'
-    MODE_LONG = 'long'
-    MODE_MISSING = 'missing'
-    MODE_CATEGORY = 'category'
-    MODE_RENAMED = 'renamed'
-    MODE_PATHS = 'paths'
+# endregion
 
-    MODES: set[str] = {
-            MODE_SHORT,
-            MODE_LONG,
-            MODE_MISSING,
-            MODE_CATEGORY,
-            MODE_RENAMED,
-            MODE_PATHS
-        }
-    
-    ## sources
-    SOURCE_COLLECTION = 'collection'
-    SOURCE_PRUNED = 'pruned'
-    
-    SOURCES: set[str] = {
-        SOURCE_COLLECTION,
-        SOURCE_PRUNED
-    }    
+# region CLI
 
 def parse_args(valid_modes: set[str], valid_sources: set[str], argv: list[str]) -> type[Namespace]:
     parser = argparse.ArgumentParser(description=__doc__)
@@ -191,7 +201,7 @@ def script(args: type[Namespace]) -> None:
     collection = tree.find(constants.XPATH_COLLECTION)
     assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
     source = collection
-    
+
     if args.source == Namespace.SOURCE_PRUNED:
         pruned = tree.find(constants.XPATH_PRUNED)
         assert pruned is not None, f"invalid node search for '{constants.XPATH_PRUNED}'"
@@ -204,7 +214,7 @@ def script(args: type[Namespace]) -> None:
             playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
         elif constants.ATTR_TRACK_KEY in track.attrib:
             playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
-        
+
 
     # call requested script mode
     if args.mode == Namespace.MODE_SHORT:
@@ -225,3 +235,5 @@ def main(argv: list[str]) -> None:
 
 if __name__ == '__main__':
     main(sys.argv)
+
+# endregion

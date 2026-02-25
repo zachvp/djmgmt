@@ -11,6 +11,8 @@ import mutagen.flac
 import mutagen.id3
 import mutagen.mp4
 
+# region Data
+
 @dataclass
 class Diff:
     '''Represents differences between two Tags instances.'''
@@ -38,7 +40,7 @@ class Tags:
         self.genre = genre
         self.key = key
         self.cover_image = cover_image
-    
+
     def __str__(self) -> str:
         output = {
             'artist'      : self.artist,
@@ -48,11 +50,11 @@ class Tags:
             'key'         : self.key
         }
         return str(output)
-    
+
     def __eq__(self, other: object) -> bool:
         if not isinstance(other, Tags):
             return False
-        
+
         # DBG
         if self.artist != other.artist:
             logging.warning('no match: artist')
@@ -66,7 +68,7 @@ class Tags:
             logging.warning('no match: key')
         if not self._eq_cover_image(other, 5):
             logging.warning('no match: cover image')
-        
+
         return all([self.artist == other.artist,
                     self.album  == other.album,
                     self.title  == other.title,
@@ -124,7 +126,7 @@ class Tags:
             self.key,
             self._hash_cover_image()
         ))
-    
+
     def _hash_cover_image(self) -> Optional[imagehash.ImageHash]:
         '''Computes and returns a perceptual hash for the cover image using imagehash.
         Raises a ValueError and logs an error if hash generation fails.
@@ -132,7 +134,7 @@ class Tags:
         # unable to hash None value, so gracefully return
         if self.cover_image is None:
             return None
-        
+
         try:
             # attempt to return the perceptual hash of the cover image
             return imagehash.phash(self.cover_image)
@@ -140,7 +142,7 @@ class Tags:
             # handle and log any errors
             logging.error(f"Error generating perceptual hash:\n{e}")
             raise ValueError(f"Error generating perceptual hash: {e}")
-    
+
     def _eq_cover_image(self, other: Tags, threshold: int = 0) -> bool:
         '''Compares the perceptual hash of this instance's cover image to that of another Tags instance.
         Returns True if the images are similar according to the inclusive threshold, else False.
@@ -152,21 +154,21 @@ class Tags:
             # log the hash error
             logging.error(f"Error comparing cover images due to hash generation failure:\n{e}.")
             raise
-        
+
         # handle None hashes: return True if both hashes are None
         if hash_self is None or hash_other is None:
             return hash_self is None and hash_other is None
-        
+
         # compute the difference to judge similarity
         difference = hash_self - hash_other
         return difference <= threshold
-    
+
     def basic_identifier(self) -> str:
         title = self.title if self.title else 'none'
         artist = self.artist if self.artist else 'none'
-        
+
         return f"{artist} - {title}".strip().lower()
-    
+
     @classmethod
     def get_track_key(cls, track: mutagen.FileType, options: set[str]) -> Optional[str]:
         '''Tries to find a key present in the given track based on the given options.'''
@@ -202,33 +204,33 @@ class Tags:
     def extract_cover_image(cls, track: mutagen.FileType) -> Optional[Image.Image]:
         image: Optional[Image.Image] = None
         data = None
-        
+
         # extract image for files with ID3 tags (MP3, AIFF, WAV)
         for tag in track.tags.values(): # type: ignore
             if isinstance(tag, mutagen.id3.APIC) and tag.type == mutagen.id3.PictureType.COVER_FRONT: # type: ignore
                 data = tag.data # type: ignore
-        
+
         # extract image for FLAC files
         if data is None and isinstance(track, mutagen.flac.FLAC):
             if track.pictures:
                 for picture in track.pictures:
                     if picture.type == mutagen.id3.PictureType.COVER_FRONT:
                         data = picture.data
-        
+
         # load the image data
-        if data:     
+        if data:
             try:
                 # attempt image verification, which will raise an exception if it fails
                 image = Image.open(io.BytesIO(data))
                 image.verify()
-                
+
                 # re-open the image to refresh the file pointer to a valid state
                 image = Image.open(io.BytesIO(data))
             except Exception as e:
                 # image may be invalid, so set to None
                 image = None
                 logging.warning(f"Invalid image data:\n{e}")
-        
+
         return image
 
     @classmethod
@@ -257,17 +259,21 @@ class Tags:
         genre       = cls.extract_tag_value(track, genre_keys)
         key         = cls.extract_tag_value(track, music_key_keys)
         cover_image = cls.extract_cover_image(track)
-        
+
         # failure if title and artist not present
         if title is None and artist is None:
             logging.error(f"unable to find title and artist tags for '{path}'")
             return None
-        
+
         # log warning if critical tags are absent
         if artist is None or title is None:
             logging.warning(f"missing title or artist for '{path}'")
 
         return cls(artist, album, title, genre, key, cover_image)
+
+# endregion
+
+# region Development
 
 # DEV - Investigation
 relevant_keys = {'genre', 'beatgrid', 'TENC', 'TOAL', 'TCOM', 'TDRC', 'USLT::eng', 'initialkey', 'TIT1', 'TCOP', 'TBPM', 'TOPE', 'cuepoints', 'TDRL', 'TSSE', 'TDEN', 'TPOS', 'WPUB', 'TSRC', 'artist', 'energy', 'TPE1', 'album', 'WOAF', 'TFLT', 'TDTG', 'key', 'metadata_block_picture', 'TCMP', 'TCON', 'PCNT', 'TALB', 'TDOR', 'comment', 'title', 'TPE2', 'TPE4', 'energylevel', 'TPUB', 'tracknumber', 'TLEN', 'TIT2'}
@@ -312,3 +318,5 @@ def dev_inspect_tags(path: str) -> None:
         return None
     assert track is not None, "track not loaded"
     print(dev_extract_tags(track, dev_determine_relevant_keys(track)))
+
+# endregion

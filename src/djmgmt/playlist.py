@@ -17,8 +17,8 @@ from dataclasses import dataclass, fields, asdict
 
 from . import common, library, constants
 
+# region Data
 
-# data
 @dataclass
 class Mix:
     '''Represents a DJ mix with all associated file paths and metadata.'''
@@ -30,7 +30,6 @@ class Mix:
     cover_image_path: str = ''      # Path to local cover image
     transcoded_file_path: str = ''  # Path to MP3 in output directory
 
-# constants
 # CSV file for structured mix data
 MIXES_CSV_FILE_PATH = '/Users/zachvp/Music/mixtapes/mixes.csv'
 
@@ -39,7 +38,10 @@ MIXES_CSV_HEADERS = [f.name for f in fields(Mix)]
 
 WINDOWS_MIX = 'WindowsMix'
 
-# command support
+# endregion
+
+# region Configuration
+
 class Namespace(argparse.Namespace):
     # required
     function: str
@@ -55,76 +57,17 @@ class Namespace(argparse.Namespace):
     soundcloud_url: str
     title: bool
     transcoded_file_path: str
-    
+
     # function constants
     FUNCTION_EXTRACT_PLAYLIST = 'extract'
     FUNCTION_PRESS_MIXTAPE = 'press'
-    
+
     FUNCTIONS = {FUNCTION_EXTRACT_PLAYLIST, FUNCTION_PRESS_MIXTAPE}
 
-def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
-    parser = argparse.ArgumentParser(description="Output each track from a rekordbox-exported playlist.\
-        If no options are provided, all fields will exist in the ouptut.")
-    # Required: function only
-    parser.add_argument('function', type=str,
-                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
-    
-    # Optional: all function parameters (alphabetical)
-    parser.add_argument('--artist', '-a', action='store_true',
-                        help='Include the artist in the extract output.')
-    parser.add_argument('--cover-image-path', '-c', type=str,
-                       help='The path to the mix cover image.')
-    parser.add_argument('--csv-file-path', '-d', type=str,
-                       help='The path to CSV file.')
-    parser.add_argument('--genre', '-g', action='store_true',
-                        help='Include the genre in the output.')
-    parser.add_argument('--music-file-path', '-m', type=str,
-                       help='The path to the mix music file.')
-    parser.add_argument('--number', '-n', action='store_true',
-                        help='Include the track number in the extract output.')
-    parser.add_argument('--playlist-file-path', '-p', type=str,
-                       help='The path to the mix playlist file.')
-    parser.add_argument('--soundcloud-url', '-s', type=str,
-                       help='The mix Soundcloud URL.')
-    parser.add_argument('--title', '-t', action='store_true',
-                        help='Include the title in the extract output.')
-    parser.add_argument('--transcoded-file-path', '-x', type=str,
-                       help='The transcoded mix file path.')
+# endregion
 
-    args = parser.parse_args(argv, namespace=Namespace())
-    
-    # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['cover_image_path',
-                                      'csv_file_path',
-                                      'music_file_path',
-                                      'playlist_file_path',
-                                      'transcoded_file_path'])
+# region Utilities
 
-    # validate function
-    if args.function not in valid_functions:
-        parser.error(f"invalid function '{args.function}'\n"
-                     f"expect one of: {', '.join(sorted(valid_functions))}")
-
-    # function-specific validation
-    _validate_function_args(parser, args)
-
-    return args
-
-def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
-    '''Validate function-specific required arguments.'''
-    
-    # required for all functions
-    if not args.playlist_file_path:
-        parser.error(f"'{args.function}' requires --playlist-file-path")
-    
-    # mix press requires specific args
-    if args.function == Namespace.FUNCTION_PRESS_MIXTAPE:
-        if not args.music_file_path:
-            parser.error(f"'{args.function}' requires --music-file-path")
-        if not args.playlist_file_path:
-            parser.error(f"'{args.function}' requires --playlist-file-path")
-
-# helpers
 def extract_tsv(path: str, fields: list[int]) -> list[str]:
     output = []
 
@@ -176,24 +119,24 @@ def find_column(path: str, name: str) -> int:
     }
     options = { header : normalize(header) for header in headers }
     columns_processed = []
-    
+
     # Primary search loop
     with open(path, 'r', encoding=common.get_encoding(path)) as file:
         # Core mutable data
         columns = file.readline().split()
         multiword = ''
-        
+
         # Process columns to handle multi-word header names
         for c in columns:
             if c in options:
                 columns_processed.append(options[c])
                 multiword = ''
-            else: 
+            else:
                 multiword += f"{c} "
                 if multiword.strip() in options:
                     columns_processed.append(options[multiword.strip()])
                     multiword = ''
-    
+
     # Check for the search column
     search_column = normalize(name)
     try:
@@ -245,7 +188,6 @@ def load_mixes_csv(csv_file_path: str=MIXES_CSV_FILE_PATH) -> list[Mix]:
         logging.error(f"Error loading mixes CSV: {e}")
         raise
 
-
 def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
     '''
     Append or update a mix entry in the CSV file.
@@ -260,7 +202,7 @@ def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
     '''
     # load existing mixes
     mixes = load_mixes_csv(csv_file_path=csv_file_path)
-    
+
     # create file if it doesn't exist
     if not mixes:
         try:
@@ -301,8 +243,10 @@ def save_mix_to_csv(mix: Mix, csv_file_path: str=MIXES_CSV_FILE_PATH) -> None:
         logging.error(f"Error saving mix to CSV: {e}")
         raise
 
+# endregion
 
-# primary functions
+# region Features
+
 def extract(input_path: str,
             include_number: bool,
             include_title: bool,
@@ -366,7 +310,7 @@ def press_mix(music_file_path: str,
         transcoded_file_path: Optional path to transcoded MP3
     '''
     from datetime import datetime
-    
+
     # Extract date from filename
     date_recorded = extract_date_from_filename(music_file_path)
 
@@ -388,7 +332,6 @@ def press_mix(music_file_path: str,
     save_mix_to_csv(mix, csv_file_path=csv_file_path)
     return mix
 
-# M3U8 generation for Navidrome sync
 def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> str | None:
     '''Build Navidrome path using simplified date-only structure.
 
@@ -421,7 +364,6 @@ def _build_navidrome_path(metadata: library.TrackMetadata, target_base: str) -> 
 
     return f"{target_base}/{date_path}/{filename}"
 
-
 def generate_m3u8(
     collection_path: str,
     playlist_dot_path: str,
@@ -443,7 +385,7 @@ def generate_m3u8(
     try:
         # parse XML collection
         root = library.load_collection(collection_path)
-        
+
         collection = library.find_node(root, constants.XPATH_COLLECTION)
 
         # find playlist node and extract track IDs
@@ -495,8 +437,72 @@ def generate_m3u8(
         logging.error(f"Error generating M3U8: {e}")
         return []
 
+# endregion
 
-# main
+# region CLI
+
+def parse_args(valid_functions: set[str], argv: list[str]) -> Namespace:
+    parser = argparse.ArgumentParser(description="Output each track from a rekordbox-exported playlist.\
+        If no options are provided, all fields will exist in the ouptut.")
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--artist', '-a', action='store_true',
+                        help='Include the artist in the extract output.')
+    parser.add_argument('--cover-image-path', '-c', type=str,
+                       help='The path to the mix cover image.')
+    parser.add_argument('--csv-file-path', '-d', type=str,
+                       help='The path to CSV file.')
+    parser.add_argument('--genre', '-g', action='store_true',
+                        help='Include the genre in the output.')
+    parser.add_argument('--music-file-path', '-m', type=str,
+                       help='The path to the mix music file.')
+    parser.add_argument('--number', '-n', action='store_true',
+                        help='Include the track number in the extract output.')
+    parser.add_argument('--playlist-file-path', '-p', type=str,
+                       help='The path to the mix playlist file.')
+    parser.add_argument('--soundcloud-url', '-s', type=str,
+                       help='The mix Soundcloud URL.')
+    parser.add_argument('--title', '-t', action='store_true',
+                        help='Include the title in the extract output.')
+    parser.add_argument('--transcoded-file-path', '-x', type=str,
+                       help='The transcoded mix file path.')
+
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['cover_image_path',
+                                      'csv_file_path',
+                                      'music_file_path',
+                                      'playlist_file_path',
+                                      'transcoded_file_path'])
+
+    # validate function
+    if args.function not in valid_functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                     f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # function-specific validation
+    _validate_function_args(parser, args)
+
+    return args
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # required for all functions
+    if not args.playlist_file_path:
+        parser.error(f"'{args.function}' requires --playlist-file-path")
+
+    # mix press requires specific args
+    if args.function == Namespace.FUNCTION_PRESS_MIXTAPE:
+        if not args.music_file_path:
+            parser.error(f"'{args.function}' requires --music-file-path")
+        if not args.playlist_file_path:
+            parser.error(f"'{args.function}' requires --playlist-file-path")
+
 def main(argv: list[str]) -> None:
     common.configure_log_module(__file__)
 
@@ -515,3 +521,5 @@ def main(argv: list[str]) -> None:
 
 if __name__ == '__main__':
     main(sys.argv)
+
+# endregion

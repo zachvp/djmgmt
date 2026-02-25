@@ -21,7 +21,8 @@ from . import common
 from . import constants
 from .common import FileMapping
 
-# classes
+# region Configuration
+
 class Namespace(argparse.Namespace):
     '''Command-line arguments for encode module.'''
 
@@ -51,75 +52,49 @@ class Namespace(argparse.Namespace):
 
     SCAN_MODES = {SCAN_MODE_XML, SCAN_MODE_OS}
 
-# helper functions
-def parse_args(functions: set[str], argv: list[str]) -> Namespace:
-    '''Parse command line arguments.
+# endregion
 
-    Args:
-        functions: Set of valid function names
-        argv: Optional argument list for testing (defaults to sys.argv)
-    '''
-    parser = argparse.ArgumentParser()
+# region Utilities
 
-    # required: function only
-    parser.add_argument('function', type=str,
-                       help=f"Function to run. One of: {', '.join(sorted(functions))}")
+def run_command(command: list[str]) -> tuple[int, str]:
+    '''Run the given command synchronously as a subprocess. Returns subprocess return code and stdout/stderr.'''
+    try:
+        logging.debug(f"run command: {shlex.join(command)}")
+        result = subprocess.run(command, check=True, capture_output=True, encoding='utf-8')
+        logging.debug(f"command success:\n{result.stdout.strip()}")
+        return (result.returncode, result.stdout.strip())
+    except subprocess.CalledProcessError as error:
+        logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
+        return (error.returncode, error.stderr.strip())
 
-    # optional: all function parameters (alphabetical)
-    parser.add_argument('--dry-run', action='store_true',
-                       help='Run script in dry run mode')
-    parser.add_argument('--extension', '-e', type=str,
-                       help='Output file extension (e.g., .aiff, .mp3)')
-    parser.add_argument('--input', '-i', type=str,
-                       help='Input directory or file path')
-    parser.add_argument('--output', '-o', type=str,
-                       help='Output directory or file path')
-    parser.add_argument('--scan-mode', type=str,
-                       help=f"Scan mode for missing art.", choices=list(Namespace.SCAN_MODES))
-    parser.add_argument('--store-path', type=str,
-                       help='Storage path for script output files')
-    parser.add_argument('--store-skipped', action='store_true',
-                       help='Store skipped files in storage path')
+async def run_command_async(command: list[str]) -> tuple[int, str]:
+    '''Run the given command asynchronously as a subprocess. Returns subprocess return code and stdout/stderr.'''
+    # create the async shell process
+    logging.debug(f"run async command: {shlex.join(command)}")
+    process = await asyncio.create_subprocess_shell(
+        shlex.join(command),
+        stdout=asyncio.subprocess.PIPE,
+        stderr=asyncio.subprocess.PIPE)
 
-    # parse into Namespace
-    args = parser.parse_args(argv, namespace=Namespace())
+    # wait for process to finish and handle result
+    stdout, stderr = await process.communicate()
+    if process.returncode is None:
+        raise RuntimeError(f"process has return code 'None'.")
+    if process.returncode == 0:
+        message = f"command output:\n"
+        output = ''
+        if stdout:
+            output = stdout.decode()
+        elif stderr:
+            output = stderr.decode()
 
-    # normalize paths
-    common.normalize_arg_paths(args, ['input', 'output', 'store_path'])
-
-    # validate function
-    if args.function not in functions:
-        parser.error(f"invalid function '{args.function}'\n"
-                    f"expect one of: {', '.join(sorted(functions))}")
-
-    # function-specific validation
-    _validate_function_args(parser, args)
-
-    return args
-
-def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
-    '''Validate function-specific required arguments.'''
-
-    EXTENSION_FUNCTIONS = {Namespace.FUNCTION_LOSSLESS, Namespace.FUNCTION_LOSSY}
-
-    # all functions require --input and --output
-    if not args.input:
-        parser.error(f"'{args.function}' requires --input")
-    if not args.output:
-        parser.error(f"'{args.function}' requires --output")
-
-    # lossless and lossy require --extension
-    if args.function in EXTENSION_FUNCTIONS and not args.extension:
-        parser.error(f"'{args.function}' requires --extension")
-
-    # --store-skipped requires --store-path
-    if args.store_skipped and not args.store_path:
-        parser.error("'--store-skipped' requires --store-path")
-
-    # missing_art requires --scan-mode
-    if args.function == Namespace.FUNCTION_MISSING_ART:
-        if not args.scan_mode:
-            parser.error(f"'{args.function}' requires --scan-mode")
+        message += output
+        logging.debug(message)
+        return (process.returncode, output)
+    else:
+        stderr = stderr.decode()
+        logging.error(f"return code '{process.returncode}':\n{stderr}")
+        return (process.returncode, stderr)
 
 def ffmpeg_base(input_path: str, output_path: str, options: str) -> list[str]:
     '''Creates the base FFMPEG transcoding command with the options:
@@ -177,18 +152,18 @@ def read_ffprobe_value(input_path: str, stream_key: str) -> str:
 
 def command_ffprobe_json(path: str) -> list[str]:
     # ffprobe -v error -select_streams v -show_entries stream=index,codec_name,codec_type,width,height,:tags=comment -of json '/Users/user/Music/DJ/Bernard Badie - Train feat Dajae (Original .aiff'
-    
+
     command_str = f"ffprobe -v error -select_streams v"
     command_str += f" -show_entries stream=index,width,height,:tags=comment -of json {shlex.quote(path)}"
     command = shlex.split(command_str)
-    return command    
+    return command
 
 def read_ffprobe_json(path: str) -> list[dict[str, Any]]:
     '''Reads the ffprobe video streams of the given file.'''
     import json
     command = command_ffprobe_json(path)
     code, output = run_command(command)
-    
+
     if code == 0:
         streams = json.loads(output)['streams']
         logging.debug(f"read streams for '{path}':\n{streams}")
@@ -201,10 +176,10 @@ def guess_cover_stream_specifier(streams: list[dict[str, Any]]) -> int:
     for stream in streams:
         index = stream['index']
         width, height = stream['width'], stream['height']
-        
+
         diff = abs(width - height)
         threshold = 3 # based on common placeholder image dimensions 250x1500
-        
+
         if width / height >  threshold or height / width > threshold:
             logging.debug(f"found non-square video content at index {index}")
             continue
@@ -247,47 +222,35 @@ def setup_storage(dir_path: str, filename: str) -> str:
 
     return store_path
 
-def run_command(command: list[str]) -> tuple[int, str]:
-    '''Run the given command synchronously as a subprocess. Returns subprocess return code and stdout/stderr.'''
-    try:
-        logging.debug(f"run command: {shlex.join(command)}")
-        result = subprocess.run(command, check=True, capture_output=True, encoding='utf-8')
-        logging.debug(f"command success:\n{result.stdout.strip()}")
-        return (result.returncode, result.stdout.strip())
-    except subprocess.CalledProcessError as error:
-        logging.error(f"return code '{error.returncode}':\n{error.stderr}".strip())
-        return (error.returncode, error.stderr.strip())
+async def run_missing_art_tasks(tasks: list[tuple[str, Task[tuple[int, str]]]]) -> list[str]:
+    '''Outputs a list of system file paths that are missing artwork.'''
+    import json
 
-async def run_command_async(command: list[str]) -> tuple[int, str]:
-    '''Run the given command asynchronously as a subprocess. Returns subprocess return code and stdout/stderr.'''
-    # create the async shell process
-    logging.debug(f"run async command: {shlex.join(command)}")
-    process = await asyncio.create_subprocess_shell(
-        shlex.join(command),
-        stdout=asyncio.subprocess.PIPE,
-        stderr=asyncio.subprocess.PIPE)
-    
-    # wait for process to finish and handle result
-    stdout, stderr = await process.communicate()
-    if process.returncode is None:
-        raise RuntimeError(f"process has return code 'None'.")
-    if process.returncode == 0:
-        message = f"command output:\n"
-        output = ''
-        if stdout:
-            output = stdout.decode()
-        elif stderr:
-            output = stderr.decode()
-        
-        message += output
-        logging.debug(message)
-        return (process.returncode, output)
-    else:
-        stderr = stderr.decode()
-        logging.error(f"return code '{process.returncode}':\n{stderr}")
-        return (process.returncode, stderr)
+    results: list[str] = []
+    run_tasks = [task[1] for task in tasks]
+    await asyncio.gather(*run_tasks)
+    logging.debug(f"ran {len(run_tasks)} tasks")
 
-# primary functions
+    for i, task in enumerate(run_tasks):
+        source = tasks[i][0]
+        code, output = task.result()
+        if code == 0:
+            output = json.loads(output)['streams']
+            cover_stream = guess_cover_stream_specifier(output)
+            if cover_stream > -1:
+                logging.debug(f"guessed cover image in stream: {cover_stream}")
+            elif cover_stream == -2:
+                logging.info(f"found potential placeholder cover for '{source}'")
+            else:
+                logging.info(f"no cover image found for '{source}'")
+                results.append(source)
+        else:
+            logging.error(f"unable to determine missing art for '{source}':\n{output}")
+    return results
+
+# endregion
+
+# region Features
 
 # TODO: add support for FLAC
 async def encode_lossless(input_dir: str,
@@ -327,14 +290,14 @@ async def encode_lossless(input_dir: str,
         tasks.clear()
         # separate entries
         logging.info('= = = =')
-    
+
     # validate extension
     if extension:
         if not extension.startswith('.') or len(extension) != len(extension.strip()):
             error = ValueError(f"invalid extension {extension}")
             logging.error(error)
             raise error
-    
+
     # core data
     processed_files: list[FileMapping] = []
     size_diff_sum = 0.0
@@ -389,7 +352,7 @@ async def encode_lossless(input_dir: str,
         # run task batch
         if len(tasks) == threads:
             await run_batch()
-    
+
     # run final batch
     if tasks:
         await run_batch()
@@ -402,7 +365,7 @@ async def encode_lossless(input_dir: str,
         with open(store_path_skipped, 'a', encoding='utf-8') as store_file:
             store_file.writelines(skipped_files)
             logging.info(f"wrote skipped files to '{store_path_skipped}'")
-    
+
     return processed_files
 
 async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads: int = 4, dry_run: bool = False) -> list[FileMapping]:
@@ -478,84 +441,130 @@ async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads
 
     return result_mappings
 
-async def run_missing_art_tasks(tasks: list[tuple[str, Task[tuple[int, str]]]]) -> list[str]:
-    '''Outputs a list of system file paths that are missing artwork.'''
-    import json
-    
-    results: list[str] = []
-    run_tasks = [task[1] for task in tasks]
-    await asyncio.gather(*run_tasks)
-    logging.debug(f"ran {len(run_tasks)} tasks")
-    
-    for i, task in enumerate(run_tasks):
-        source = tasks[i][0]
-        code, output = task.result()
-        if code == 0:
-            output = json.loads(output)['streams']
-            cover_stream = guess_cover_stream_specifier(output)
-            if cover_stream > -1:
-                logging.debug(f"guessed cover image in stream: {cover_stream}")
-            elif cover_stream == -2:
-                logging.info(f"found potential placeholder cover for '{source}'")
-            else:
-                logging.info(f"no cover image found for '{source}'")
-                results.append(source)
-        else:
-            logging.error(f"unable to determine missing art for '{source}':\n{output}")
-    return results
-
 async def find_missing_art_os(input_dir: str, threads: int=24) -> list[str]:
     # output data and command tasks
     missing: list[str] = []
     tasks: list[tuple[str, Task[tuple[int, str]]]] = []
-    
+
     # iterate over the source dir paths
     for path in common.collect_paths(input_dir):
         # collect task batch
         task = asyncio.create_task(run_command_async(command_ffprobe_json(path)))
         tasks.append((path, task))
         logging.debug(f"add task: {len(tasks)}")
-        
+
         # run task batch
         if len(tasks) == threads:
             missing += await run_missing_art_tasks(tasks)
             tasks.clear()
-    
+
     # run remaining tasks
     missing += await run_missing_art_tasks(tasks)
     return missing
 
 async def find_missing_art_xml(collection_file_path: str, collection_xpath: str, playlist_xpath: str, threads: int=24) -> list[str]:
     from . import library
-    
+
     tree = library.load_collection(collection_file_path)
     collection = library.find_node(tree, collection_xpath)
     playlist = library.find_node(tree, playlist_xpath)
     missing: list[str] = []
-    
+
     # collect the playlist IDs
     tasks: list[tuple[str, Task[tuple[int, str]]]] = []
     playlist_ids: set[str] = { track.attrib[constants.ATTR_TRACK_KEY] for track in playlist }
-    
+
     for node in collection:
         # check if node is in playlist
         source = library.collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
         if playlist_ids and node.attrib[constants.ATTR_TRACK_ID] not in playlist_ids:
             logging.info(f"skip non-playlist track: '{source}'")
             continue
-        
+
         task = asyncio.create_task(run_command_async(command_ffprobe_json(source)))
         tasks.append((source, task))
         logging.debug(f"add task: {len(tasks)}")
         if len(tasks) == threads:
             missing += await run_missing_art_tasks(tasks)
             tasks.clear()
-    
+
     # run remaining tasks
     missing += await run_missing_art_tasks(tasks)
     return missing
 
-# Main
+# endregion
+
+# region CLI
+
+def parse_args(functions: set[str], argv: list[str]) -> Namespace:
+    '''Parse command line arguments.
+
+    Args:
+        functions: Set of valid function names
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
+    parser = argparse.ArgumentParser()
+
+    # required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(functions))}")
+
+    # optional: all function parameters (alphabetical)
+    parser.add_argument('--dry-run', action='store_true',
+                       help='Run script in dry run mode')
+    parser.add_argument('--extension', '-e', type=str,
+                       help='Output file extension (e.g., .aiff, .mp3)')
+    parser.add_argument('--input', '-i', type=str,
+                       help='Input directory or file path')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output directory or file path')
+    parser.add_argument('--scan-mode', type=str,
+                       help=f"Scan mode for missing art.", choices=list(Namespace.SCAN_MODES))
+    parser.add_argument('--store-path', type=str,
+                       help='Storage path for script output files')
+    parser.add_argument('--store-skipped', action='store_true',
+                       help='Store skipped files in storage path')
+
+    # parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # normalize paths
+    common.normalize_arg_paths(args, ['input', 'output', 'store_path'])
+
+    # validate function
+    if args.function not in functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                    f"expect one of: {', '.join(sorted(functions))}")
+
+    # function-specific validation
+    _validate_function_args(parser, args)
+
+    return args
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) -> None:
+    '''Validate function-specific required arguments.'''
+
+    EXTENSION_FUNCTIONS = {Namespace.FUNCTION_LOSSLESS, Namespace.FUNCTION_LOSSY}
+
+    # all functions require --input and --output
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+    if not args.output:
+        parser.error(f"'{args.function}' requires --output")
+
+    # lossless and lossy require --extension
+    if args.function in EXTENSION_FUNCTIONS and not args.extension:
+        parser.error(f"'{args.function}' requires --extension")
+
+    # --store-skipped requires --store-path
+    if args.store_skipped and not args.store_path:
+        parser.error("'--store-skipped' requires --store-path")
+
+    # missing_art requires --scan-mode
+    if args.function == Namespace.FUNCTION_MISSING_ART:
+        if not args.scan_mode:
+            parser.error(f"'{args.function}' requires --scan-mode")
+
 def main(argv: list[str]) -> None:
     common.configure_log_module(__file__, level=logging.DEBUG)
     script_args = parse_args(Namespace.FUNCTIONS, argv[1:])
@@ -593,3 +602,5 @@ def main(argv: list[str]) -> None:
 
 if __name__ == '__main__':
     main(sys.argv)
+
+# endregion

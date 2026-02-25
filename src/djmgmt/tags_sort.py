@@ -22,12 +22,16 @@ from . import music
 from . import constants
 from . import common
 
-# Constants
+# region Data
+
 FUNCTION_VALIDATE = 'validate'
 FUNCTION_SORT = 'sort'
 EXPECTED_DEPTH = 6
 
-# Helper functions
+# endregion
+
+# region Utilities
+
 def date_path(date: datetime, months: dict[int, str]) -> str:
     '''Returns a directory path that corresponds to today's date. 'YYYY-MM-DD' returns 'YYYY/MM/DD'.
     Example: '2024-01-02' returns 2024/01/02
@@ -39,7 +43,10 @@ def date_path(date: datetime, months: dict[int, str]) -> str:
     day = str(date.day).zfill(2)
     return f"{date.year}/{month}/{day}"
 
-# Primary functions
+# endregion
+
+# region Features
+
 def sort_hierarchy(source: str, compatibility: bool, date: bool, interactive: bool, months: dict[int, str]) -> None:
     ''' One of the main script functions. Performs an in-place sort of all music files in the args.input directory
     into a standardized 'Artist/Album/Track_File' directory format.
@@ -183,11 +190,15 @@ def validate_hierarchy(source: str, expected_depth: int, months: set[str]) -> li
 def validate_hierarchy_cli(args: argparse.Namespace, expected_depth: int, months: set[str]) -> list[str]:
     return validate_hierarchy(args.input, expected_depth, months)
 
+# endregion
+
+# region CLI
+
 def parse_args(valid_functions: set[str]) -> argparse.Namespace:
     '''Returns the parsed command-line arguments.
 
     valid_functions -- defines the supported script functions
-    
+
 
     Required command-line arguments:
     function -- the function to run
@@ -217,7 +228,6 @@ def parse_args(valid_functions: set[str]) -> argparse.Namespace:
 
     return args
 
-# Main
 if __name__ == '__main__':
     # script arguments
     script_functions = {FUNCTION_VALIDATE, FUNCTION_SORT}
@@ -230,3 +240,5 @@ if __name__ == '__main__':
         validate_hierarchy_cli(script_args, EXPECTED_DEPTH, set(constants.MAPPING_MONTH.values()))
     elif script_args.function == FUNCTION_SORT:
         sort_hierarchy_cli(script_args, constants.MAPPING_MONTH)
+
+# endregion

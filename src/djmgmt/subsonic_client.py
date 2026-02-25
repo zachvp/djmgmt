@@ -8,7 +8,7 @@ Primary functionality
 '''
 Request steps
     URL encode request params
-    
+
 '''
 
 from urllib.parse import urlencode
@@ -26,16 +26,21 @@ import logging
 from . import common
 from . import config
 
-def parse_args(valid_endpoints: set[str]) -> argparse.Namespace:
-    parser = argparse.ArgumentParser()
-    parser.add_argument('endpoint', type=str, help=f"Which endpoint to call. One of: '{valid_endpoints}'")
-    
-    args = parser.parse_args()
-    
-    if args.endpoint not in valid_endpoints:
-        parser.error(f"invalid function: '{args.function}")
-    
-    return args
+# region Configuration
+
+class API:
+    PING = 'ping'
+    START_SCAN = 'startScan'
+    GET_SCAN_STATUS = 'getScanStatus'
+
+    ENDPOINTS: set[str] = {PING, START_SCAN, GET_SCAN_STATUS}
+
+    RESPONSE_STATUS = 'status'
+    RESPONSE_SCAN_STATUS = 'scanning'
+
+# endregion
+
+# region Utilities
 
 def create_token(password: str, salt: str) -> str:
     return hashlib.md5((password + salt).encode()).hexdigest()
@@ -79,7 +84,7 @@ def handle_response(response: Response, endpoint: str) -> dict[str, str] | None:
     if response.status_code == 200:
         content = get_response_content(response)
         logging.debug(f"successful call to '{endpoint}'\n{json.dumps(content, indent=2)}")
-        
+
         return content
     else:
         '''
@@ -96,33 +101,40 @@ def handle_response(response: Response, endpoint: str) -> dict[str, str] | None:
         logging.error(f'error: {response.json()}')
         return None
 
-class API:
-    PING = 'ping'
-    START_SCAN = 'startScan'
-    GET_SCAN_STATUS = 'getScanStatus'
-    
-    ENDPOINTS: set[str] = {PING, START_SCAN, GET_SCAN_STATUS}
-    
-    RESPONSE_STATUS = 'status'
-    RESPONSE_SCAN_STATUS = 'scanning'
+# endregion
+
+# region CLI
+
+def parse_args(valid_endpoints: set[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser()
+    parser.add_argument('endpoint', type=str, help=f"Which endpoint to call. One of: '{valid_endpoints}'")
+
+    args = parser.parse_args()
+
+    if args.endpoint not in valid_endpoints:
+        parser.error(f"invalid function: '{args.function}")
+
+    return args
 
 if __name__ == '__main__':
     # setup
     common.configure_log_module(__file__, level=logging.DEBUG)
-    
+
     # DEV testing
     endpoint = API.PING
     # main_response = call_endpoint(endpoint, { 'fullScan': 'true' })
     main_response = call_endpoint(endpoint)
     handle_response(main_response, endpoint)
-    
+
     endpoint = API.GET_SCAN_STATUS
     # main_response = call_endpoint(endpoint, { 'fullScan': 'true' })
     main_response = call_endpoint(endpoint)
     handle_response(main_response, endpoint)
-    
-    
+
+
     # exit()
-    
+
     # script_args = parse_args(API.ENDPOINTS)
     # response = call_endpoint(script_args.endpoint, {})
+
+# endregion

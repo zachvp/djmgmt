@@ -11,7 +11,8 @@ import shutil
 import argparse
 from typing import Callable
 
-# classes
+# region Configuration
+
 class Namespace(argparse.Namespace):
     '''Command-line arguments for batch_general module.'''
 
@@ -28,7 +29,56 @@ class Namespace(argparse.Namespace):
     FUNCTION_MOVE = 'move'
     SCRIPT_FUNCTIONS = {'move'}
 
-# helper functions
+# endregion
+
+# region Features
+
+def batch_file_operation(args: Namespace) -> None:
+    '''Performs the given operation on each file contained in the input file.
+
+    Function parameters:
+        args -- The command-line arguments.
+    '''
+    with open(args.input, 'r', encoding='utf-8') as input_file:
+        lines : list[str] = input_file.readlines()
+        action: Callable[[str, str], str] = shutil.move
+
+        if args.function != 'mv':
+            print(f"error: unsupported operation: {args.function}")
+            return
+
+        if not os.path.exists(os.path.normpath(args.output)):
+            os.makedirs(os.path.normpath(args.output))
+
+        # Main loop.
+        for line in lines:
+            if '\t'not in line:
+                print(f"info: skip: no tab on line '{line}' for TSV file '{args.input}'")
+                continue
+
+            input_path = os.path.normpath(line.split('\t')[args.column])
+            if not os.path.exists(input_path):
+                print(f"info: skip: input path '{input_path} does not exist.'")
+                continue
+
+            new_path = os.path.normpath(f"{args.output}/{os.path.basename(input_path)}")
+            if os.path.exists(new_path):
+                print(f"info: skip: path '{new_path}' exists")
+                continue
+
+            if args.interactive:
+                choice = input(f"input: {args.function} '{input_path}' to '{args.output}' continue? [y/N]")
+                if choice != 'y':
+                    print("info: exit: user quit")
+
+                    break
+
+            action(input_path, args.output)
+
+# endregion
+
+# region CLI
+
 def parse_args(functions: set[str], argv: list[str]) -> Namespace:
     '''Parse command line arguments.
 
@@ -83,49 +133,6 @@ def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace) ->
     if os.path.splitext(args.input)[1] != '.tsv':
         parser.error(f"--input must be a .tsv file, got: {args.input}")
 
-def batch_file_operation(args: Namespace) -> None:
-    '''Performs the given operation on each file contained in the input file.
-
-    Function parameters:
-        args -- The command-line arguments.
-    '''
-    with open(args.input, 'r', encoding='utf-8') as input_file:
-        lines : list[str] = input_file.readlines()
-        action: Callable[[str, str], str] = shutil.move
-
-        if args.function != 'mv':
-            print(f"error: unsupported operation: {args.function}")
-            return
-
-        if not os.path.exists(os.path.normpath(args.output)):
-            os.makedirs(os.path.normpath(args.output))
-
-        # Main loop.
-        for line in lines:
-            if '\t'not in line:
-                print(f"info: skip: no tab on line '{line}' for TSV file '{args.input}'")
-                continue
-
-            input_path = os.path.normpath(line.split('\t')[args.column])
-            if not os.path.exists(input_path):
-                print(f"info: skip: input path '{input_path} does not exist.'")
-                continue
-
-            new_path = os.path.normpath(f"{args.output}/{os.path.basename(input_path)}")
-            if os.path.exists(new_path):
-                print(f"info: skip: path '{new_path}' exists")
-                continue
-
-            if args.interactive:
-                choice = input(f"input: {args.function} '{input_path}' to '{args.output}' continue? [y/N]")
-                if choice != 'y':
-                    print("info: exit: user quit")
-    
-                    break
-
-            action(input_path, args.output)
-
-# Main
 def main(argv: list[str]) -> None:
     script_args = parse_args(Namespace.SCRIPT_FUNCTIONS, argv[1:])
 
@@ -134,3 +141,5 @@ def main(argv: list[str]) -> None:
 
 if __name__ == '__main__':
     main(sys.argv)
+
+# endregion

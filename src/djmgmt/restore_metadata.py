@@ -12,7 +12,8 @@ import xml.etree.ElementTree as ET
 
 from . import constants
 
-# Helper functions
+# region Features
+
 def generate_id(node: ET.Element) -> str:
     assert node.tag == 'TRACK', f"unexpected element tag: {node.tag}"
 
@@ -28,7 +29,6 @@ def generate_id(node: ET.Element) -> str:
     # print(f"generated id: {id_str}")
     return f"{shard_0}{shard_1}"
 
-# Primary function
 def script(
     path_collection_current: str,
     path_collection_corrected : str,
@@ -72,7 +72,10 @@ def script(
         encoding='UTF-8',
         xml_declaration=True)
 
-# MAIN
+# endregion
+
+# region CLI
+
 if __name__ == '__main__':
     # user input validation
     if len(sys.argv) != 4:
@@ -86,3 +89,5 @@ if __name__ == '__main__':
             exiting...")
         sys.exit()
     script(sys.argv[1], sys.argv[2], sys.argv[3])
+
+# endregion
