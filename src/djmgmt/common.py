@@ -1,5 +1,7 @@
 import logging
 import os
+import sys
+import types
 from argparse import Namespace
 
 from . import constants
@@ -43,6 +45,16 @@ def configure_log(module: str, level: int=logging.DEBUG) -> str:
                         datefmt="%D %H:%M:%S",
                         filemode='w',
                         force=True)
+
+    # install global hook to log uncaught exceptions + full stack trace to file
+    def _excepthook(exc_type: type[BaseException], exc_value: BaseException, exc_traceback: types.TracebackType | None) -> None:
+        # pass through keyboard interrupts - they are user intent, not bugs
+        if issubclass(exc_type, KeyboardInterrupt):
+            sys.__excepthook__(exc_type, exc_value, exc_traceback)
+            return
+        logging.fatal('Uncaught exception', exc_info=(exc_type, exc_value, exc_traceback))
+    sys.excepthook = _excepthook
+
     return log_file_path
 
 # TODO: refactor calling functions to use filter
