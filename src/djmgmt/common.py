@@ -7,19 +7,16 @@ from argparse import Namespace
 from . import config
 from . import constants
 
-# Type definitions
+# region Data
+
 FileMapping = tuple[str, str]
 '''A tuple of (source_path, destination_path) representing a file mapping.'''
 
-# Constants
 BASE_LOGS_PATH = str(config.LOG_DIR)
 
-def filename_no_ext(file_path: str) -> str:
-    split = os.path.basename(file_path)
-    split = os.path.splitext(split)
-    if len(split) > 1:
-        return split[0]
-    raise ValueError(f"Given path '{file_path}' has no filename")
+# endregion
+
+# region Logging
 
 def configure_log_module(module_path: str, level: int=logging.DEBUG) -> str:
     return configure_log(filename_no_ext(module_path), level=level)
@@ -57,6 +54,35 @@ def configure_log(module: str, level: int=logging.DEBUG) -> str:
 
     return log_file_path
 
+def log_dry_run(operation: str, target: str) -> None:
+    '''Logs skipped operation during dry-run mode.
+
+    Args:
+        operation: Description of the operation (e.g., 'move', 'remove', 'encode')
+        target: Target of the operation (e.g., file path, directory)
+    '''
+    logging.info(f'[DRY-RUN] Would {operation}: {target}')
+
+def log_dry_run_data(name: str, data: object) -> None:
+    '''Logs data objects as DEBUG logs during dry-run mode.
+
+    Args:
+        name: Human-readable name of the data (e.g., 'file_mappings', 'paths')
+        data: The data to log (e.g., list, dict, object).
+    '''
+    logging.debug(f"[DRY-RUN] {name} data:\n{data}")
+
+# endregion
+
+# region File System
+
+def filename_no_ext(file_path: str) -> str:
+    split = os.path.basename(file_path)
+    split = os.path.splitext(split)
+    if len(split) > 1:
+        return split[0]
+    raise ValueError(f"Given path '{file_path}' has no filename")
+
 # TODO: refactor calling functions to use filter
 def collect_paths(root: str, filter: set[str] = set()) -> list[str]:
     '''Returns the paths of all files for the given root.
@@ -66,12 +92,12 @@ def collect_paths(root: str, filter: set[str] = set()) -> list[str]:
         for name in names:
             # construct the absolute file path
             full_path = os.path.join(working_dir, name)
-            
+
             # skip hidden directories
             directory = os.path.split(os.path.dirname(full_path))[-1]
             if directory.startswith('.'):
                 continue
-            
+
             # skip hidden files or files that don't match the extension filter
             _, extension = os.path.splitext(name)
             if name.startswith('.') or (filter and extension and extension not in filter):
@@ -86,12 +112,8 @@ def add_output_path(output_path: str, input_paths: list[str], root_input_path: s
     for input_path in input_paths:
         full_output_path = os.path.join(output_path, os.path.relpath(input_path, root_input_path))
         paths.append((input_path, full_output_path))
-        
-    return paths
 
-def raise_exception(error: Exception):
-    logging.exception(error)
-    raise error
+    return paths
 
 def find_date_context(path: str) -> tuple[str, int] | None:
     '''Extracts the date subpath and start path component index from the input path.
@@ -102,7 +124,7 @@ def find_date_context(path: str) -> tuple[str, int] | None:
     components = path.split(os.sep)
     found: dict[str, int] = {}
     context: list[str] = []
-    
+
     for i, component in enumerate(components):
         if 'y' not in found and len(component) == 4 and component.isdecimal():
             found['y'] = i
@@ -121,7 +143,7 @@ def find_date_context(path: str) -> tuple[str, int] | None:
     # check for valid date context
     if len(context) != 3:
         return None
-    
+
     return (os.sep.join(context), found['y'])
 
 def remove_subpath(path: str, preserve_root: str, preserve_index: int) -> str:
@@ -136,27 +158,49 @@ def remove_substring(source: str, start_inclusive: int, end_exclusive: int) -> s
     assert start_inclusive < end_exclusive, f"invalid start, end: '{start_inclusive}', '{end_exclusive}'"
     return f"{source[:start_inclusive]}{source[end_exclusive:]}"
 
-def get_encoding(path: str) -> str:
-    '''Uses chardet to guess the file encoding of the given path.'''
-    import chardet
-    
-    # Read, detect and decode the input file data
-    raw_bytes = b''
-    with open(path, 'rb') as file:
-        raw_bytes = file.read()
-    
-    # Attempt extract the detected encoding
-    result = chardet.detect(raw_bytes)
-    if result and result['encoding']:
-        return result['encoding']
-    else:
-        return ''
+def find_latest_file(search_dir: str, filter: set[str] = set()) -> str:
+    '''Recursively finds the path for the most recently modified collection.xml file.'''
+    if not os.path.isdir(search_dir):
+        raise ValueError(f"Path '{search_dir}' is not a directory.")
+
+    paths = collect_paths(search_dir, filter=filter)
+    return max(paths, key=os.path.getmtime) if paths else ''
+
+def normalize_arg_paths(args: Namespace, paths: list[str]) -> None:
+    for attr in paths:
+        value = getattr(args, attr, None)
+        if value:
+            setattr(args, attr, os.path.normpath(value))
 
 def write_paths(paths: list[str], output_path: str) -> None:
     '''Sorts and writes the given list of full file paths to the specified output file.'''
     sorted_paths = sorted([f"{p}\n" for p in paths])
     with open(output_path, 'w', encoding='utf-8') as file:
         file.writelines(sorted_paths)
+
+def raise_exception(error: Exception):
+    logging.exception(error)
+    raise error
+
+# endregion
+
+# region Strings
+
+def get_encoding(path: str) -> str:
+    '''Uses chardet to guess the file encoding of the given path.'''
+    import chardet
+
+    # Read, detect and decode the input file data
+    raw_bytes = b''
+    with open(path, 'rb') as file:
+        raw_bytes = file.read()
+
+    # Attempt extract the detected encoding
+    result = chardet.detect(raw_bytes)
+    if result and result['encoding']:
+        return result['encoding']
+    else:
+        return ''
 
 def clean_dirname(dirname: str, replacements: dict[str, str]) -> str:
     '''Cleans any dirty substrings in `dirname`.
@@ -201,34 +245,4 @@ def clean_dirname_simple(dirname: str) -> str:
 
     return clean_dirname(dirname, replacements)
 
-def find_latest_file(search_dir: str, filter: set[str] = set()) -> str:
-    '''Recursively finds the path for the most recently modified collection.xml file.'''
-    if not os.path.isdir(search_dir):
-        raise ValueError(f"Path '{search_dir}' is not a directory.")
-    
-    paths = collect_paths(search_dir, filter=filter)
-    return max(paths, key=os.path.getmtime) if paths else ''
-
-def normalize_arg_paths(args: Namespace, paths: list[str]) -> None:
-    for attr in paths:
-        value = getattr(args, attr, None)
-        if value:
-            setattr(args, attr, os.path.normpath(value))
-
-def log_dry_run(operation: str, target: str) -> None:
-    '''Logs skipped operation during dry-run mode.
-
-    Args:
-        operation: Description of the operation (e.g., 'move', 'remove', 'encode')
-        target: Target of the operation (e.g., file path, directory)
-    '''
-    logging.info(f'[DRY-RUN] Would {operation}: {target}')
-
-def log_dry_run_data(name: str, data: object) -> None:
-    '''Logs data objects as DEBUG logs during dry-run mode.
-    
-    Args:
-        name: Human-readable name of the data (e.g., 'file_mappings', 'paths')
-        data: The data to log (e.g., list, dict, object).
-    '''
-    logging.debug(f"[DRY-RUN] {name} data:\n{data}")
+# endregion

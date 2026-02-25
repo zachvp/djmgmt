@@ -30,10 +30,10 @@ from .common import FileMapping
 from .sync import SyncResult
 from .library import RecordResult
 
-# constants
+# region Data
+
 PREFIX_HINTS = {'beatport_tracks', 'juno_download'}
 
-# classes
 @dataclass
 class ProcessResult:
     '''Results from processing music files.'''
@@ -50,7 +50,10 @@ class UpdateLibraryResult:
     sync_result: SyncResult
     changed_mappings: list[FileMapping]
 
-# CLI support
+# endregion
+
+# region Configuration
+
 class Namespace(argparse.Namespace):
     '''Command-line arguments for music module.'''
 
@@ -79,87 +82,9 @@ class Namespace(argparse.Namespace):
     FUNCTIONS_SINGLE_ARG = {FUNCTION_COMPRESS, FUNCTION_FLATTEN, FUNCTION_PRUNE, FUNCTION_PRUNE_NON_MUSIC}
     FUNCTIONS = {FUNCTION_SWEEP, FUNCTION_EXTRACT, FUNCTION_PROCESS, FUNCTION_UPDATE_LIBRARY}.union(FUNCTIONS_SINGLE_ARG)
 
-def parse_args(valid_functions: set[str], single_arg_functions: set[str],
-               argv: list[str]) -> Namespace:
-    '''Parse command line arguments.
+# endregion
 
-    Args:
-        valid_functions: Set of valid function names
-        single_arg_functions: Functions that only require --input (not --output)
-        argv: Optional argument list for testing (defaults to sys.argv)
-    '''
-    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
-
-    # Required: function only
-    parser.add_argument('function', type=str,
-                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
-
-    # Optional: all function parameters (alphabetical)
-    parser.add_argument('--client-mirror-path', '-m', type=str,
-                       help='Client mirror path for media sync')
-    parser.add_argument('--collection-export-dir-path', type=str,
-                       help='Directory containing exported Rekordbox collection XML files')
-    parser.add_argument('--dry-run', '-d', action='store_true',
-                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
-    parser.add_argument('--input', '-i', type=str,
-                       help='Input directory or file path')
-    parser.add_argument('--merged-collection-path', type=str,
-                       help='Path to write merged collection XML')
-    parser.add_argument('--output', '-o', type=str,
-                       help='Output directory or file path')
-    parser.add_argument('--processed-collection-path', type=str,
-                       help='Path to processed collection XML state file')
-
-    # Parse into Namespace
-    args = parser.parse_args(argv, namespace=Namespace())
-
-    # Normalize paths (only if not None)
-    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path',
-                                      'collection_export_dir_path', 'processed_collection_path',
-                                      'merged_collection_path'])
-
-    # Validate function
-    if args.function not in valid_functions:
-        parser.error(f"invalid function '{args.function}'\n"
-                     f"expect one of: {', '.join(sorted(valid_functions))}")
-
-    # Function-specific validation
-    _validate_function_args(parser, args, single_arg_functions)
-
-    # Handle output defaulting to input for single-arg functions
-    if not args.output and args.function in single_arg_functions:
-        args.output = args.input
-
-    return args
-
-# Internal helpers
-def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, single_arg_functions: set[str]) -> None:
-    '''Validate function-specific required arguments.'''
-
-    # All functions require --input
-    if not args.input:
-        parser.error(f"'{args.function}' requires --input")
-
-    # Multi-arg functions require --output (single-arg functions use input as output)
-    if args.function not in single_arg_functions and not args.output:
-        parser.error(f"'{args.function}' requires --output")
-
-    # update_library requires additional paths
-    if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
-        if not args.client_mirror_path:
-            parser.error(f"'{args.function}' requires --client-mirror-path")
-        if not args.collection_export_dir_path:
-            parser.error(f"'{args.function}' requires --collection-export-dir-path")
-        if not args.processed_collection_path:
-            parser.error(f"'{args.function}' requires --processed-collection-path")
-        if not args.merged_collection_path:
-            parser.error(f"'{args.function}' requires --merged-collection-path")
-
-        # Validate paths exist
-        if not os.path.exists(args.client_mirror_path):
-            parser.error(f"--client-mirror-path '{args.client_mirror_path}' does not exist")
-        if not os.path.exists(args.collection_export_dir_path):
-            parser.error(f"--collection-export-dir-path '{args.collection_export_dir_path}' does not exist")
+# region Utilities
 
 def is_prefix_match(value: str, prefixes: set[str]) -> bool:
     '''Checks if a string starts with any of the given prefixes.
@@ -190,7 +115,7 @@ def has_no_user_files(dir_path: str) -> bool:
 
     # get all child paths
     paths = os.listdir(dir_path)
-    
+
     # count the number of directories and hidden files
     non_user_files = 0
     for path in paths:
@@ -201,37 +126,6 @@ def has_no_user_files(dir_path: str) -> bool:
 
     logging.debug(f"{non_user_files} == {len(paths)}?")
     return non_user_files == len(paths)
-
-def flatten_zip(zip_path: str, extract_path: str) -> None:
-    '''Extracts a zip archive and moves all files to the extract path root, removing nested directories.
-
-    Args:
-        zip_path: Path to the zip archive (e.g., '/downloads/album.zip')
-        extract_path: Directory to extract and flatten into (e.g., '/music/temp')
-
-    Example:
-        Given archive structure:
-            album.zip
-            └── album/
-                ├── track1.mp3
-                └── track2.mp3
-
-        After flatten_zip('/downloads/album.zip', '/music/temp'):
-            /music/temp/
-            ├── track1.mp3
-            └── track2.mp3
-    '''
-    output_directory = os.path.splitext(os.path.basename(zip_path))[0]
-    logging.debug(f"output dir: {os.path.join(extract_path, output_directory)}")
-    extract_all_normalized_encodings(zip_path, extract_path)
-
-    unzipped_path = os.path.join(extract_path, output_directory)
-    for file_path in common.collect_paths(unzipped_path):
-        logging.debug(f"move from {file_path} to {extract_path}")
-        shutil.move(file_path, extract_path)
-    if os.path.exists(unzipped_path) and len(os.listdir(unzipped_path)) < 1:
-        logging.info(f"remove empty unzipped path {unzipped_path}")
-        shutil.rmtree(unzipped_path)
 
 def get_dirs(dir_path: str) -> list[str]:
     '''Return all directory paths within the given directory, relative to that given directory.'''
@@ -247,51 +141,6 @@ def get_dirs(dir_path: str) -> list[str]:
         if os.path.isdir(path):
             dirs.append(path)
     return dirs
-
-def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
-    '''Standardizes all lossless files in the source directory according to `.encode.encode_lossless()` using the .aiff extension.
-    Returns a list of each (source, encoded_file) mapping.'''
-    from tempfile import TemporaryDirectory
-    import asyncio
-    
-    # create a temporary directory to place the encoded files.
-    with TemporaryDirectory() as temp_dir:
-        # encode all non-standard lossless files
-        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', dry_run=dry_run))
-        
-        # remove all of the original non-standard files that have been encoded.
-        for input_path, _ in result:
-            if dry_run:
-                common.log_dry_run('remove directory', f"{input_path}")
-            else:
-                os.remove(input_path)
-        # sweep all the encoded files from the temporary directory to the original source directory
-        sweep(temp_dir, source, valid_extensions, prefix_hints, dry_run=dry_run)
-        return result
-
-# External helpers
-def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
-    '''Compresses all files in a directory into a zip archive.
-
-    Args:
-        input_path: Directory containing files to compress (e.g., '/path/to/tracks')
-        output_path: Base path for output archive without .zip extension (e.g., '/output/myarchive')
-
-    Returns:
-        Tuple of (archive_path, list of compressed file paths)
-
-    Example:
-        >>> compress_dir('/music/album', '/archives/album')
-        ('/archives/album.zip', ['/music/album/track1.mp3', '/music/album/track2.mp3'])
-    '''
-    compressed: list[str] = []
-    archive_path = f"{output_path}.zip"
-    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as archive:
-        for file_path in common.collect_paths(input_path):
-            name = os.path.basename(file_path)
-            archive.write(file_path, arcname=name)
-            compressed.append(file_path)
-    return (archive_path, compressed)
 
 def prune(working_dir: str, directories: list[str], filenames: list[str]) -> None:
     '''Removes hidden files, hidden directories, and .app archives from the given lists in-place.
@@ -318,6 +167,10 @@ def prune(working_dir: str, directories: list[str], filenames: list[str]) -> Non
         if name.startswith('.'):
             logging.info(f"prune: hidden file '{name}'")
             del filenames[index]
+
+# endregion
+
+# region Archive
 
 def extract_all_normalized_encodings(zip_path: str, output: str, dry_run: bool = False) -> tuple[str, list[str]]:
     '''Extracts all files from a zip archive with normalized filename encodings.
@@ -363,44 +216,85 @@ def extract_all_normalized_encodings(zip_path: str, output: str, dry_run: bool =
             extracted.append(info.filename)
     logging.debug(f"extracted archive '{zip_path}' to {extracted}")
     return (zip_path, extracted)
-    
-# Primary functions
-def prune_non_user_dirs(source: str, dry_run: bool = False) -> list[str]:
-    '''Removes all directories that pass the filter according to `has_no_user_files()`.
-    Returns a list of all removed directories.'''
-    search_dirs: list[str] = []
-    pruned: set[str] = set()
 
-    # DFS for all directories inside 'source' that don't contain user files
-    logging.debug(f"prune_non_user_dirs starting from root '{source}'")
-    dir_list = get_dirs(source)
-    search_dirs = [os.path.join(source, d) for d in dir_list]
-    while len(search_dirs) > 0:
-        search_dir = search_dirs.pop(0)
-        if has_no_user_files(search_dir):
-            pruned.add(search_dir)
-        else:
-            logging.info(f"search_dir: {search_dir}")
-            dir_list = get_dirs(search_dir)
-            for d in dir_list:
-                search_dirs.append(os.path.join(search_dir, d))
+def flatten_zip(zip_path: str, extract_path: str) -> None:
+    '''Extracts a zip archive and moves all files to the extract path root, removing nested directories.
 
-    # remove the collected directories
-    for path in pruned:
-        logging.debug(f"will remove: '{path}'")
-        if dry_run:
-            common.log_dry_run('remove directory', f"{path}")
-        else:
-            try:
-                shutil.rmtree(path)
-            except OSError as e:
-                if e.errno == 39: # directory not empty
-                    logging.warning(f"skip: non-empty dir {path}")
+    Args:
+        zip_path: Path to the zip archive (e.g., '/downloads/album.zip')
+        extract_path: Directory to extract and flatten into (e.g., '/music/temp')
 
-    # return the pruned directories
-    result = list(pruned)
-    logging.debug(f"pruned all non-user directories ({len(result)}\n{result})")
-    return result
+    Example:
+        Given archive structure:
+            album.zip
+            └── album/
+                ├── track1.mp3
+                └── track2.mp3
+
+        After flatten_zip('/downloads/album.zip', '/music/temp'):
+            /music/temp/
+            ├── track1.mp3
+            └── track2.mp3
+    '''
+    output_directory = os.path.splitext(os.path.basename(zip_path))[0]
+    logging.debug(f"output dir: {os.path.join(extract_path, output_directory)}")
+    extract_all_normalized_encodings(zip_path, extract_path)
+
+    unzipped_path = os.path.join(extract_path, output_directory)
+    for file_path in common.collect_paths(unzipped_path):
+        logging.debug(f"move from {file_path} to {extract_path}")
+        shutil.move(file_path, extract_path)
+    if os.path.exists(unzipped_path) and len(os.listdir(unzipped_path)) < 1:
+        logging.info(f"remove empty unzipped path {unzipped_path}")
+        shutil.rmtree(unzipped_path)
+
+def compress_dir(input_path: str, output_path: str) -> tuple[str, list[str]]:
+    '''Compresses all files in a directory into a zip archive.
+
+    Args:
+        input_path: Directory containing files to compress (e.g., '/path/to/tracks')
+        output_path: Base path for output archive without .zip extension (e.g., '/output/myarchive')
+
+    Returns:
+        Tuple of (archive_path, list of compressed file paths)
+
+    Example:
+        >>> compress_dir('/music/album', '/archives/album')
+        ('/archives/album.zip', ['/music/album/track1.mp3', '/music/album/track2.mp3'])
+    '''
+    compressed: list[str] = []
+    archive_path = f"{output_path}.zip"
+    with zipfile.ZipFile(archive_path, 'w', zipfile.ZIP_DEFLATED) as archive:
+        for file_path in common.collect_paths(input_path):
+            name = os.path.basename(file_path)
+            archive.write(file_path, arcname=name)
+            compressed.append(file_path)
+    return (archive_path, compressed)
+
+# endregion
+
+# region Features
+
+def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> list[FileMapping]:
+    '''Standardizes all lossless files in the source directory according to `.encode.encode_lossless()` using the .aiff extension.
+    Returns a list of each (source, encoded_file) mapping.'''
+    from tempfile import TemporaryDirectory
+    import asyncio
+
+    # create a temporary directory to place the encoded files.
+    with TemporaryDirectory() as temp_dir:
+        # encode all non-standard lossless files
+        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', dry_run=dry_run))
+
+        # remove all of the original non-standard files that have been encoded.
+        for input_path, _ in result:
+            if dry_run:
+                common.log_dry_run('remove directory', f"{input_path}")
+            else:
+                os.remove(input_path)
+        # sweep all the encoded files from the temporary directory to the original source directory
+        sweep(temp_dir, source, valid_extensions, prefix_hints, dry_run=dry_run)
+        return result
 
 def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False, copy_instead_of_move: bool = False) -> list[FileMapping]:
     '''Moves all music files and valid archives from source to output directory.
@@ -440,7 +334,7 @@ def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: se
         is_valid_archive = False
         if name_split[1] == '.zip':
             is_valid_archive = True
-            
+
             # inspect zip archive to determine if this is likely a music container
             if not is_prefix_match(name, prefix_hints):
                 valid_files = 0
@@ -457,7 +351,7 @@ def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: se
                                 logging.info(f"app {archive_file} detected, skipping")
                                 is_valid_archive = False
                                 break
-                        
+
                         # only the given valid extensions and images are allowed
                         file_ext = os.path.splitext(archive_file)[1]
                         if file_ext in valid_extensions:
@@ -482,7 +376,7 @@ def sweep(source: str, output: str, valid_extensions: set[str], prefix_hints: se
                 logging.debug(f"{operation} from '{input_path}' to '{output_path}'")
             swept.append((input_path, output_path))
     logging.info(f"swept all files ({len(swept)})\n{swept}")
-    return swept    
+    return swept
 
 def extract(source: str, output: str, dry_run: bool = False) -> list[tuple[str, list[str]]]:
     '''Extracts all zip archives in the source directory to the output directory.
@@ -516,6 +410,131 @@ def extract(source: str, output: str, dry_run: bool = False) -> list[tuple[str, 
         else:
             logging.debug(f"skip: non-zip file '{input_path}'")
     return extracted
+
+def flatten_hierarchy(source: str, output: str, dry_run: bool = False) -> list[FileMapping]:
+    '''Recursively moves all files from nested directories to the output root, removing the directory structure.
+
+    Args:
+        source: Directory to flatten (e.g., '/music/nested')
+        output: Destination directory for flattened files (e.g., '/music/flat')
+        interactive: If True, prompts for confirmation before each move
+
+    Returns:
+        List of (source_path, destination_path) tuples for all moved files
+
+    Example:
+        Given structure:
+            /music/nested/
+            ├── album1/track1.mp3
+            └── album2/track2.mp3
+
+        >>> flatten_hierarchy('/music/nested', '/music/flat', False)
+        [('/music/nested/album1/track1.mp3', '/music/flat/track1.mp3'),
+         ('/music/nested/album2/track2.mp3', '/music/flat/track2.mp3')]
+    '''
+    flattened: list[FileMapping] = []
+    for input_path in common.collect_paths(source):
+        name = os.path.basename(input_path)
+        output_path = os.path.join(output, name)
+
+        # move the files to the output root
+        if not os.path.exists(output_path):
+            logging.debug(f"move '{input_path}' to '{output_path}'")
+            try:
+                if dry_run:
+                    common.log_dry_run('move', f"'{input_path}' -> '{output_path}'")
+                else:
+                    shutil.move(input_path, output_path)
+                flattened.append((input_path, output_path))
+            except FileNotFoundError as error:
+                if error.filename == input_path:
+                    logging.info(f"skip: encountered ghost file: '{input_path}'")
+                    continue
+        else:
+            logging.debug(f"skip: {input_path}")
+    logging.debug(f"flattened all files ({len(flattened)})\n{flattened}")
+    return flattened
+
+def prune_non_music(source: str, valid_extensions: set[str], dry_run: bool = False) -> list[str]:
+    '''Removes all files that don't have a valid music extension from the given directory.
+
+    Args:
+        source: Directory to scan (e.g., '/music/library')
+        valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
+        interactive: If True, prompts for confirmation before each removal
+
+    Returns:
+        List of paths that were removed
+
+    Example:
+        >>> prune_non_music('/music/mixed', {'.mp3', '.aiff'}, False)
+        ['/music/mixed/readme.txt', '/music/mixed/cover.jpg', '/music/mixed/.DS_Store']
+    '''
+    pruned = []
+    for input_path in common.collect_paths(source):
+        _, extension = os.path.splitext(input_path)
+
+        # check extension
+        if extension not in valid_extensions:
+            logging.info(f"non-music file found: '{input_path}'")
+
+            # try to remove the file/dir
+            try:
+                if os.path.isdir(input_path):
+                    if dry_run:
+                        common.log_dry_run('remove directory', f"{input_path}")
+                    else:
+                        shutil.rmtree(input_path)
+                    pruned.append(input_path)
+                else:
+                    if dry_run:
+                        common.log_dry_run('remove', f"{input_path}")
+                    else:
+                        os.remove(input_path)
+                    pruned.append(input_path)
+                logging.info(f"removed: '{input_path}'")
+            except OSError as e:
+                msg = f"Error removing file '{input_path}': {str(e)}" # TODO: use helper
+                logging.error(msg)
+                raise RuntimeError(msg)
+    return pruned
+
+def prune_non_user_dirs(source: str, dry_run: bool = False) -> list[str]:
+    '''Removes all directories that pass the filter according to `has_no_user_files()`.
+    Returns a list of all removed directories.'''
+    search_dirs: list[str] = []
+    pruned: set[str] = set()
+
+    # DFS for all directories inside 'source' that don't contain user files
+    logging.debug(f"prune_non_user_dirs starting from root '{source}'")
+    dir_list = get_dirs(source)
+    search_dirs = [os.path.join(source, d) for d in dir_list]
+    while len(search_dirs) > 0:
+        search_dir = search_dirs.pop(0)
+        if has_no_user_files(search_dir):
+            pruned.add(search_dir)
+        else:
+            logging.info(f"search_dir: {search_dir}")
+            dir_list = get_dirs(search_dir)
+            for d in dir_list:
+                search_dirs.append(os.path.join(search_dir, d))
+
+    # remove the collected directories
+    for path in pruned:
+        logging.debug(f"will remove: '{path}'")
+        if dry_run:
+            common.log_dry_run('remove directory', f"{path}")
+        else:
+            try:
+                shutil.rmtree(path)
+            except OSError as e:
+                if e.errno == 39: # directory not empty
+                    logging.warning(f"skip: non-empty dir {path}")
+
+    # return the pruned directories
+    result = list(pruned)
+    logging.debug(f"pruned all non-user directories ({len(result)}\n{result})")
+    return result
 
 def process(source: str, output: str, valid_extensions: set[str], prefix_hints: set[str], dry_run: bool = False) -> ProcessResult:
     '''Performs the following, in sequence:
@@ -599,94 +618,6 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         files_encoded=len(encoded)
     )
 
-def prune_non_music(source: str, valid_extensions: set[str], dry_run: bool = False) -> list[str]:
-    '''Removes all files that don't have a valid music extension from the given directory.
-
-    Args:
-        source: Directory to scan (e.g., '/music/library')
-        valid_extensions: Set of valid music file extensions (e.g., {'.mp3', '.aiff', '.wav'})
-        interactive: If True, prompts for confirmation before each removal
-
-    Returns:
-        List of paths that were removed
-
-    Example:
-        >>> prune_non_music('/music/mixed', {'.mp3', '.aiff'}, False)
-        ['/music/mixed/readme.txt', '/music/mixed/cover.jpg', '/music/mixed/.DS_Store']
-    '''
-    pruned = []
-    for input_path in common.collect_paths(source):
-        _, extension = os.path.splitext(input_path)
-        
-        # check extension
-        if extension not in valid_extensions:
-            logging.info(f"non-music file found: '{input_path}'")
-
-            # try to remove the file/dir
-            try:
-                if os.path.isdir(input_path):
-                    if dry_run:
-                        common.log_dry_run('remove directory', f"{input_path}")
-                    else:
-                        shutil.rmtree(input_path)
-                    pruned.append(input_path)
-                else:
-                    if dry_run:
-                        common.log_dry_run('remove', f"{input_path}")
-                    else:
-                        os.remove(input_path)
-                    pruned.append(input_path)
-                logging.info(f"removed: '{input_path}'")
-            except OSError as e:
-                msg = f"Error removing file '{input_path}': {str(e)}" # TODO: use helper
-                logging.error(msg)
-                raise RuntimeError(msg)
-    return pruned
-
-def flatten_hierarchy(source: str, output: str, dry_run: bool = False) -> list[FileMapping]:
-    '''Recursively moves all files from nested directories to the output root, removing the directory structure.
-
-    Args:
-        source: Directory to flatten (e.g., '/music/nested')
-        output: Destination directory for flattened files (e.g., '/music/flat')
-        interactive: If True, prompts for confirmation before each move
-
-    Returns:
-        List of (source_path, destination_path) tuples for all moved files
-
-    Example:
-        Given structure:
-            /music/nested/
-            ├── album1/track1.mp3
-            └── album2/track2.mp3
-
-        >>> flatten_hierarchy('/music/nested', '/music/flat', False)
-        [('/music/nested/album1/track1.mp3', '/music/flat/track1.mp3'),
-         ('/music/nested/album2/track2.mp3', '/music/flat/track2.mp3')]
-    '''
-    flattened: list[FileMapping] = []
-    for input_path in common.collect_paths(source):
-        name = os.path.basename(input_path)
-        output_path = os.path.join(output, name)
-
-        # move the files to the output root
-        if not os.path.exists(output_path):
-            logging.debug(f"move '{input_path}' to '{output_path}'")
-            try:
-                if dry_run:
-                    common.log_dry_run('move', f"'{input_path}' -> '{output_path}'")
-                else:
-                    shutil.move(input_path, output_path)
-                flattened.append((input_path, output_path))
-            except FileNotFoundError as error:
-                if error.filename == input_path:
-                    logging.info(f"skip: encountered ghost file: '{input_path}'")
-                    continue
-        else:
-            logging.debug(f"skip: {input_path}")
-    logging.debug(f"flattened all files ({len(flattened)})\n{flattened}")
-    return flattened
-
 def update_library(new_music_dir_path: str,
                    library_path: str,
                    client_mirror_path: str,
@@ -733,7 +664,7 @@ def update_library(new_music_dir_path: str,
     '''
     from . import sync
     from . import tags_info
-    
+
     # process all of the source files into the library dir
     process_result = process(new_music_dir_path, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
 
@@ -749,16 +680,100 @@ def update_library(new_music_dir_path: str,
     mappings = sync.create_sync_mappings(record_result.collection_root, client_mirror_path)
     if changed:
         mappings += changed
-    
+
     # run the sync
     sync_result = sync.run_music(mappings, full_scan=full_scan, dry_run=dry_run)
-    
+
     return UpdateLibraryResult(process_result=process_result,
                                record_result=record_result,
                                changed_mappings=changed,
                                sync_result=sync_result)
 
-# main
+# endregion
+
+# region CLI
+
+def parse_args(valid_functions: set[str], single_arg_functions: set[str],
+               argv: list[str]) -> Namespace:
+    '''Parse command line arguments.
+
+    Args:
+        valid_functions: Set of valid function names
+        single_arg_functions: Functions that only require --input (not --output)
+        argv: Optional argument list for testing (defaults to sys.argv)
+    '''
+    parser = argparse.ArgumentParser(description=__doc__, formatter_class=argparse.RawDescriptionHelpFormatter)
+
+    # Required: function only
+    parser.add_argument('function', type=str,
+                       help=f"Function to run. One of: {', '.join(sorted(valid_functions))}")
+
+    # Optional: all function parameters (alphabetical)
+    parser.add_argument('--client-mirror-path', '-m', type=str,
+                       help='Client mirror path for media sync')
+    parser.add_argument('--collection-export-dir-path', type=str,
+                       help='Directory containing exported Rekordbox collection XML files')
+    parser.add_argument('--dry-run', '-d', action='store_true',
+                       help="Executes in dry run mode so only read operations are performed. Outputs and logs summary of what *would* happen in normal mode.")
+    parser.add_argument('--input', '-i', type=str,
+                       help='Input directory or file path')
+    parser.add_argument('--merged-collection-path', type=str,
+                       help='Path to write merged collection XML')
+    parser.add_argument('--output', '-o', type=str,
+                       help='Output directory or file path')
+    parser.add_argument('--processed-collection-path', type=str,
+                       help='Path to processed collection XML state file')
+
+    # Parse into Namespace
+    args = parser.parse_args(argv, namespace=Namespace())
+
+    # Normalize paths (only if not None)
+    common.normalize_arg_paths(args, ['input', 'output', 'client_mirror_path',
+                                      'collection_export_dir_path', 'processed_collection_path',
+                                      'merged_collection_path'])
+
+    # Validate function
+    if args.function not in valid_functions:
+        parser.error(f"invalid function '{args.function}'\n"
+                     f"expect one of: {', '.join(sorted(valid_functions))}")
+
+    # Function-specific validation
+    _validate_function_args(parser, args, single_arg_functions)
+
+    # Handle output defaulting to input for single-arg functions
+    if not args.output and args.function in single_arg_functions:
+        args.output = args.input
+
+    return args
+
+def _validate_function_args(parser: argparse.ArgumentParser, args: Namespace, single_arg_functions: set[str]) -> None:
+    '''Validate function-specific required arguments.'''
+
+    # All functions require --input
+    if not args.input:
+        parser.error(f"'{args.function}' requires --input")
+
+    # Multi-arg functions require --output (single-arg functions use input as output)
+    if args.function not in single_arg_functions and not args.output:
+        parser.error(f"'{args.function}' requires --output")
+
+    # update_library requires additional paths
+    if args.function == Namespace.FUNCTION_UPDATE_LIBRARY:
+        if not args.client_mirror_path:
+            parser.error(f"'{args.function}' requires --client-mirror-path")
+        if not args.collection_export_dir_path:
+            parser.error(f"'{args.function}' requires --collection-export-dir-path")
+        if not args.processed_collection_path:
+            parser.error(f"'{args.function}' requires --processed-collection-path")
+        if not args.merged_collection_path:
+            parser.error(f"'{args.function}' requires --merged-collection-path")
+
+        # Validate paths exist
+        if not os.path.exists(args.client_mirror_path):
+            parser.error(f"--client-mirror-path '{args.client_mirror_path}' does not exist")
+        if not os.path.exists(args.collection_export_dir_path):
+            parser.error(f"--collection-export-dir-path '{args.collection_export_dir_path}' does not exist")
+
 def main(argv: list[str]) -> None:
     '''Entry point for the music module.
 
@@ -810,6 +825,8 @@ def main(argv: list[str]) -> None:
 
             common.log_dry_run('sync', f"{len(result.changed_mappings)} changed mappings")
             common.log_dry_run_data('changed_mappings', result.changed_mappings)
+
+# endregion
 
 if __name__ == '__main__':
     import sys
