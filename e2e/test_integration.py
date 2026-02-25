@@ -14,15 +14,36 @@ Or from the host with environment variables set:
 
 import asyncio
 import os
+import shutil
 import subprocess
 import tempfile
 import time
 import unittest
 
-from djmgmt import config, encode, subsonic_client, sync
+from djmgmt import config, constants, encode, music, subsonic_client, sync
 from djmgmt.common import FileMapping
 
 _SCAN_TIMEOUT_S = 30
+
+# Minimal Rekordbox XML template matching state/collection-template.xml
+_COLLECTION_TEMPLATE = '''\
+<?xml version="1.0" encoding="UTF-8"?>
+<DJ_PLAYLISTS Version="1.0.0">
+    <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
+    <COLLECTION Entries="0">
+    </COLLECTION>
+    <PLAYLISTS>
+        <NODE Type="0" Name="ROOT" Count="3">
+            <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
+            <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
+            <NODE Name="dynamic" Type="0" KeyType="0" Entries="2">
+                <NODE Name="unplayed" Type="1" KeyType="0" Entries="0"/>
+                <NODE Name="played" Type="1" KeyType="0" Entries="0"/>
+            </NODE>
+        </NODE>
+    </PLAYLISTS>
+</DJ_PLAYLISTS>
+'''
 
 
 def _wait_for_scan_complete(test: unittest.TestCase) -> None:
@@ -39,6 +60,36 @@ def _wait_for_scan_complete(test: unittest.TestCase) -> None:
         if content[subsonic_client.API.RESPONSE_SCAN_STATUS] == 'false':
             break
         time.sleep(1)
+
+
+def _setup_state_dir() -> None:
+    '''Creates all state directories and files required by sync/library modules.'''
+    output_dir = os.path.join(str(config.STATE_DIR), 'output')
+    for d in [str(config.STATE_DIR), output_dir]:
+        os.makedirs(d, exist_ok=True)
+
+    # collection template is loaded internally by merge_collections and record_collection
+    with open(config.COLLECTION_PATH_TEMPLATE, 'w', encoding='utf-8') as f:
+        f.write(_COLLECTION_TEMPLATE)
+
+    # processed collection is the secondary input to merge_collections
+    with open(config.COLLECTION_PATH_PROCESSED, 'w', encoding='utf-8') as f:
+        f.write(_COLLECTION_TEMPLATE)
+
+    # empty sync state so SavedDateContext.load() doesn't crash and batches are not skipped
+    open(config.SYNC_STATE_PATH, 'w').close()
+
+
+def _generate_tagged_mp3(path: str) -> None:
+    '''Generates a 1-second silent MP3 with title and artist tags at the given path.
+    Tags.load requires at least one of title/artist to be non-None.'''
+    subprocess.run(
+        ['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+         '-t', '1', '-acodec', 'libmp3lame', '-q:a', '9',
+         '-metadata', 'title=Test Track', '-metadata', 'artist=Test Artist',
+         path, '-y'],
+        check=True, capture_output=True
+    )
 
 
 class TestToolchainHealthcheck(unittest.TestCase):
@@ -94,6 +145,9 @@ class TestRsyncTransfer(unittest.TestCase):
 class TestSyncWorkflow(unittest.TestCase):
     '''Verifies the full sync pipeline: encode → rsync transfer → Navidrome scan.'''
 
+    def setUp(self) -> None:
+        _setup_state_dir()
+
     def test_encode_transfer_scan(self) -> None:
         with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
             source_path = os.path.join(tmpdir, 'input.wav')
@@ -119,6 +173,71 @@ class TestSyncWorkflow(unittest.TestCase):
             response = subsonic_client.call_endpoint(subsonic_client.API.START_SCAN)
             self.assertEqual(response.status_code, 200)
             _wait_for_scan_complete(self)
+
+    def test_run_music(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_path = os.path.join(tmpdir, 'input.wav')
+            # dest must have a date-context path so sync_mappings can batch and
+            # transform_implied_path can build the rsync source path
+            dest_path = os.path.join(tmpdir, '2020', '01 january', '15', 'input.wav')
+
+            # generate a 1-second silent WAV as the encode source
+            subprocess.run(
+                ['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                 '-t', '1', source_path, '-y'],
+                check=True, capture_output=True
+            )
+
+            mappings: list[FileMapping] = [(source_path, dest_path)]
+            result = sync.run_music(mappings)
+
+            self.assertListEqual(result.mappings, mappings)
+            self.assertEqual(len(result.batches), 1)
+            self.assertEqual(result.batches[0].files_processed, 1)
+            self.assertTrue(result.batches[0].success)
+
+
+class TestUpdateLibrary(unittest.TestCase):
+    '''Verifies the full music.update_library pipeline:
+    process → record collection → create sync mappings → run_music.'''
+
+    def setUp(self) -> None:
+        _setup_state_dir()
+
+    def test_update_library(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            new_music_dir = os.path.join(tmpdir, 'new_music')
+            library_dir = os.path.join(tmpdir, 'library')
+            client_mirror_dir = os.path.join(tmpdir, 'mirror')
+            collection_export_dir = os.path.join(tmpdir, 'exports')
+
+            for d in [new_music_dir, library_dir, client_mirror_dir, collection_export_dir]:
+                os.makedirs(d)
+
+            # generate a tagged MP3 — Tags.load requires title or artist to be non-None
+            source_path = os.path.join(new_music_dir, 'test-track.mp3')
+            _generate_tagged_mp3(source_path)
+
+            # provide an export XML so find_latest_file returns a valid path for merge_collections
+            shutil.copy(config.COLLECTION_PATH_TEMPLATE, os.path.join(collection_export_dir, 'export.xml'))
+
+            result = music.update_library(
+                new_music_dir_path=new_music_dir,
+                library_path=library_dir,
+                client_mirror_path=client_mirror_dir,
+                collection_export_dir_path=collection_export_dir,
+                processed_collection_path=config.COLLECTION_PATH_PROCESSED,
+                merged_collection_path=config.COLLECTION_PATH_MERGED,
+                valid_extensions=constants.EXTENSIONS,
+                prefix_hints=music.PREFIX_HINTS,
+            )
+
+            # one track was added to the collection and _pruned playlist
+            self.assertEqual(result.record_result.tracks_added, 1)
+            # one sync batch (one date context: today) ran and succeeded
+            self.assertEqual(len(result.sync_result.batches), 1)
+            self.assertEqual(result.sync_result.batches[0].files_processed, 1)
+            self.assertTrue(result.sync_result.batches[0].success)
 
 
 if __name__ == '__main__':

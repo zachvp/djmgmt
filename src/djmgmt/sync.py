@@ -441,8 +441,8 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
 # region Features
 
 def preview_sync(collection: ET.Element,
-                client_mirror_path: str,
-                library_path: str) -> list[SyncPreviewTrack]:
+                 client_mirror_path: str,
+                 library_path: str) -> list[SyncPreviewTrack]:
     '''Previews files that would be synced from _pruned playlist to client mirror.
 
     Returns tracks with metadata and change type (new/changed).

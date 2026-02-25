@@ -102,7 +102,7 @@ def collection_path_to_syspath(path: str) -> str:
     Arguments:
         path -- The URL-like collection path
     '''
-    syspath = unquote(path).lstrip(config.REKORDBOX_ROOT)
+    syspath = unquote(path).removeprefix(config.REKORDBOX_ROOT)
     if not syspath.startswith(os.path.sep):
         syspath = os.path.sep + syspath
     return syspath
