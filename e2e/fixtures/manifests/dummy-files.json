@@ -1,0 +1,20 @@
+{
+  "files": [
+    {
+      "path": "track1.mp3",
+      "title": "Test Track 1",
+      "artist": "Test Artist 1",
+      "album": "Test Album",
+      "genre": "Electronic",
+      "has_cover_art": true
+    },
+    {
+      "path": "track2.aiff",
+      "title": "Test Track 2",
+      "artist": "Test Artist 2",
+      "album": "Test Album",
+      "genre": "House",
+      "has_cover_art": false
+    }
+  ]
+}
