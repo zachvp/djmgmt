@@ -18,6 +18,7 @@ from dataclasses import dataclass
 from typing import Callable
 
 from . import common
+from . import config
 from . import constants
 from .library import TrackMetadata
 from .common import FileMapping
@@ -75,7 +76,7 @@ class Namespace(argparse.Namespace):
     SYNC_MODES = {SYNC_MODE_LOCAL, SYNC_MODE_REMOTE}
     
 class SavedDateContext:
-    FILE_SYNC =f"{constants.PROJECT_ROOT}{os.sep}state{os.sep}sync_state.txt"
+    FILE_SYNC = config.SYNC_STATE_PATH
 
     @staticmethod
     def to_timestamp(context: str) -> int:
@@ -328,7 +329,7 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
     success = bool(transfer_path)
     if transfer_path:
         logging.info(f"transferring files from {source}")
-        returncode, _ = transfer_files(transfer_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=dry_run)
+        returncode, _ = transfer_files(transfer_path, config.RSYNC_URL, config.RSYNC_MODULE, dry_run=dry_run)
         
         success = returncode == 0
         # no actual paths are created in dry run mode, so rsync is unable to sync anything
@@ -464,7 +465,7 @@ def rsync_healthcheck() -> bool:
         import shlex
         
         # check that rsync is running
-        command = shlex.split(f"rsync {constants.RSYNC_URL}")
+        command = shlex.split(f"rsync {config.RSYNC_URL}")
         try:
             subprocess.run(command, check=True, capture_output=True)
             logging.info('rsync daemon is running')
@@ -596,8 +597,8 @@ def run_playlist(collection: str, playlist_dot_path: str, dry_run: bool = False)
 
     # Build output path: state/output/playlists/{playlist_name}.m3u8
     playlist_name = playlist_dot_path.replace('.', '_')
-    os.makedirs(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
-    local_path = f"{constants.PLAYLIST_OUTPUT_PATH}{os.path.sep}{playlist_name}.m3u8"
+    os.makedirs(config.PLAYLIST_OUTPUT_PATH, exist_ok=True)
+    local_path = f"{config.PLAYLIST_OUTPUT_PATH}{os.path.sep}{playlist_name}.m3u8"
 
     # Generate M3U8
     logging.info(f"generating playlist '{playlist_dot_path}' to '{local_path}'")
@@ -613,9 +614,9 @@ def run_playlist(collection: str, playlist_dot_path: str, dry_run: bool = False)
 
     # Rsync: use ./playlists/ so -R flag preserves subdirectory at remote root
     # Result: navidrome/playlists/{name}.m3u8 -> /media/zachvp/SOL/music/playlists/{name}.m3u8
-    output_base = str(constants.STATE_PATH_BASE / 'output')
+    output_base = str(config.STATE_DIR / 'output')
     rsync_implied_path = f"{output_base}/./playlists/{playlist_name}.m3u8"
-    returncode, _ = transfer_files(rsync_implied_path, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=dry_run)
+    returncode, _ = transfer_files(rsync_implied_path, config.RSYNC_URL, config.RSYNC_MODULE, dry_run=dry_run)
     if returncode != 0:
         logging.error(f"playlist rsync failed (code {returncode})")
         return None

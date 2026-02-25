@@ -4,6 +4,7 @@ import sys
 import types
 from argparse import Namespace
 
+from . import config
 from . import constants
 
 # Type definitions
@@ -11,8 +12,7 @@ FileMapping = tuple[str, str]
 '''A tuple of (source_path, destination_path) representing a file mapping.'''
 
 # Constants
-# TODO: use project path as root for logs, they shouldn't be in src/
-BASE_LOGS_PATH = os.path.join(str(constants.PROJECT_ROOT), 'logs')
+BASE_LOGS_PATH = str(config.LOG_DIR)
 
 def filename_no_ext(file_path: str) -> str:
     split = os.path.basename(file_path)

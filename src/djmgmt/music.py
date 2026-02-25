@@ -21,6 +21,7 @@ import logging
 
 from dataclasses import dataclass
 
+from . import config
 from . import constants
 from . import common
 from . import encode
@@ -587,9 +588,9 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         original_source = file_to_source_path.get(filename_no_ext, processing_path)
         processed_files.append((original_source, output_path))
     if dry_run:
-        common.log_dry_run('write paths', constants.MISSING_ART_PATH)
+        common.log_dry_run('write paths', config.MISSING_ART_PATH)
     else:
-        common.write_paths(missing, constants.MISSING_ART_PATH)
+        common.write_paths(missing, config.MISSING_ART_PATH)
 
     return ProcessResult(
         processed_files=processed_files,

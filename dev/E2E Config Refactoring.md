@@ -129,3 +129,27 @@ export DJMGMT_STATE_DIR=/tmp/djmgmt_test/state
 export DJMGMT_LOG_DIR=/tmp/djmgmt_test/logs
 
 This approach allows the codebase to work unchanged in production while being fully configurable for Docker-based E2E testing.
+
+9. Unit Test Updates
+
+No fundamental restructuring required. Tests already rely on @patch decorators for isolation; only the patch targets shift from constants.* to config.* for values that migrate.
+
+Affected test files:
+
+- tests/test_sync.py: Update references to constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME,
+  constants.PLAYLIST_OUTPUT_PATH → config.RSYNC_URL, config.RSYNC_MODULE, config.PLAYLIST_OUTPUT_PATH
+
+- tests/test_music.py: Update references to constants.MISSING_ART_PATH, constants.RSYNC_URL,
+  constants.RSYNC_MODULE_NAVIDROME → config.* equivalents
+
+- tests/test_library.py: Update reference to constants.COLLECTION_PATH_TEMPLATE →
+  config.COLLECTION_PATH_TEMPLATE
+
+- tests/test_common.py: configure_log() tests assert log file paths derived from PROJECT_ROOT.
+  After refactoring, common.BASE_LOGS_PATH reads from config.LOG_DIR. Patch common.BASE_LOGS_PATH
+  directly (same as today) or patch config.LOG_DIR in tests that verify log output paths.
+
+Unaffected test files (use only static constants that stay in constants.py):
+- test_encode.py — uses only XPATH_COLLECTION, XPATH_PRUNED
+- test_tags_sort.py — uses only MAPPING_MONTH
+- test_playlist.py, test_tags.py, test_tags_info.py — no constants import

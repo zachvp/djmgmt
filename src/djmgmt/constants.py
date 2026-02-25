@@ -1,7 +1,3 @@
-# project data
-from pathlib import Path
-PROJECT_ROOT = Path(__file__).parent.parent.parent
-
 # placeholders for missing file metadata
 UNKNOWN_ARTIST = 'UNKNOWN_ARTIST'
 UNKNOWN_ALBUM = 'UNKNOWN_ALBUM'
@@ -25,15 +21,6 @@ MAPPING_MONTH = {
 # delimiters
 FILE_OPERATION_DELIMITER = '->'
 
-# corevega server
-COREVEGA_HOST = 'corevega.local'
-COREVEGA_USER = 'zachvp'
-
-RSYNC_PORT = '12000'
-RSYNC_PROTOCOL = 'rsync://'
-RSYNC_MODULE_NAVIDROME = 'navidrome'
-RSYNC_URL = f"{RSYNC_PROTOCOL}{COREVEGA_USER}@{COREVEGA_HOST}:{RSYNC_PORT}"
-
 # Rekordbox
 ATTR_DATE_ADDED     = 'DateAdded'
 ATTR_LOCATION       = 'Location'
@@ -47,8 +34,6 @@ ATTR_TRACK_ID       = 'TrackID'
 ATTR_TOTAL_TIME     = 'TotalTime'
 ATTR_AVG_BPM        = 'AverageBpm'
 ATTR_TYPE           = 'Type'
-
-REKORDBOX_ROOT   = 'file://localhost'
 
 # Characters that Rekordbox stores literally (unencoded) in Location URLs.
 # Derived from analysis of 3,518 tracks in mac-collection-02-15-2026.xml.
@@ -70,12 +55,3 @@ XPATH_PLAYED     = _playlist_node('played')
 
 # file information
 EXTENSIONS = {'.mp3', '.wav', '.aif', '.aiff', '.flac'}
-
-# state paths
-STATE_PATH_BASE = PROJECT_ROOT / 'state'
-COLLECTION_PATH_TEMPLATE  = str(STATE_PATH_BASE / 'collection-template.xml')
-COLLECTION_PATH_PROCESSED = str(STATE_PATH_BASE / 'output' / 'processed-collection.xml')
-COLLECTION_PATH_DYNAMIC   = str(STATE_PATH_BASE / 'output' / 'dynamic-collection.xml')
-COLLECTION_PATH_MERGED    = str(STATE_PATH_BASE / 'output' / 'merged-collection.xml')
-MISSING_ART_PATH          = str(STATE_PATH_BASE / 'output' / 'missing-art.txt')
-PLAYLIST_OUTPUT_PATH      = str(STATE_PATH_BASE / 'output' / 'playlists')

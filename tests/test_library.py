@@ -5,7 +5,7 @@ from unittest.mock import patch, MagicMock, call, mock_open
 from typing import cast
 
 from djmgmt import library
-from djmgmt import constants
+from djmgmt import config, constants
 from djmgmt.tags import Tags
 from tests.fixtures import (
     MOCK_INPUT_DIR, MOCK_OUTPUT_DIR,
@@ -199,7 +199,7 @@ class TestFullPath(unittest.TestCase):
         mock_date_path.return_value = '2020/02 february/03'
         
         # Call test function
-        actual = library._full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH)
+        actual = library._full_path(node, config.REKORDBOX_ROOT, constants.MAPPING_MONTH)
         
         # Assert expectations
         expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_FILE_1.aiff'
@@ -215,7 +215,7 @@ class TestFullPath(unittest.TestCase):
         mock_date_path.return_value = '2020/02 february/03'
 
         # Call test function
-        actual = library._full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=True)
+        actual = library._full_path(node, config.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=True)
 
         # Assert expectations
         expected = '/Users/user/Music/DJ/2020/02 february/03/MOCK_ARTIST_1/MOCK_ALBUM_1/MOCK_FILE_1.aiff'
@@ -468,13 +468,13 @@ class TestCollectionTemplate(unittest.TestCase):
 
     def test_template_file_exists(self) -> None:
         '''Tests that the collection template file exists at the expected path.'''
-        self.assertTrue(os.path.exists(constants.COLLECTION_PATH_TEMPLATE),
-                       f"Template file not found at {constants.COLLECTION_PATH_TEMPLATE}")
+        self.assertTrue(os.path.exists(config.COLLECTION_PATH_TEMPLATE),
+                       f"Template file not found at {config.COLLECTION_PATH_TEMPLATE}")
 
     def test_template_structure_valid(self) -> None:
         '''Tests that the template file has the expected structure for dynamic playlists.'''
         # Load the template file
-        tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
+        tree = ET.parse(config.COLLECTION_PATH_TEMPLATE)
         root = tree.getroot()
 
         # Verify root structure
@@ -542,7 +542,7 @@ class TestRecordTracks(unittest.TestCase):
     def test_success_unplayed_playlist(self) -> None:
         '''Tests that tracks are correctly written to the unplayed playlist.'''
         # Set up - use actual template file
-        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
+        template_tree = ET.parse(config.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
         # Call target function
@@ -562,7 +562,7 @@ class TestRecordTracks(unittest.TestCase):
     def test_success_played_playlist(self) -> None:
         '''Tests that tracks are correctly written to the played playlist.'''
         # Set up - use actual template file
-        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
+        template_tree = ET.parse(config.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
         # Call target function
@@ -666,7 +666,7 @@ class TestRecordDynamicTracks(unittest.TestCase):
 
         # Assert expectations
         mock_load_collection.assert_any_call(MOCK_INPUT_DIR)
-        mock_load_collection.assert_any_call(constants.COLLECTION_PATH_TEMPLATE)
+        mock_load_collection.assert_any_call(config.COLLECTION_PATH_TEMPLATE)
 
         # Verify collection was copied
         mock_base_collection.clear.assert_called_once()
@@ -687,7 +687,7 @@ class TestAddPrunedTracks(unittest.TestCase):
             ['1', '2']
         )
         collection_root = ET.fromstring(input_xml)
-        template_tree = ET.parse(constants.COLLECTION_PATH_TEMPLATE)
+        template_tree = ET.parse(config.COLLECTION_PATH_TEMPLATE)
         base_root = template_tree.getroot()
 
         result = library._add_pruned_tracks(collection_root, base_root)
@@ -722,7 +722,7 @@ class TestRecordCollection(unittest.TestCase):
         result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
 
         # Assert call expectations
-        self.mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
+        self.mock_xml_parse.assert_called_once_with(config.COLLECTION_PATH_TEMPLATE)
         self.mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
         self.mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
         self.mock_tags_load.assert_has_calls([
@@ -898,7 +898,7 @@ class TestRecordCollection(unittest.TestCase):
         self.assertEqual(result.tracks_updated, 0)
 
         self.mock_collect_paths.assert_called_once_with(MOCK_INPUT_DIR)
-        self.mock_xml_parse.assert_called_once_with(constants.COLLECTION_PATH_TEMPLATE)
+        self.mock_xml_parse.assert_called_once_with(config.COLLECTION_PATH_TEMPLATE)
         self.mock_xml_write.assert_called_once_with(MOCK_XML_OUTPUT_PATH, encoding='UTF-8', xml_declaration=True)
         self.mock_tags_load.assert_has_calls([call(f"{MOCK_INPUT_DIR}{os.sep}mock_file.aiff")])
 
@@ -1188,7 +1188,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_PRIMARY),
             ET.fromstring(TestMergeCollections.XML_SECONDARY),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [1000.0, 500.0]  # primary is newer
 
@@ -1211,7 +1211,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_PRIMARY),
             ET.fromstring(TestMergeCollections.XML_OVERLAPPING),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [1000.0, 500.0]  # primary is newer
 
@@ -1232,7 +1232,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_PRIMARY),
             ET.fromstring(TestMergeCollections.XML_OVERLAPPING),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [500.0, 1000.0]  # secondary is newer
 
@@ -1253,7 +1253,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_EMPTY),
             ET.fromstring(TestMergeCollections.XML_SECONDARY),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [1000.0, 500.0]
 
@@ -1270,7 +1270,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_PRIMARY),
             ET.fromstring(TestMergeCollections.XML_EMPTY),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [1000.0, 500.0]
 
@@ -1287,7 +1287,7 @@ class TestMergeCollections(unittest.TestCase):
         self.mock_load_collection.side_effect = [
             ET.fromstring(TestMergeCollections.XML_EMPTY),
             ET.fromstring(TestMergeCollections.XML_EMPTY),
-            ET.parse(constants.COLLECTION_PATH_TEMPLATE).getroot()
+            ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()
         ]
         self.mock_getmtime.side_effect = [1000.0, 500.0]
 

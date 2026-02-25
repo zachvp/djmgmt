@@ -8,7 +8,7 @@ from zipfile import ZipInfo
 from typing import Callable
 
 from djmgmt import music
-from djmgmt import constants
+from djmgmt import config, constants
 from djmgmt.common import FileMapping
 from djmgmt.music import RecordResult, ProcessResult
 from djmgmt.sync import SyncResult, SyncBatchResult
@@ -869,7 +869,7 @@ class TestProcess(unittest.TestCase):
         dry_run_logs = [log for log in log_context.output if '[DRY-RUN]' in log]
         write_paths_logs = [log for log in dry_run_logs if 'write paths' in log]
         self.assertEqual(len(write_paths_logs), 1)
-        self.assertIn(constants.MISSING_ART_PATH, write_paths_logs[0])
+        self.assertIn(config.MISSING_ART_PATH, write_paths_logs[0])
 
         ## Return value contains expected data
         self.assertIsInstance(result, music.ProcessResult)

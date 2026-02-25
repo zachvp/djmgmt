@@ -1,7 +1,7 @@
 import streamlit as st
 import logging
 
-from djmgmt import library, constants, common
+from djmgmt import library, config, common
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -45,7 +45,7 @@ collection_path = RecentFileInput.render(
 # Render optional arguments
 output_path = None
 if function in { library.Namespace.FUNCTION_RECORD_DYNAMIC }:
-    output_path = st.text_input('Output Path', value=constants.COLLECTION_PATH_DYNAMIC)
+    output_path = st.text_input('Output Path', value=config.COLLECTION_PATH_DYNAMIC)
 
 # Render separator between Arguments and Run sections
 page.render_section_separator()

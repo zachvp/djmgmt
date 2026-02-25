@@ -17,6 +17,7 @@ from datetime import datetime
 from dataclasses import dataclass
 from urllib.parse import quote, unquote
 
+from . import config
 from . import constants
 from . import common
 from .common import FileMapping
@@ -347,14 +348,14 @@ def collection_path_to_syspath(path: str) -> str:
     Arguments:
         path -- The URL-like collection path
     '''
-    syspath = unquote(path).lstrip(constants.REKORDBOX_ROOT)
+    syspath = unquote(path).lstrip(config.REKORDBOX_ROOT)
     if not syspath.startswith(os.path.sep):
         syspath = os.path.sep + syspath
     return syspath
 
 def syspath_to_collection_path(file_path: str) -> str:
     '''Transforms the given system path to an XML file path'''
-    return f"{constants.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
+    return f"{config.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
 
 def load_collection(path: str) -> ET.Element:
     '''Returns the root node of the XML collection at `path`.'''
@@ -547,7 +548,7 @@ def generate_date_paths(collection: ET.Element,
     for node in collection:
         # check if track file is in expected library folder
         node_syspath = collection_path_to_syspath(node.attrib[constants.ATTR_LOCATION])
-        if constants.REKORDBOX_ROOT not in node.attrib[constants.ATTR_LOCATION]:
+        if config.REKORDBOX_ROOT not in node.attrib[constants.ATTR_LOCATION]:
             logging.warning(f"unexpected path {node_syspath}, will skip")
             continue
         
@@ -558,7 +559,7 @@ def generate_date_paths(collection: ET.Element,
         
         # build each entry for the old and new path
         track_path_old = node_syspath
-        track_path_new = _full_path(node, constants.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=metadata_path)
+        track_path_new = _full_path(node, config.REKORDBOX_ROOT, constants.MAPPING_MONTH, include_metadata=metadata_path)
         track_path_new = collection_path_to_syspath(track_path_new)
         
         context = common.find_date_context(track_path_new)
@@ -575,7 +576,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
     with all music files in the `source` directory.
     Returns RecordResult with collection root, tracks added count, and tracks updated count.'''
     # load XML references
-    xml_path      = base_collection_path if os.path.exists(base_collection_path) else constants.COLLECTION_PATH_TEMPLATE
+    xml_path      = base_collection_path if os.path.exists(base_collection_path) else config.COLLECTION_PATH_TEMPLATE
     root          = load_collection(xml_path)
     collection    = find_node(root, constants.XPATH_COLLECTION)
     playlist_root = find_node(root, constants.XPATH_PLAYLISTS)
@@ -700,7 +701,7 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
         older_collection = primary_collection
 
     # start with a fresh template
-    output_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
+    output_root = load_collection(config.COLLECTION_PATH_TEMPLATE)
     output_collection = find_node(output_root, constants.XPATH_COLLECTION)
 
     # build index from older collection first
@@ -784,7 +785,7 @@ def record_dynamic_tracks(input_collection_path: str, output_collection_path: st
     '''
     # load the collection and base roots
     collection_root = load_collection(input_collection_path)
-    base_root = load_collection(constants.COLLECTION_PATH_TEMPLATE)
+    base_root = load_collection(config.COLLECTION_PATH_TEMPLATE)
 
     # copy collection to base
     base_collection = find_node(base_root, constants.XPATH_COLLECTION)

@@ -24,6 +24,7 @@ import argparse
 import logging
 
 from . import common
+from . import config
 
 def parse_args(valid_endpoints: set[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser()
@@ -44,15 +45,15 @@ def create_salt(length: int) -> str:
 
 def create_query(params: dict[str, str] = {}) -> str:
     # construct query params
-    password = keyring.get_password('navidrome_client', 'api_client')
+    password = config.NAVIDROME_PASSWORD or keyring.get_password('navidrome_client', config.NAVIDROME_USERNAME)
     assert password is not None, f'unable to fetch password'
     salt = create_salt(12)
     base_params = {
-        'u': 'api_client',                      # user
+        'u': config.NAVIDROME_USERNAME,         # user
         't': f'{create_token(password, salt)}', # token
         's': f'{salt}',                         # salt
         'v': '1.16.1',                          # version
-        'c': 'corevega_client'                  # client id
+        'c': config.NAVIDROME_CLIENT_ID         # client id
     }
     # add any params
     for key, value in params.items():
@@ -62,8 +63,7 @@ def create_query(params: dict[str, str] = {}) -> str:
 def call_endpoint(endpoint: str, params: dict[str, str] = {}) -> Response:
     # call the endpoint
     query_string = create_query(params)
-    base_url = f"http://corevega.local:4533/rest"
-    # base_url = f"https://corevega.net/rest"
+    base_url = f"http://{config.NAVIDROME_HOST}:{config.NAVIDROME_PORT}/rest"
     url = f"{base_url}/{endpoint}.view?{query_string}"
     logging.debug(f'send request: {url}')
     return requests.get(url)

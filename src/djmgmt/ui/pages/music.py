@@ -2,7 +2,7 @@ import streamlit as st
 import logging
 import pandas as pd
 
-from djmgmt import music, constants
+from djmgmt import music, constants, config
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -84,7 +84,7 @@ if run_clicked:
                     f'- Extracted {results.archives_extracted} archives',
                     f'- Encoded {results.files_encoded} files to standard format',
                     f'- Found {len(results.missing_art_paths)} missing artwork files',
-                    f'- Missing artwork info saved to: `{constants.MISSING_ART_PATH}`'
+                    f'- Missing artwork info saved to: `{config.MISSING_ART_PATH}`'
                 ]
                 st.success('\n'.join(message))
 
@@ -136,8 +136,8 @@ if run_clicked:
                             library_path=output_path,
                             client_mirror_path=client_mirror_path,
                             collection_export_dir_path=collection_export_dir_path,
-                            processed_collection_path=constants.COLLECTION_PATH_PROCESSED,
-                            merged_collection_path=constants.COLLECTION_PATH_MERGED,
+                            processed_collection_path=config.COLLECTION_PATH_PROCESSED,
+                            merged_collection_path=config.COLLECTION_PATH_MERGED,
                             valid_extensions=constants.EXTENSIONS,
                             prefix_hints=music.PREFIX_HINTS,
                             full_scan=full_scan
@@ -149,7 +149,7 @@ if run_clicked:
                            f"- Updated library at `{output_path}`",
                            f"- Synced to client mirror at `{client_mirror_path}`",
                            f"- Used `{collection_export_dir_path}` as collection export directory.",
-                           f"- Collection saved to: `{constants.COLLECTION_PATH_PROCESSED}`",
+                           f"- Collection saved to: `{config.COLLECTION_PATH_PROCESSED}`",
                            f"- Full scan: `{full_scan}`"]
                 st.success('\n'.join(message))
 

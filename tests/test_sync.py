@@ -8,7 +8,7 @@ import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock, call
 from typing import cast
 
-from djmgmt import sync, constants, subsonic_client
+from djmgmt import sync, config, constants, subsonic_client
 from tests.fixtures import MOCK_INPUT_DIR, MOCK_OUTPUT_DIR
 
 # Constants
@@ -105,7 +105,7 @@ class TestSyncBatch(unittest.TestCase):
         self.assertTrue(actual.success, 'Expect call to succeed')
         self.mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=False)
         self.mock_transform.assert_called_once_with(dest)
-        self.mock_transfer.assert_called_once_with(self.mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=False)
+        self.mock_transfer.assert_called_once_with(self.mock_transform.return_value, config.RSYNC_URL, config.RSYNC_MODULE, dry_run=False)
 
         # Expect call to start scan, then re-ping when scanning, then stop pinging.
         self.mock_call_endpoint.assert_has_calls([
@@ -197,7 +197,7 @@ class TestSyncBatch(unittest.TestCase):
         self.mock_encode.assert_called_once_with(batch, '.mp3', threads=28, dry_run=True)
 
         # Verify transfer was called with dry_run=True
-        self.mock_transfer.assert_called_once_with(self.mock_transform.return_value, constants.RSYNC_URL, constants.RSYNC_MODULE_NAVIDROME, dry_run=True)
+        self.mock_transfer.assert_called_once_with(self.mock_transform.return_value, config.RSYNC_URL, config.RSYNC_MODULE, dry_run=True)
 
         # Verify API calls were NOT made
         self.mock_call_endpoint.assert_not_called()
@@ -912,10 +912,10 @@ class TestRunPlaylist(unittest.TestCase):
         result = sync.run_playlist(self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH)
 
         self.assertIsNotNone(result)
-        self.mock_makedirs.assert_called_once_with(constants.PLAYLIST_OUTPUT_PATH, exist_ok=True)
+        self.mock_makedirs.assert_called_once_with(config.PLAYLIST_OUTPUT_PATH, exist_ok=True)
         self.mock_generate.assert_called_once_with(
             self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH,
-            f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
+            f"{config.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
             dry_run=False
         )
         self.mock_healthcheck.assert_called_once()
@@ -959,7 +959,7 @@ class TestRunPlaylist(unittest.TestCase):
         self.assertIsNotNone(result)
         self.mock_generate.assert_called_once_with(
             self.MOCK_COLLECTION, self.MOCK_PLAYLIST_PATH,
-            f"{constants.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
+            f"{config.PLAYLIST_OUTPUT_PATH}{os.sep}dynamic_unplayed.m3u8",
             dry_run=True
         )
         self.mock_transfer.assert_called_once()
