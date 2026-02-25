@@ -12,15 +12,33 @@ Or from the host with environment variables set:
     python -m unittest e2e.test_integration -v
 '''
 
+import asyncio
 import os
 import subprocess
 import tempfile
 import time
 import unittest
 
-from djmgmt import config, subsonic_client, sync
+from djmgmt import config, encode, subsonic_client, sync
+from djmgmt.common import FileMapping
 
 _SCAN_TIMEOUT_S = 30
+
+
+def _wait_for_scan_complete(test: unittest.TestCase) -> None:
+    '''Polls GET_SCAN_STATUS until scanning is false or _SCAN_TIMEOUT_S is exceeded.'''
+    start = time.monotonic()
+    while True:
+        elapsed = time.monotonic() - start
+        test.assertLess(elapsed, _SCAN_TIMEOUT_S, 'scan did not complete within timeout')
+
+        response = subsonic_client.call_endpoint(subsonic_client.API.GET_SCAN_STATUS)
+        content = subsonic_client.handle_response(response, subsonic_client.API.GET_SCAN_STATUS)
+        assert content is not None, 'expected non-None scan status response'
+
+        if content[subsonic_client.API.RESPONSE_SCAN_STATUS] == 'false':
+            break
+        time.sleep(1)
 
 
 class TestToolchainHealthcheck(unittest.TestCase):
@@ -53,23 +71,9 @@ class TestSubsonicScan(unittest.TestCase):
     '''Verifies that a Navidrome library scan can be triggered and completes successfully.'''
 
     def test_scan_completes(self) -> None:
-        # trigger scan
         response = subsonic_client.call_endpoint(subsonic_client.API.START_SCAN)
         self.assertEqual(response.status_code, 200)
-
-        # poll until scan completes or timeout
-        start = time.monotonic()
-        while True:
-            elapsed = time.monotonic() - start
-            self.assertLess(elapsed, _SCAN_TIMEOUT_S, 'scan did not complete within timeout')
-
-            response = subsonic_client.call_endpoint(subsonic_client.API.GET_SCAN_STATUS)
-            content = subsonic_client.handle_response(response, subsonic_client.API.GET_SCAN_STATUS)
-            assert content is not None, 'expected non-None scan status response'
-
-            if content[subsonic_client.API.RESPONSE_SCAN_STATUS] == 'false':
-                break
-            time.sleep(1)
+        _wait_for_scan_complete(self)
 
 
 class TestRsyncTransfer(unittest.TestCase):
@@ -88,9 +92,33 @@ class TestRsyncTransfer(unittest.TestCase):
 
 
 class TestSyncWorkflow(unittest.TestCase):
-    # TODO: test the full sync.py workflow end-to-end:
-    # encode fixture → rsync to daemon → trigger Navidrome scan → assert scan complete.
-    pass
+    '''Verifies the full sync pipeline: encode → rsync transfer → Navidrome scan.'''
+
+    def test_encode_transfer_scan(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_path = os.path.join(tmpdir, 'input.wav')
+            dest_path = os.path.join(tmpdir, 'output.mp3')
+
+            # generate a 1-second silent WAV as the encode source
+            subprocess.run(
+                ['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
+                 '-t', '1', source_path, '-y'],
+                check=True, capture_output=True
+            )
+
+            # encode to MP3
+            mappings: list[FileMapping] = [(source_path, dest_path)]
+            asyncio.run(encode.encode_lossy(mappings, '.mp3'))
+            self.assertTrue(os.path.exists(dest_path), 'encoded MP3 was not created')
+
+            # transfer encoded file to rsync daemon
+            returncode, _ = sync.transfer_files(dest_path, config.RSYNC_URL, config.RSYNC_MODULE)
+            self.assertEqual(returncode, 0)
+
+            # trigger scan and wait for completion
+            response = subsonic_client.call_endpoint(subsonic_client.API.START_SCAN)
+            self.assertEqual(response.status_code, 200)
+            _wait_for_scan_complete(self)
 
 
 if __name__ == '__main__':
