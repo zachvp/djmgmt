@@ -241,6 +241,34 @@ class TestExtract(unittest.TestCase):
                 self.assertTrue(os.path.exists(archive_path))
 
 
+class TestFlattenHierarchy(unittest.TestCase):
+    '''Verifies music.flatten_hierarchy() leaves no subdirectories after sweep+extract.'''
+
+    def test_flatten_hierarchy(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            dest_dir = os.path.join(tmpdir, 'swept')
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+
+            fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+
+            music.sweep(source_dir, dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            music.extract(dest_dir, dest_dir)
+
+            files_before = list(common.collect_paths(dest_dir))
+            music.flatten_hierarchy(dest_dir, dest_dir)
+
+            # no subdirectories remain
+            for item in os.listdir(dest_dir):
+                self.assertFalse(os.path.isdir(os.path.join(dest_dir, item)),
+                                 f"unexpected subdirectory after flatten: {item}")
+
+            # file count is preserved
+            files_after = list(common.collect_paths(dest_dir))
+            self.assertEqual(len(files_after), len(files_before))
+
+
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
     process → record collection → create sync mappings → run_music.'''
