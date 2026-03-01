@@ -27,6 +27,10 @@ class GenerateResult:
     expected_music_count: int
     # number of archives that should be rejected by sweep
     rejected_archive_count: int
+    # number of discrete files/archives that sweep should move (music files + accepted archives)
+    expected_swept_count: int
+    # archive filenames that sweep should NOT move
+    rejected_names: set[str]
 
 
 def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResult:
@@ -39,20 +43,25 @@ def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResul
 
     expected_music = 0
     rejected_archives = 0
+    expected_swept = 0
+    rejected_names: set[str] = set()
 
     for entry in manifest.get('music_files', []):
         path = os.path.join(output_dir, entry['path'])
         _generate_audio_file(path, entry)
         expected_music += 1
+        expected_swept += 1
 
     for entry in manifest.get('archives', []):
         _generate_archive(output_dir, entry)
         if entry.get('expected_accept', True):
+            expected_swept += 1
             for item in entry.get('contents', []):
                 if item['type'] == 'music':
                     expected_music += 1
         else:
             rejected_archives += 1
+            rejected_names.add(entry['path'])
 
     for entry in manifest.get('noise_files', []):
         path = os.path.join(output_dir, entry['path'])
@@ -61,6 +70,8 @@ def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResul
     return GenerateResult(
         expected_music_count=expected_music,
         rejected_archive_count=rejected_archives,
+        expected_swept_count=expected_swept,
+        rejected_names=rejected_names,
     )
 
 

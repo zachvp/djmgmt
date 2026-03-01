@@ -1,15 +1,9 @@
 '''
 E2E integration tests for djmgmt.
 
-Requires the Docker environment to be running:
-    docker-compose -f e2e/docker-compose.test.yml up -d
-
-Run from within the djmgmt-test container:
-    docker-compose -f e2e/docker-compose.test.yml run --rm djmgmt-test
-
-Or from the host with environment variables set:
-    NAVIDROME_HOST=localhost NAVIDROME_PASSWORD=test_password_123 \
-    python -m unittest e2e.test_integration -v
+Run tests from host:
+    docker compose -f e2e/docker-compose.test.yml run --rm djmgmt-test
+    docker compose -f e2e/docker-compose.test.yml run --build --rm djmgmt-test
 '''
 
 import asyncio
@@ -191,6 +185,33 @@ class TestSyncWorkflow(unittest.TestCase):
             self.assertEqual(len(result.batches), 1)
             self.assertEqual(result.batches[0].files_processed, 1)
             self.assertTrue(result.batches[0].success)
+
+
+class TestSweep(unittest.TestCase):
+    '''Verifies music.sweep() moves music files and valid archives, rejects noise and invalid archives.'''
+
+    def test_sweep(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            dest_dir = os.path.join(tmpdir, 'swept')
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+
+            swept = music.sweep(source_dir, dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+
+            # correct number of discrete items moved (music files + accepted archives)
+            self.assertEqual(len(swept), gen.expected_swept_count)
+
+            # all swept files exist at destination
+            for _, dest in swept:
+                self.assertTrue(os.path.exists(dest))
+
+            # rejected archives were not swept
+            swept_names = {os.path.basename(dest) for _, dest in swept}
+            for name in gen.rejected_names:
+                self.assertNotIn(name, swept_names)
 
 
 class TestUpdateLibrary(unittest.TestCase):
