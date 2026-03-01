@@ -35,7 +35,7 @@ class GenerateResult:
     accepted_archive_count: int
     # total files across all accepted archive contents (for TestExtract: extracted file count assertion)
     expected_archive_file_count: int
-    # count of WAV + FLAC files across music_files and accepted archive contents (for TestStandardizeLossless)
+    # count of lossless files (AIF, AIFF, WAV, FLAC) across music_files and accepted archive contents (for TestStandardizeLossless)
     lossless_file_count: int
 
 
@@ -54,7 +54,7 @@ def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResul
     accepted_archive_count = 0
     expected_archive_file_count = 0
     lossless_file_count = 0
-    lossless_extensions = {'.wav', '.flac'}
+    lossless_extensions = {'.aif', '.aiff', '.wav', '.flac'}
 
     for entry in manifest.get('music_files', []):
         path = os.path.join(output_dir, entry['path'])

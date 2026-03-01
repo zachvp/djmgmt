@@ -269,6 +269,38 @@ class TestFlattenHierarchy(unittest.TestCase):
             self.assertEqual(len(files_after), len(files_before))
 
 
+class TestStandardizeLossless(unittest.TestCase):
+    '''Verifies music.standardize_lossless() converts WAV and FLAC to AIFF after sweep+extract+flatten.'''
+
+    def test_standardize_lossless(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            dest_dir = os.path.join(tmpdir, 'swept')
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+
+            music.sweep(source_dir, dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            music.extract(dest_dir, dest_dir)
+            music.flatten_hierarchy(dest_dir, dest_dir)
+
+            files_before = list(common.collect_paths(dest_dir))
+            encoded = music.standardize_lossless(dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+
+            # all lossless files were encoded
+            self.assertEqual(len(encoded), gen.lossless_file_count)
+
+            # no WAV or FLAC files remain
+            for f in common.collect_paths(dest_dir):
+                ext = os.path.splitext(f)[1].lower()
+                self.assertNotIn(ext, {'.wav', '.flac'}, f"lossless file not converted: {f}")
+
+            # total file count is preserved (each lossless replaced 1-for-1 with aiff)
+            files_after = list(common.collect_paths(dest_dir))
+            self.assertEqual(len(files_after), len(files_before))
+
+
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
     process → record collection → create sync mappings → run_music.'''
