@@ -311,7 +311,7 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
                                              mock_get_size: MagicMock) -> None:
         '''Tests that unsupported files are not processed.'''
         # Setup mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.foo', 'file_1.flac', 'file_2.jpg'])]
+        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.foo', 'file_1.mp4', 'file_2.jpg'])]
         mock_skip_bit_depth.return_value = False
         mock_skip_sample_rate.return_value = False
         
@@ -333,7 +333,93 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
         
         # Assert the expected function output result -- should be empty for unsupported files
         self.assertListEqual(actual, [])
-        
+
+    @patch('os.path.getsize')
+    @patch('builtins.open')
+    @patch('djmgmt.encode.ffmpeg_lossless_flac')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
+    @patch('djmgmt.common.collect_paths')
+    @patch('djmgmt.encode.run_command_async')
+    async def test_success_flac_input(self,
+                                      mock_run_command_async: AsyncMock,
+                                      mock_collect_paths: MagicMock,
+                                      mock_skip_sample_rate: MagicMock,
+                                      mock_skip_bit_depth: MagicMock,
+                                      mock_ffmpeg_lossless: MagicMock,
+                                      mock_ffmpeg_lossless_flac: MagicMock,
+                                      mock_open: MagicMock,
+                                      mock_get_size: MagicMock) -> None:
+        '''Tests that a FLAC input file is processed and uses ffmpeg_lossless when output is AIFF.'''
+        # Setup mocks
+        mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.flac')]
+        mock_skip_bit_depth.return_value = False
+        mock_skip_sample_rate.return_value = False
+
+        # Call target function, encoding FLAC to AIFF
+        actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.aiff')
+
+        # Assert FLAC input uses the standard lossless command for AIFF output
+        mock_ffmpeg_lossless.assert_called_once_with(
+            os.path.join(MOCK_INPUT, 'file_0.flac'),
+            os.path.join(MOCK_OUTPUT, 'file_0.aiff')
+        )
+        mock_ffmpeg_lossless_flac.assert_not_called()
+        mock_run_command_async.assert_called_once()
+
+        # No file writes (no store_path_dir set); getsize called for input and output
+        mock_open.assert_not_called()
+        self.assertEqual(mock_get_size.call_count, 2)
+
+        # Assert the expected function output result
+        self.assertListEqual(actual, [
+            (os.path.join(MOCK_INPUT, 'file_0.flac'), os.path.join(MOCK_OUTPUT, 'file_0.aiff'))
+        ])
+
+    @patch('os.path.getsize')
+    @patch('builtins.open')
+    @patch('djmgmt.encode.ffmpeg_lossless_flac')
+    @patch('djmgmt.encode.ffmpeg_lossless')
+    @patch('djmgmt.encode.check_skip_bit_depth')
+    @patch('djmgmt.encode.check_skip_sample_rate')
+    @patch('djmgmt.common.collect_paths')
+    @patch('djmgmt.encode.run_command_async')
+    async def test_success_flac_output(self,
+                                       mock_run_command_async: AsyncMock,
+                                       mock_collect_paths: MagicMock,
+                                       mock_skip_sample_rate: MagicMock,
+                                       mock_skip_bit_depth: MagicMock,
+                                       mock_ffmpeg_lossless: MagicMock,
+                                       mock_ffmpeg_lossless_flac: MagicMock,
+                                       mock_open: MagicMock,
+                                       mock_get_size: MagicMock) -> None:
+        '''Tests that encoding to FLAC output uses ffmpeg_lossless_flac.'''
+        # Setup mocks
+        mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.aiff')]
+        mock_skip_bit_depth.return_value = False
+        mock_skip_sample_rate.return_value = False
+
+        # Call target function, encoding to FLAC
+        actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.flac')
+
+        # Assert FLAC output uses the FLAC-specific command
+        mock_ffmpeg_lossless_flac.assert_called_once_with(
+            os.path.join(MOCK_INPUT, 'file_0.aiff'),
+            os.path.join(MOCK_OUTPUT, 'file_0.flac')
+        )
+        mock_ffmpeg_lossless.assert_not_called()
+        mock_run_command_async.assert_called_once()
+
+        # No file writes (no store_path_dir set); getsize called for input and output
+        mock_open.assert_not_called()
+        self.assertEqual(mock_get_size.call_count, 2)
+
+        # Assert the expected function output result
+        self.assertListEqual(actual, [
+            (os.path.join(MOCK_INPUT, 'file_0.aiff'), os.path.join(MOCK_OUTPUT, 'file_0.flac'))
+        ])
+
 class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
     @patch('djmgmt.encode.run_command_async')
     @patch('djmgmt.encode.ffmpeg_lossy')

@@ -283,8 +283,8 @@ def standardize_lossless(source: str, valid_extensions: set[str], prefix_hints: 
 
     # create a temporary directory to place the encoded files.
     with TemporaryDirectory() as temp_dir:
-        # encode all non-standard lossless files
-        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', dry_run=dry_run))
+        # standardize lossless file encodings
+        result = asyncio.run(encode.encode_lossless(source, temp_dir, '.aiff', encode_always=True, dry_run=dry_run))
 
         # remove all of the original non-standard files that have been encoded.
         for input_path, _ in result:

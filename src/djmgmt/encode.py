@@ -118,6 +118,17 @@ def ffmpeg_lossless(input_path: str, output_path: str) -> list[str]:
 
     return ffmpeg_base(input_path, output_path, options)
 
+def ffmpeg_lossless_flac(input_path: str, output_path: str) -> list[str]:
+    '''Creates an FFMPEG command that will transcode the `input_path` to the `output_path` in FLAC format.
+    Core command example:
+        ffmpeg -i /path/to/input.foo -ar 44100 -c:a flac -sample_fmt s16 -y /path/to/output.flac
+    Options:
+        -c:a flac: FLAC lossless codec
+        -sample_fmt s16: 16-bit sample format
+        -y: overwrite output file if present, without asking permission
+    '''
+    return ['ffmpeg', '-i', input_path] + shlex.split('-ar 44100 -c:a flac -sample_fmt s16 -y') + [output_path]
+
 def ffmpeg_lossy(input_path: str, output_path: str, map_options: str='-map 0') -> list[str]:
     '''Creates an FFMPEG command that will transcode the `input_path` to the `output_path` with high quality lossy settings.
     Options:
@@ -252,7 +263,6 @@ async def run_missing_art_tasks(tasks: list[tuple[str, Task[tuple[int, str]]]]) 
 
 # region Features
 
-# TODO: add support for FLAC
 async def encode_lossless(input_dir: str,
                           output_dir: str,
                           extension: str = '',
@@ -314,7 +324,7 @@ async def encode_lossless(input_dir: str,
             skipped_files = []
 
     # main processing loop
-    extensions = {'.aif', '.aiff', '.wav'}
+    extensions = {'.aif', '.aiff', '.wav', '.flac'}
     for input_path in common.collect_paths(input_dir, filter=extensions):
         name = os.path.basename(input_path)
         filename, input_extension = os.path.splitext(name)
@@ -345,7 +355,7 @@ async def encode_lossless(input_dir: str,
             continue
 
         # create the ffmpeg encode command and task
-        command = ffmpeg_lossless(input_path, output_path)
+        command = ffmpeg_lossless_flac(input_path, output_path) if output_extension == '.flac' else ffmpeg_lossless(input_path, output_path)
         task = asyncio.create_task(run_command_async(command))
         tasks.append((input_path, output_path, task))
 
