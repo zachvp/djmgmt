@@ -1,20 +1,91 @@
 {
-  "files": [
+  "music_files": [
     {
-      "path": "track1.mp3",
-      "title": "Test Track 1",
-      "artist": "Test Artist 1",
-      "album": "Test Album",
-      "genre": "Electronic",
-      "has_cover_art": true
+      "path": "Artist A - Track 1.mp3",
+      "title": "Track 1",
+      "artist": "Artist A",
+      "album": "EP",
+      "genre": "Electronic"
     },
     {
-      "path": "track2.aiff",
-      "title": "Test Track 2",
-      "artist": "Test Artist 2",
-      "album": "Test Album",
-      "genre": "House",
-      "has_cover_art": false
+      "path": "Artist B - Track 2.aiff",
+      "title": "Track 2",
+      "artist": "Artist B",
+      "album": "EP",
+      "genre": "House"
+    },
+    {
+      "path": "Artist C - Track 3.wav",
+      "title": "Track 3",
+      "artist": "Artist C",
+      "album": "EP",
+      "genre": "Techno"
+    },
+    {
+      "path": "Artist D - Track 4.flac",
+      "title": "Track 4",
+      "artist": "Artist D",
+      "album": "EP",
+      "genre": "Ambient"
     }
+  ],
+  "archives": [
+    {
+      "path": "beatport_tracks_EP001.zip",
+      "expected_accept": true,
+      "contents": [
+        { "path": "01 Artist E - Track 5.mp3", "type": "music", "title": "Track 5", "artist": "Artist E" },
+        { "path": "02 Artist F - Track 6.mp3", "type": "music", "title": "Track 6", "artist": "Artist F" },
+        { "path": "cover.jpg", "type": "image" }
+      ]
+    },
+    {
+      "path": "juno_download_01.zip",
+      "expected_accept": true,
+      "contents": [
+        { "path": "Artist G - Track 7.aiff", "type": "music", "title": "Track 7", "artist": "Artist G" }
+      ]
+    },
+    {
+      "path": "Artist H - Album.zip",
+      "expected_accept": true,
+      "contents": [
+        { "path": "01 Track 8.mp3", "type": "music", "title": "Track 8", "artist": "Artist H" },
+        { "path": "02 Track 9.mp3", "type": "music", "title": "Track 9", "artist": "Artist H" },
+        { "path": "03 Track 10.mp3", "type": "music", "title": "Track 10", "artist": "Artist H" },
+        { "path": "cover.png", "type": "image" }
+      ]
+    },
+    {
+      "path": "Photos-001.zip",
+      "expected_accept": false,
+      "contents": [
+        { "path": "photo1.jpg", "type": "image" },
+        { "path": "photo2.png", "type": "image" }
+      ]
+    },
+    {
+      "path": "_ef924544-app-bundle.zip",
+      "expected_accept": false,
+      "contents": [
+        { "path": "MusicPlayer.app", "type": "app" },
+        { "path": "readme.txt", "type": "doc" }
+      ]
+    },
+    {
+      "path": "Install_rekordbox_7_2_7.zip",
+      "expected_accept": false,
+      "contents": [
+        { "path": "rekordbox.pkg", "type": "doc" }
+      ]
+    }
+  ],
+  "noise_files": [
+    { "path": "album-cover.jpg" },
+    { "path": "album-art.webp" },
+    { "path": "invoice-2025.pdf" },
+    { "path": "README.txt" },
+    { "path": "Bartender.dmg" },
+    { "path": ".DS_Store" }
   ]
 }

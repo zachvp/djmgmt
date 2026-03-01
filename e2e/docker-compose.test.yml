@@ -21,7 +21,6 @@ services:
       # Disable external services for isolated testing
       - ND_ENABLEEXTERNALSERVICES=false
     volumes:
-      - ./fixtures/music:/music
       - navidrome-data:/data
     healthcheck:
       test: ['CMD', 'wget', '--spider', 'http://localhost:4533/ping']

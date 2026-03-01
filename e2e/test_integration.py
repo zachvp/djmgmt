@@ -20,8 +20,11 @@ import tempfile
 import time
 import unittest
 
+import fixture_generator
 from djmgmt import common, config, constants, encode, music, subsonic_client, sync
 from djmgmt.common import FileMapping
+
+_MANIFEST_PATH = os.path.join(os.path.dirname(__file__), 'fixtures/manifests/dummy-files.json')
 
 
 def setUpModule() -> None:
@@ -83,17 +86,6 @@ def _setup_state_dir() -> None:
     # empty sync state so SavedDateContext.load() doesn't crash and batches are not skipped
     open(config.SYNC_STATE_PATH, 'w').close()
 
-
-def _generate_tagged_mp3(path: str) -> None:
-    '''Generates a 1-second silent MP3 with title and artist tags at the given path.
-    Tags.load requires at least one of title/artist to be non-None.'''
-    subprocess.run(
-        ['ffmpeg', '-f', 'lavfi', '-i', 'anullsrc=r=44100:cl=stereo',
-         '-t', '1', '-acodec', 'libmp3lame', '-q:a', '9',
-         '-metadata', 'title=Test Track', '-metadata', 'artist=Test Artist',
-         path, '-y'],
-        check=True, capture_output=True
-    )
 
 
 class TestToolchainHealthcheck(unittest.TestCase):
@@ -218,9 +210,8 @@ class TestUpdateLibrary(unittest.TestCase):
             for d in [new_music_dir, library_dir, client_mirror_dir, collection_export_dir]:
                 os.makedirs(d)
 
-            # generate a tagged MP3 — Tags.load requires title or artist to be non-None
-            source_path = os.path.join(new_music_dir, 'test-track.mp3')
-            _generate_tagged_mp3(source_path)
+            # generate all fixture files from the manifest — music, archives, and noise
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, new_music_dir)
 
             # provide an export XML so find_latest_file returns a valid path for merge_collections
             shutil.copy(config.COLLECTION_PATH_TEMPLATE, os.path.join(collection_export_dir, 'export.xml'))
@@ -236,11 +227,11 @@ class TestUpdateLibrary(unittest.TestCase):
                 prefix_hints=music.PREFIX_HINTS,
             )
 
-            # one track was added to the collection and _pruned playlist
-            self.assertEqual(result.record_result.tracks_added, 1)
-            # one sync batch (one date context: today) ran and succeeded
+            # only music tracks (individual + accepted archive contents) reach the collection
+            self.assertEqual(result.record_result.tracks_added, gen.expected_music_count)
+            # all tracks land in today's date context → one sync batch
             self.assertEqual(len(result.sync_result.batches), 1)
-            self.assertEqual(result.sync_result.batches[0].files_processed, 1)
+            self.assertEqual(result.sync_result.batches[0].files_processed, gen.expected_music_count)
             self.assertTrue(result.sync_result.batches[0].success)
 
 
