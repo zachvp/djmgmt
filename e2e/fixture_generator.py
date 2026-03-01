@@ -31,6 +31,12 @@ class GenerateResult:
     expected_swept_count: int
     # archive filenames that sweep should NOT move
     rejected_names: set[str]
+    # number of accepted archives (for TestExtract: len(extracted) assertion)
+    accepted_archive_count: int
+    # total files across all accepted archive contents (for TestExtract: extracted file count assertion)
+    expected_archive_file_count: int
+    # count of WAV + FLAC files across music_files and accepted archive contents (for TestStandardizeLossless)
+    lossless_file_count: int
 
 
 def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResult:
@@ -45,20 +51,32 @@ def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResul
     rejected_archives = 0
     expected_swept = 0
     rejected_names: set[str] = set()
+    accepted_archive_count = 0
+    expected_archive_file_count = 0
+    lossless_file_count = 0
+    lossless_extensions = {'.wav', '.flac'}
 
     for entry in manifest.get('music_files', []):
         path = os.path.join(output_dir, entry['path'])
         _generate_audio_file(path, entry)
         expected_music += 1
         expected_swept += 1
+        ext = os.path.splitext(entry['path'])[1].lower()
+        if ext in lossless_extensions:
+            lossless_file_count += 1
 
     for entry in manifest.get('archives', []):
         _generate_archive(output_dir, entry)
         if entry.get('expected_accept', True):
             expected_swept += 1
+            accepted_archive_count += 1
             for item in entry.get('contents', []):
+                expected_archive_file_count += 1
                 if item['type'] == 'music':
                     expected_music += 1
+                    ext = os.path.splitext(item['path'])[1].lower()
+                    if ext in lossless_extensions:
+                        lossless_file_count += 1
         else:
             rejected_archives += 1
             rejected_names.add(entry['path'])
@@ -72,6 +90,9 @@ def generate_from_manifest(manifest_path: str, output_dir: str) -> GenerateResul
         rejected_archive_count=rejected_archives,
         expected_swept_count=expected_swept,
         rejected_names=rejected_names,
+        accepted_archive_count=accepted_archive_count,
+        expected_archive_file_count=expected_archive_file_count,
+        lossless_file_count=lossless_file_count,
     )
 
 

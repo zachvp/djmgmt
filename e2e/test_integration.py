@@ -15,7 +15,7 @@ import time
 import unittest
 
 import fixture_generator
-from djmgmt import common, config, constants, encode, music, subsonic_client, sync
+from djmgmt import common, config, constants, encode, library, music, subsonic_client, sync
 from djmgmt.common import FileMapping
 
 _MANIFEST_PATH = os.path.join(os.path.dirname(__file__), 'fixtures/manifests/dummy-files.json')
@@ -212,6 +212,33 @@ class TestSweep(unittest.TestCase):
             swept_names = {os.path.basename(dest) for _, dest in swept}
             for name in gen.rejected_names:
                 self.assertNotIn(name, swept_names)
+
+
+class TestExtract(unittest.TestCase):
+    '''Verifies music.extract() extracts all accepted archives after sweep.'''
+
+    def test_extract(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            dest_dir = os.path.join(tmpdir, 'swept')
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+
+            music.sweep(source_dir, dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            extracted = music.extract(dest_dir, dest_dir)
+
+            # one result tuple per accepted archive
+            self.assertEqual(len(extracted), gen.accepted_archive_count)
+
+            # total extracted files across all archives matches manifest
+            total_extracted = sum(len(files) for _, files in extracted)
+            self.assertEqual(total_extracted, gen.expected_archive_file_count)
+
+            # zip files remain at the swept location
+            for archive_path, _ in extracted:
+                self.assertTrue(os.path.exists(archive_path))
 
 
 class TestUpdateLibrary(unittest.TestCase):
