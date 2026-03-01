@@ -330,6 +330,39 @@ class TestPruneNonMusic(unittest.TestCase):
             self.assertEqual(len(remaining), gen.expected_music_count)
 
 
+class TestProcess(unittest.TestCase):
+    '''Verifies music.process() runs the complete sweep→extract→flatten→encode→prune pipeline.'''
+
+    def setUp(self) -> None:
+        _setup_state_dir()
+
+    def test_process(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            output_dir = os.path.join(tmpdir, 'library')
+            os.makedirs(source_dir)
+            os.makedirs(output_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+            result = music.process(source_dir, output_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+
+            # archive count matches accepted archives
+            self.assertEqual(result.archives_extracted, gen.accepted_archive_count)
+
+            # encoded files matches total lossless file count
+            self.assertEqual(result.files_encoded, gen.lossless_file_count)
+
+            # processed file count matches expected music count
+            self.assertEqual(len(result.processed_files), gen.expected_music_count)
+
+            # all output files exist with valid extensions
+            for _, output_path in result.processed_files:
+                self.assertTrue(os.path.exists(output_path), f"output file missing: {output_path}")
+                ext = os.path.splitext(output_path)[1].lower()
+                self.assertIn(ext, constants.EXTENSIONS, f"invalid extension: {output_path}")
+
+
+
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
     process → record collection → create sync mappings → run_music.'''
