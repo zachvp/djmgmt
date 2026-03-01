@@ -301,6 +301,35 @@ class TestStandardizeLossless(unittest.TestCase):
             self.assertEqual(len(files_after), len(files_before))
 
 
+class TestPruneNonMusic(unittest.TestCase):
+    '''Verifies music.prune_non_music() removes non-music files after sweep+extract+flatten+standardize.'''
+
+    def test_prune_non_music(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            dest_dir = os.path.join(tmpdir, 'swept')
+            os.makedirs(source_dir)
+            os.makedirs(dest_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+
+            music.sweep(source_dir, dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            music.extract(dest_dir, dest_dir)
+            music.flatten_hierarchy(dest_dir, dest_dir)
+            music.standardize_lossless(dest_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            music.prune_non_music(dest_dir, constants.EXTENSIONS)
+
+            remaining = list(common.collect_paths(dest_dir))
+
+            # only valid music extensions remain
+            for f in remaining:
+                ext = os.path.splitext(f)[1].lower()
+                self.assertIn(ext, constants.EXTENSIONS, f"non-music file not pruned: {f}")
+
+            # music file count matches expected
+            self.assertEqual(len(remaining), gen.expected_music_count)
+
+
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
     process → record collection → create sync mappings → run_music.'''
