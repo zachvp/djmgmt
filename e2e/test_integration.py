@@ -399,6 +399,41 @@ class TestRecordCollection(unittest.TestCase):
             self.assertEqual(len(pruned.findall(constants.TAG_TRACK)), gen.expected_music_count)
 
 
+class TestCreateSyncMappings(unittest.TestCase):
+    '''Verifies sync.create_sync_mappings() after process() + record_collection().'''
+
+    def setUp(self) -> None:
+        _setup_state_dir()
+
+    def test_create_sync_mappings(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            library_dir = os.path.join(tmpdir, 'library')
+            mirror_dir = os.path.join(tmpdir, 'mirror')
+            os.makedirs(source_dir)
+            os.makedirs(library_dir)
+            os.makedirs(mirror_dir)
+
+            fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+            music.process(source_dir, library_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+            record_result = library.record_collection(
+                library_dir,
+                config.COLLECTION_PATH_TEMPLATE,
+                config.COLLECTION_PATH_PROCESSED,
+            )
+
+            mappings = sync.create_sync_mappings(record_result.collection_root, mirror_dir)
+
+            # mapping count equals the number of tracks in _pruned
+            pruned = library.find_node(record_result.collection_root, constants.XPATH_PRUNED)
+            pruned_count = len(pruned.findall(constants.TAG_TRACK))
+            self.assertEqual(len(mappings), pruned_count)
+
+            # each mapping's library path exists on disk
+            for lib_path, _ in mappings:
+                self.assertTrue(os.path.exists(lib_path), f"library path does not exist: {lib_path}")
+
+
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
     process → record collection → create sync mappings → run_music.'''
