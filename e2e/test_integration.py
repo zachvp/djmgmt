@@ -362,6 +362,42 @@ class TestProcess(unittest.TestCase):
                 self.assertIn(ext, constants.EXTENSIONS, f"invalid extension: {output_path}")
 
 
+class TestRecordCollection(unittest.TestCase):
+    '''Verifies library.record_collection() records all processed tracks into the XML collection.'''
+
+    def setUp(self) -> None:
+        _setup_state_dir()
+
+    def test_record_collection(self) -> None:
+        with tempfile.TemporaryDirectory(prefix='djmgmt_e2e_') as tmpdir:
+            source_dir = os.path.join(tmpdir, 'new_music')
+            library_dir = os.path.join(tmpdir, 'library')
+            os.makedirs(source_dir)
+            os.makedirs(library_dir)
+
+            gen = fixture_generator.generate_from_manifest(_MANIFEST_PATH, source_dir)
+            music.process(source_dir, library_dir, constants.EXTENSIONS, music.PREFIX_HINTS)
+
+            record_result = library.record_collection(
+                library_dir,
+                config.COLLECTION_PATH_TEMPLATE,
+                config.COLLECTION_PATH_PROCESSED,
+            )
+
+            # correct number of tracks added
+            self.assertEqual(record_result.tracks_added, gen.expected_music_count)
+
+            # each track has a non-empty TrackID
+            collection_node = library.find_node(record_result.collection_root, constants.XPATH_COLLECTION)
+            for track in collection_node.findall(constants.TAG_TRACK):
+                track_id = track.get(constants.ATTR_TRACK_ID)
+                self.assertIsNotNone(track_id)
+                self.assertGreater(len(track_id), 0)  # type: ignore[arg-type]
+
+            # all tracks appear in the _pruned playlist
+            pruned = library.find_node(record_result.collection_root, constants.XPATH_PRUNED)
+            self.assertEqual(len(pruned.findall(constants.TAG_TRACK)), gen.expected_music_count)
+
 
 class TestUpdateLibrary(unittest.TestCase):
     '''Verifies the full music.update_library pipeline:
