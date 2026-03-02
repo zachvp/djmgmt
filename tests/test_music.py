@@ -87,7 +87,7 @@ class TestStandardizeLossless(unittest.TestCase):
 
         ## Check calls
         self.mock_temp_dir.assert_called_once()
-        self.mock_encode.assert_called_once_with(MOCK_INPUT_DIR, self.MOCK_TEMP_PATH, '.aiff', dry_run=False)
+        self.mock_encode.assert_called_once_with(MOCK_INPUT_DIR, self.MOCK_TEMP_PATH, '.aiff', encode_always=True, dry_run=False)
         self.mock_remove.assert_called_once_with(self.MOCK_INPUT_FILE)
         self.mock_sweep.assert_called_once_with(self.MOCK_TEMP_PATH, MOCK_INPUT_DIR, self.MOCK_EXTENSIONS, self.MOCK_HINTS, dry_run=False)
 
@@ -101,7 +101,7 @@ class TestStandardizeLossless(unittest.TestCase):
 
         ## Check calls
         self.mock_temp_dir.assert_called_once()
-        self.mock_encode.assert_called_once_with(MOCK_INPUT_DIR, self.MOCK_TEMP_PATH, '.aiff', dry_run=True)
+        self.mock_encode.assert_called_once_with(MOCK_INPUT_DIR, self.MOCK_TEMP_PATH, '.aiff', encode_always=True, dry_run=True)
         self.mock_remove.assert_not_called()
         self.mock_sweep.assert_called_once_with(self.MOCK_TEMP_PATH, MOCK_INPUT_DIR, self.MOCK_EXTENSIONS, self.MOCK_HINTS, dry_run=True)
 
