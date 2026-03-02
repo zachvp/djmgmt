@@ -450,6 +450,51 @@ class TestUpdateLibrary(unittest.TestCase):
             self.assertEqual(result.sync_result.batches[0].files_processed, gen.expected_music_count)
             self.assertTrue(result.sync_result.batches[0].success)
 
+            # merged XML: both inputs were empty templates, so the merged result has no tracks
+            merged_root = library.load_collection(config.COLLECTION_PATH_MERGED)
+            merged_collection = library.find_node(merged_root, constants.XPATH_COLLECTION)
+            self.assertEqual(merged_collection.get('Entries'), '0')
+            self.assertListEqual(merged_collection.findall(constants.TAG_TRACK), [])
+            merged_pruned = library.find_node(merged_root, constants.XPATH_PRUNED)
+            self.assertEqual(merged_pruned.get('Entries'), '0')
+            self.assertListEqual(merged_pruned.findall(constants.TAG_TRACK), [])
+
+            # recorded XML: verify in-memory root structure
+            recorded_root = result.record_result.collection_root
+            recorded_collection = library.find_node(recorded_root, constants.XPATH_COLLECTION)
+            recorded_tracks = recorded_collection.findall(constants.TAG_TRACK)
+            self.assertEqual(len(recorded_tracks), gen.expected_music_count)
+            self.assertEqual(recorded_collection.get('Entries'), str(gen.expected_music_count))
+
+            # each track has required non-empty attributes and its file exists on disk
+            for track in recorded_tracks:
+                track_id = track.get(constants.ATTR_TRACK_ID)
+                location = track.get(constants.ATTR_LOCATION)
+                date_added = track.get(constants.ATTR_DATE_ADDED)
+                self.assertIsNotNone(track_id)
+                self.assertGreater(len(track_id), 0)  # type: ignore[arg-type]
+                self.assertIsNotNone(location)
+                self.assertTrue(location.startswith(config.REKORDBOX_ROOT),  # type: ignore[union-attr]
+                                f"Location missing REKORDBOX_ROOT prefix: {location}")
+                self.assertIsNotNone(date_added)
+                self.assertGreater(len(date_added), 0)  # type: ignore[arg-type]
+                file_path = library.collection_path_to_syspath(location)  # type: ignore[arg-type]
+                self.assertTrue(os.path.exists(file_path), f"track file missing on disk: {file_path}")
+
+            # _pruned track keys match COLLECTION track IDs exactly
+            recorded_pruned = library.find_node(recorded_root, constants.XPATH_PRUNED)
+            pruned_keys = {t.get(constants.ATTR_TRACK_KEY) for t in recorded_pruned.findall(constants.TAG_TRACK)}
+            collection_ids = {t.get(constants.ATTR_TRACK_ID) for t in recorded_tracks}
+            self.assertSetEqual(pruned_keys, collection_ids)
+            self.assertEqual(recorded_pruned.get('Entries'), str(gen.expected_music_count))
+
+            # disk-persisted XML matches in-memory result
+            disk_root = library.load_collection(config.COLLECTION_PATH_PROCESSED)
+            disk_collection = library.find_node(disk_root, constants.XPATH_COLLECTION)
+            self.assertEqual(len(disk_collection.findall(constants.TAG_TRACK)), gen.expected_music_count)
+            disk_pruned = library.find_node(disk_root, constants.XPATH_PRUNED)
+            self.assertEqual(len(disk_pruned.findall(constants.TAG_TRACK)), gen.expected_music_count)
+
 
 if __name__ == '__main__':
     unittest.main()
