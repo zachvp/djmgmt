@@ -5,6 +5,7 @@ RUN apt-get update && apt-get install -y rsync ffmpeg && rm -rf /var/lib/apt/lis
 WORKDIR /app
 COPY pyproject.toml .
 COPY src/ src/
+COPY state/ state/
 RUN pip install -e .
 
 WORKDIR /e2e

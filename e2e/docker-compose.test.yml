@@ -69,7 +69,7 @@ services:
       - RSYNC_PASSWORD=testpass
 
       # djmgmt configuration
-      - DJMGMT_STATE_DIR=/tmp/djmgmt/state
+      - DJMGMT_STATE_DIR=/app/state
       - DJMGMT_LOG_DIR=/tmp/djmgmt/logs
       - REKORDBOX_ROOT=file://localhost
     volumes:

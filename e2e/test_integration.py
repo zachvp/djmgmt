@@ -26,26 +26,6 @@ def setUpModule() -> None:
 
 _SCAN_TIMEOUT_S = 30
 
-# Minimal Rekordbox XML template matching state/collection-template.xml
-_COLLECTION_TEMPLATE = '''\
-<?xml version="1.0" encoding="UTF-8"?>
-<DJ_PLAYLISTS Version="1.0.0">
-    <PRODUCT Name="rekordbox" Version="6.8.5" Company="AlphaTheta"/>
-    <COLLECTION Entries="0">
-    </COLLECTION>
-    <PLAYLISTS>
-        <NODE Type="0" Name="ROOT" Count="3">
-            <NODE Name="CUE Analysis Playlist" Type="1" KeyType="0" Entries="0"/>
-            <NODE Name="_pruned" Type="1" KeyType="0" Entries="0"/>
-            <NODE Name="dynamic" Type="0" KeyType="0" Entries="2">
-                <NODE Name="unplayed" Type="1" KeyType="0" Entries="0"/>
-                <NODE Name="played" Type="1" KeyType="0" Entries="0"/>
-            </NODE>
-        </NODE>
-    </PLAYLISTS>
-</DJ_PLAYLISTS>
-'''
-
 
 def _wait_for_scan_complete(test: unittest.TestCase) -> None:
     '''Polls GET_SCAN_STATUS until scanning is false or _SCAN_TIMEOUT_S is exceeded.'''
@@ -69,13 +49,8 @@ def _setup_state_dir() -> None:
     for d in [str(config.STATE_DIR), output_dir]:
         os.makedirs(d, exist_ok=True)
 
-    # collection template is loaded internally by merge_collections and record_collection
-    with open(config.COLLECTION_PATH_TEMPLATE, 'w', encoding='utf-8') as f:
-        f.write(_COLLECTION_TEMPLATE)
-
     # processed collection is the secondary input to merge_collections
-    with open(config.COLLECTION_PATH_PROCESSED, 'w', encoding='utf-8') as f:
-        f.write(_COLLECTION_TEMPLATE)
+    shutil.copy(config.COLLECTION_PATH_TEMPLATE, config.COLLECTION_PATH_PROCESSED)
 
     # empty sync state so SavedDateContext.load() doesn't crash and batches are not skipped
     open(config.SYNC_STATE_PATH, 'w').close()
