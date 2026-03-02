@@ -13,275 +13,181 @@ from djmgmt.encode import Namespace
 MOCK_INPUT = '/mock/input'
 MOCK_OUTPUT = '/mock/output'
 
-# TODO: refactor to mock common.collect_paths instead of os.walk
 
 class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    @patch('djmgmt.encode.run_command_async')
-    async def test_success_async_single_batch(self,
-                                              mock_run_command_async: AsyncMock,
-                                              mock_setup_storage: MagicMock,
-                                              mock_input: MagicMock,
-                                              mock_walk: MagicMock,
-                                              mock_skip_sample_rate: MagicMock,
-                                              mock_skip_bit_depth: MagicMock,
-                                              mock_ffmepg_losless: MagicMock,
-                                              mock_open: MagicMock,
-                                              mock_get_size: MagicMock) -> None:
+    def setUp(self) -> None:
+        self.mock_get_size             = patch('os.path.getsize').start()
+        self.mock_open                 = patch('builtins.open').start()
+        self.mock_ffmpeg_lossless      = patch('djmgmt.encode.ffmpeg_lossless').start()
+        self.mock_ffmpeg_lossless_flac = patch('djmgmt.encode.ffmpeg_lossless_flac').start()
+        self.mock_skip_bit_depth       = patch('djmgmt.encode.check_skip_bit_depth').start()
+        self.mock_skip_sample_rate     = patch('djmgmt.encode.check_skip_sample_rate').start()
+        self.mock_collect_paths        = patch('djmgmt.common.collect_paths').start()
+        self.mock_input                = patch('builtins.input').start()
+        self.mock_setup_storage        = patch('djmgmt.encode.setup_storage').start()
+        self.mock_run_command_async    = patch('djmgmt.encode.run_command_async').start()
+        self.mock_subprocess_run       = patch('subprocess.run').start()
+        self.mock_log_dry_run          = patch('djmgmt.common.log_dry_run').start()
+        self.addCleanup(patch.stopall)
+
+        # Shared defaults
+        self.mock_skip_bit_depth.return_value   = False
+        self.mock_skip_sample_rate.return_value = False
+
+    async def test_success_async_single_batch(self) -> None:
         '''Tests that a single file can be processed asynchrounously.'''
         # Set up mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.aif'])]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
-        
+        self.mock_collect_paths.return_value = [f'{MOCK_INPUT}/file_0.aif']
+
         # Call target function, encoding to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.aiff')
-        
+
         # Assert that methods depending on optional arguments are not called.
-        mock_setup_storage.assert_not_called()
-        mock_input.assert_not_called()
-        mock_walk.assert_called_once_with(MOCK_INPUT)
-        
+        self.mock_setup_storage.assert_not_called()
+        self.mock_input.assert_not_called()
+
         # Assert that bit depth and sample rate were only checked for the AIF file;
         # WAV files should always be processed without checking this data.
-        self.assertTrue(mock_skip_sample_rate.call_count == 1 or mock_skip_bit_depth.call_count == 1)
-        
+        self.assertTrue(self.mock_skip_sample_rate.call_count == 1 or self.mock_skip_bit_depth.call_count == 1)
+
         # Assert expected calls for each input file
-        mock_ffmepg_losless.assert_has_calls([
+        self.mock_ffmpeg_lossless.assert_has_calls([
             call(f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff"),
         ])
-        
+
         # Assert no file was opened, as only default 'encode_lossless' arguments were used
-        mock_open.assert_not_called()
-        
+        self.mock_open.assert_not_called()
+
         # Assert that getsize was called for input and output for each track
-        self.assertEqual(mock_get_size.call_count, 2)
-        
+        self.assertEqual(self.mock_get_size.call_count, 2)
+
         # Assert the expected function output result
         self.assertEqual(actual, [
             (f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff")
         ])
-        
+
         # Async expectations
-        mock_run_command_async.assert_called_once()
-        
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    @patch('djmgmt.encode.run_command_async')
-    async def test_success_async_multiple_batches(self,
-                                                  mock_run_command_async: AsyncMock,
-                                                  mock_setup_storage: MagicMock,
-                                                  mock_input: MagicMock,
-                                                  mock_walk: MagicMock,
-                                                  mock_skip_sample_rate: MagicMock,
-                                                  mock_skip_bit_depth: MagicMock,
-                                                  mock_ffmepg_losless: MagicMock,
-                                                  mock_open: MagicMock,
-                                                  mock_get_size: MagicMock) -> None:
+        self.mock_run_command_async.assert_called_once()
+
+    async def test_success_async_multiple_batches(self) -> None:
         '''Test that an amount of files exceeding the given thread count processes all files.'''
         # Set up mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], [f"file_{i}.aif" for i in range(5)])]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
-        
+        self.mock_collect_paths.return_value = [f'{MOCK_INPUT}/file_{i}.aif' for i in range(5)]
+
         # Call target function, encoding to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.aiff', threads=4)
-        
+
         # Assert that methods depending on optional arguments are not called.
-        mock_setup_storage.assert_not_called()
-        mock_input.assert_not_called()
-        mock_walk.assert_called_once_with(MOCK_INPUT)
-        
+        self.mock_setup_storage.assert_not_called()
+        self.mock_input.assert_not_called()
+
         # Assert that bit depth and sample rate were only checked for the AIF file;
         # WAV files should always be processed without checking this data.
-        self.assertTrue(mock_skip_sample_rate.call_count == 5 or mock_skip_bit_depth.call_count == 5)
-        
+        self.assertTrue(self.mock_skip_sample_rate.call_count == 5 or self.mock_skip_bit_depth.call_count == 5)
+
         # Assert expected calls for each input file
-        mock_ffmepg_losless.assert_has_calls([
+        self.mock_ffmpeg_lossless.assert_has_calls([
             call(f"{MOCK_INPUT}/file_{i}.aif", f"{MOCK_OUTPUT}/file_{i}.aiff") for i in range(5)
         ])
-        
+
         # Assert no file was opened, as only default 'encode_lossless' arguments were used
-        mock_open.assert_not_called()
-        
+        self.mock_open.assert_not_called()
+
         # Assert that getsize was called for input and output for each track
-        self.assertEqual(mock_get_size.call_count, 10)
-        
+        self.assertEqual(self.mock_get_size.call_count, 10)
+
         # Assert the expected function output result
         self.assertEqual(actual, [
             (f"{MOCK_INPUT}/file_{i}.aif", f"{MOCK_OUTPUT}/file_{i}.aiff") for i in range(5)
         ])
-        
+
         # Async expectations
         # One task and command should be created for each file
-        self.assertEqual(mock_run_command_async.call_count, 5)
-        
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('subprocess.run')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('djmgmt.common.collect_paths')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    async def test_success_no_extension(self,
-                                        mock_setup_storage: MagicMock,
-                                        mock_input: MagicMock,
-                                        mock_collect_paths: MagicMock,
-                                        mock_skip_sample_rate: MagicMock,
-                                        mock_skip_bit_depth: MagicMock,
-                                        mock_ffmepg_losless: MagicMock,
-                                        mock_run: MagicMock,
-                                        mock_open: MagicMock,
-                                        mock_get_size: MagicMock) -> None:
+        self.assertEqual(self.mock_run_command_async.call_count, 5)
+
+    async def test_success_no_extension(self) -> None:
         '''Tests that the output files retain their corresponding input extensions if no extension provided.'''
         # Setup mocks
         mock_paths = [os.path.join(MOCK_INPUT, 'file_0.aif'), os.path.join(MOCK_INPUT, 'file_1.wav')]
-        mock_collect_paths.return_value = mock_paths
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
-        
+        self.mock_collect_paths.return_value = mock_paths
+
         # Call target function, no extension given
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, threads=4)
-        
+
         # Assert expectations
         expected = [
             (mock_paths[0], os.path.join(MOCK_OUTPUT, 'file_0.aif')),
             (mock_paths[1], os.path.join(MOCK_OUTPUT, 'file_1.wav'))
         ]
         self.assertListEqual(actual, expected)
-    
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    async def test_success_optional_store_path(self,
-                                               mock_setup_storage: MagicMock,
-                                               mock_input: MagicMock,
-                                               mock_walk: MagicMock,
-                                               mock_skip_sample_rate: MagicMock,
-                                               mock_skip_bit_depth: MagicMock,
-                                               mock_ffmepg_losless: MagicMock,
-                                               mock_open: MagicMock,
-                                               mock_get_size: MagicMock) -> None:
+
+    async def test_success_optional_store_path(self) -> None:
         '''Tests that passing the optional store_path argument succeeds.'''
         # Setup mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.aif', 'file_1.wav'])]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
-        
+        self.mock_collect_paths.return_value = [f'{MOCK_INPUT}/file_0.aif', f'{MOCK_INPUT}/file_1.wav']
+
         # Call target function, encoding to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff', store_path_dir='/mock/store/path')
-        
+
         # Assert that storage is set up once and opened to write each file and the cumulative file size.
-        mock_setup_storage.assert_called_once()
-        self.assertEqual(mock_open.call_count, 3)
-        
+        self.mock_setup_storage.assert_called_once()
+        self.assertEqual(self.mock_open.call_count, 3)
+
         # Ensure the argument does not disrupt other expected/unexpected calls
-        mock_input.assert_not_called()
-        mock_ffmepg_losless.assert_called()
-        mock_get_size.assert_called()
-        
+        self.mock_input.assert_not_called()
+        self.mock_ffmpeg_lossless.assert_called()
+        self.mock_get_size.assert_called()
+
         # Assert the expected function output result
         self.assertEqual(actual, [
             (f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff"),
             (f"{MOCK_INPUT}/file_1.wav", f"{MOCK_OUTPUT}/file_1.aiff"),
         ])
-        
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    async def test_success_optional_store_skipped(self,
-                                                  mock_setup_storage: MagicMock,
-                                                  mock_input: MagicMock,
-                                                  mock_walk: MagicMock,
-                                                  mock_skip_sample_rate: MagicMock,
-                                                  mock_skip_bit_depth: MagicMock,
-                                                  mock_ffmepg_losless: MagicMock,
-                                                  mock_open: MagicMock,
-                                                  mock_get_size: MagicMock) -> None:
+
+    async def test_success_optional_store_skipped(self) -> None:
         '''Tests that passing the optional store_skipped argument succeeds.'''
         # Setup mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.aif', 'file_1.aiff'])]
-        
+        self.mock_collect_paths.return_value = [f'{MOCK_INPUT}/file_0.aif', f'{MOCK_INPUT}/file_1.aiff']
+
         # Mock that first file needs encoding, second file does not and will be skipped
-        mock_skip_bit_depth.side_effect = [False, True]
-        mock_skip_sample_rate.return_value = [False, True]
-        
+        self.mock_skip_bit_depth.side_effect = [False, True]
+        self.mock_skip_sample_rate.return_value = [False, True]
+
         # Call target function, encoding to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff', store_path_dir='/mock/store/path', store_skipped=True)
-        
+
         # Assert that storage is set up twice and opened to write each file and the cumulative file size.
-        self.assertEqual(mock_setup_storage.call_count, 2)
-        self.assertEqual(mock_open.call_count, 2)
-        
+        self.assertEqual(self.mock_setup_storage.call_count, 2)
+        self.assertEqual(self.mock_open.call_count, 2)
+
         # Ensure the argument does not disrupt other expected/unexpected calls
-        mock_input.assert_not_called()
-        mock_ffmepg_losless.assert_called()
-        mock_get_size.assert_called()
-        
+        self.mock_input.assert_not_called()
+        self.mock_ffmpeg_lossless.assert_called()
+        self.mock_get_size.assert_called()
+
         # Assert the expected function output result -- the second file should be skipped
         self.assertEqual(actual, [
             (f"{MOCK_INPUT}/file_0.aif", f"{MOCK_OUTPUT}/file_0.aiff")
         ])
 
-    @patch('djmgmt.common.log_dry_run')
-    @patch('djmgmt.encode.run_command_async')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('djmgmt.common.collect_paths')
-    @patch('builtins.open')
-    async def test_dry_run_skips_encoding(self,
-                                          mock_open: MagicMock,
-                                          mock_collect_paths: MagicMock,
-                                          mock_skip_sample_rate: MagicMock,
-                                          mock_skip_bit_depth: MagicMock,
-                                          mock_ffmpeg_lossless: MagicMock,
-                                          mock_run_command_async: AsyncMock,
-                                          mock_log_dry_run: MagicMock) -> None:
+    async def test_dry_run_skips_encoding(self) -> None:
         '''Test encode_lossless with dry_run skips ffmpeg execution and file writes.'''
         # Setup mocks
         mock_paths = [f'{MOCK_INPUT}/file_0.aif', f'{MOCK_INPUT}/file_1.wav']
-        mock_collect_paths.return_value = mock_paths
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
+        self.mock_collect_paths.return_value = mock_paths
 
         # Call target function with dry_run=True
         result = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff', dry_run=True)
 
         # Assert expectations
         ## Should NOT run ffmpeg
-        mock_run_command_async.assert_not_called()
+        self.mock_run_command_async.assert_not_called()
 
         ## Should NOT write storage files
-        mock_open.assert_not_called()
+        self.mock_open.assert_not_called()
 
         ## Should log dry-run operations
-        self.assertGreater(mock_log_dry_run.call_count, 0)
+        self.assertGreater(self.mock_log_dry_run.call_count, 0)
 
         ## Should return expected mappings
         expected = [
@@ -289,155 +195,95 @@ class TestEncodeLossless(unittest.IsolatedAsyncioTestCase):
             (mock_paths[1], f'{MOCK_OUTPUT}/file_1.aiff')
         ]
         self.assertListEqual(result, expected)
-    
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('subprocess.run')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('os.walk')
-    @patch('builtins.input')
-    @patch('djmgmt.encode.setup_storage')
-    async def test_success_unsupported_files(self,
-                                             mock_setup_storage: MagicMock,
-                                             mock_input: MagicMock,
-                                             mock_walk: MagicMock,
-                                             mock_skip_sample_rate: MagicMock,
-                                             mock_skip_bit_depth: MagicMock,
-                                             mock_ffmepg_losless: MagicMock,
-                                             mock_run: MagicMock,
-                                             mock_open: MagicMock,
-                                             mock_get_size: MagicMock) -> None:
+
+    async def test_success_unsupported_files(self) -> None:
         '''Tests that unsupported files are not processed.'''
-        # Setup mocks
-        mock_walk.return_value = [(MOCK_INPUT, [], ['file_0.foo', 'file_1.mp4', 'file_2.jpg'])]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
-        
+        # Setup mocks: collect_paths returns empty because it filters out unsupported extensions
+        self.mock_collect_paths.return_value = []
+
         # Call target function, encoding to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, '.aiff')
-        
-        # Assert expected calls
-        mock_walk.assert_called_once_with(MOCK_INPUT)
-        
+
         # Assert unexpected calls, as most of the functionality should be skipped with unsupported files as input
-        mock_setup_storage.assert_not_called()
-        mock_input.assert_not_called()
-        mock_skip_sample_rate.assert_not_called()
-        mock_skip_bit_depth.assert_not_called()
-        mock_ffmepg_losless.assert_not_called()
-        mock_run.assert_not_called()
-        mock_open.assert_not_called()
-        mock_get_size.assert_not_called()
-        
+        self.mock_setup_storage.assert_not_called()
+        self.mock_input.assert_not_called()
+        self.mock_skip_sample_rate.assert_not_called()
+        self.mock_skip_bit_depth.assert_not_called()
+        self.mock_ffmpeg_lossless.assert_not_called()
+        self.mock_subprocess_run.assert_not_called()
+        self.mock_open.assert_not_called()
+        self.mock_get_size.assert_not_called()
+
         # Assert the expected function output result -- should be empty for unsupported files
         self.assertListEqual(actual, [])
 
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless_flac')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('djmgmt.common.collect_paths')
-    @patch('djmgmt.encode.run_command_async')
-    async def test_success_flac_input(self,
-                                      mock_run_command_async: AsyncMock,
-                                      mock_collect_paths: MagicMock,
-                                      mock_skip_sample_rate: MagicMock,
-                                      mock_skip_bit_depth: MagicMock,
-                                      mock_ffmpeg_lossless: MagicMock,
-                                      mock_ffmpeg_lossless_flac: MagicMock,
-                                      mock_open: MagicMock,
-                                      mock_get_size: MagicMock) -> None:
+    async def test_success_flac_input(self) -> None:
         '''Tests that a FLAC input file is processed and uses ffmpeg_lossless when output is AIFF.'''
         # Setup mocks
-        mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.flac')]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
+        self.mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.flac')]
 
         # Call target function, encoding FLAC to AIFF
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.aiff')
 
         # Assert FLAC input uses the standard lossless command for AIFF output
-        mock_ffmpeg_lossless.assert_called_once_with(
+        self.mock_ffmpeg_lossless.assert_called_once_with(
             os.path.join(MOCK_INPUT, 'file_0.flac'),
             os.path.join(MOCK_OUTPUT, 'file_0.aiff')
         )
-        mock_ffmpeg_lossless_flac.assert_not_called()
-        mock_run_command_async.assert_called_once()
+        self.mock_ffmpeg_lossless_flac.assert_not_called()
+        self.mock_run_command_async.assert_called_once()
 
         # No file writes (no store_path_dir set); getsize called for input and output
-        mock_open.assert_not_called()
-        self.assertEqual(mock_get_size.call_count, 2)
+        self.mock_open.assert_not_called()
+        self.assertEqual(self.mock_get_size.call_count, 2)
 
         # Assert the expected function output result
         self.assertListEqual(actual, [
             (os.path.join(MOCK_INPUT, 'file_0.flac'), os.path.join(MOCK_OUTPUT, 'file_0.aiff'))
         ])
 
-    @patch('os.path.getsize')
-    @patch('builtins.open')
-    @patch('djmgmt.encode.ffmpeg_lossless_flac')
-    @patch('djmgmt.encode.ffmpeg_lossless')
-    @patch('djmgmt.encode.check_skip_bit_depth')
-    @patch('djmgmt.encode.check_skip_sample_rate')
-    @patch('djmgmt.common.collect_paths')
-    @patch('djmgmt.encode.run_command_async')
-    async def test_success_flac_output(self,
-                                       mock_run_command_async: AsyncMock,
-                                       mock_collect_paths: MagicMock,
-                                       mock_skip_sample_rate: MagicMock,
-                                       mock_skip_bit_depth: MagicMock,
-                                       mock_ffmpeg_lossless: MagicMock,
-                                       mock_ffmpeg_lossless_flac: MagicMock,
-                                       mock_open: MagicMock,
-                                       mock_get_size: MagicMock) -> None:
+    async def test_success_flac_output(self) -> None:
         '''Tests that encoding to FLAC output uses ffmpeg_lossless_flac.'''
         # Setup mocks
-        mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.aiff')]
-        mock_skip_bit_depth.return_value = False
-        mock_skip_sample_rate.return_value = False
+        self.mock_collect_paths.return_value = [os.path.join(MOCK_INPUT, 'file_0.aiff')]
 
         # Call target function, encoding to FLAC
         actual = await encode.encode_lossless(MOCK_INPUT, MOCK_OUTPUT, extension='.flac')
 
         # Assert FLAC output uses the FLAC-specific command
-        mock_ffmpeg_lossless_flac.assert_called_once_with(
+        self.mock_ffmpeg_lossless_flac.assert_called_once_with(
             os.path.join(MOCK_INPUT, 'file_0.aiff'),
             os.path.join(MOCK_OUTPUT, 'file_0.flac')
         )
-        mock_ffmpeg_lossless.assert_not_called()
-        mock_run_command_async.assert_called_once()
+        self.mock_ffmpeg_lossless.assert_not_called()
+        self.mock_run_command_async.assert_called_once()
 
         # No file writes (no store_path_dir set); getsize called for input and output
-        mock_open.assert_not_called()
-        self.assertEqual(mock_get_size.call_count, 2)
+        self.mock_open.assert_not_called()
+        self.assertEqual(self.mock_get_size.call_count, 2)
 
         # Assert the expected function output result
         self.assertListEqual(actual, [
             (os.path.join(MOCK_INPUT, 'file_0.aiff'), os.path.join(MOCK_OUTPUT, 'file_0.flac'))
         ])
 
+
 class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
-    @patch('djmgmt.encode.run_command_async')
-    @patch('djmgmt.encode.ffmpeg_lossy')
-    @patch('djmgmt.encode.guess_cover_stream_specifier')
-    @patch('djmgmt.encode.read_ffprobe_json')
-    @patch('os.path.exists')
-    @patch('os.makedirs')
-    async def test_success_required_arguments(self,
-                                              mock_makedirs: MagicMock,
-                                              mock_path_exists: MagicMock,
-                                              mock_read_ffprobe_json: MagicMock,
-                                              mock_guess_cover: MagicMock,
-                                              mock_ffmpeg_mp3: MagicMock,
-                                              mock_run_command_async: AsyncMock) -> None:
-        # Set up mocks
-        mock_path_exists.return_value = False
-        mock_guess_cover.return_value = -1
-        
+    def setUp(self) -> None:
+        self.mock_makedirs          = patch('os.makedirs').start()
+        self.mock_path_exists       = patch('os.path.exists').start()
+        self.mock_read_ffprobe_json = patch('djmgmt.encode.read_ffprobe_json').start()
+        self.mock_guess_cover       = patch('djmgmt.encode.guess_cover_stream_specifier').start()
+        self.mock_ffmpeg_lossy      = patch('djmgmt.encode.ffmpeg_lossy').start()
+        self.mock_run_command_async = patch('djmgmt.encode.run_command_async').start()
+        self.mock_log_dry_run       = patch('djmgmt.common.log_dry_run').start()
+        self.addCleanup(patch.stopall)
+
+        # Shared defaults
+        self.mock_path_exists.return_value = False
+        self.mock_guess_cover.return_value = -1
+
+    async def test_success_required_arguments(self) -> None:
         # Call target function
         SOURCE_FILE = f'{MOCK_INPUT}{os.sep}file_0.aiff'
         DEST_FILE = f'{MOCK_OUTPUT}{os.sep}file_0.mp3'
@@ -446,39 +292,21 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
 
         # Assert expectations
         ## Path does not exist, so expect makedirs to be called
-        mock_makedirs.assert_called_once_with(MOCK_OUTPUT)
+        self.mock_makedirs.assert_called_once_with(MOCK_OUTPUT)
 
         ## Expect these calls once for the single mapping
-        mock_read_ffprobe_json.assert_called_once_with(SOURCE_FILE)
-        mock_guess_cover.assert_called_once_with(mock_read_ffprobe_json.return_value)
-        mock_ffmpeg_mp3.assert_called_once_with(SOURCE_FILE, DEST_FILE, map_options=f'-map 0:0')
-        mock_run_command_async.assert_called_once()
+        self.mock_read_ffprobe_json.assert_called_once_with(SOURCE_FILE)
+        self.mock_guess_cover.assert_called_once_with(self.mock_read_ffprobe_json.return_value)
+        self.mock_ffmpeg_lossy.assert_called_once_with(SOURCE_FILE, DEST_FILE, map_options=f'-map 0:0')
+        self.mock_run_command_async.assert_called_once()
 
         ## Should return list of mappings
         self.assertIsInstance(result, list)
         self.assertEqual(len(result), 1)
         self.assertEqual(result[0], (SOURCE_FILE, DEST_FILE))
 
-    @patch('djmgmt.common.log_dry_run')
-    @patch('djmgmt.encode.run_command_async')
-    @patch('djmgmt.encode.ffmpeg_lossy')
-    @patch('djmgmt.encode.guess_cover_stream_specifier')
-    @patch('djmgmt.encode.read_ffprobe_json')
-    @patch('os.path.exists')
-    @patch('os.makedirs')
-    async def test_dry_run_skips_encoding(self,
-                                          mock_makedirs: MagicMock,
-                                          mock_path_exists: MagicMock,
-                                          mock_read_ffprobe_json: MagicMock,
-                                          mock_guess_cover: MagicMock,
-                                          mock_ffmpeg_mp3: MagicMock,
-                                          mock_run_command_async: AsyncMock,
-                                          mock_log_dry_run: MagicMock) -> None:
+    async def test_dry_run_skips_encoding(self) -> None:
         '''Test encode_lossy with dry_run skips ffmpeg execution and makedirs.'''
-        # Set up mocks
-        mock_path_exists.return_value = False
-        mock_guess_cover.return_value = -1
-
         # Call target function with dry_run=True
         SOURCE_FILE = f'{MOCK_INPUT}{os.sep}file_0.aiff'
         DEST_FILE = f'{MOCK_OUTPUT}{os.sep}file_0.mp3'
@@ -487,14 +315,14 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
 
         # Assert expectations
         ## Should NOT create directories
-        mock_makedirs.assert_not_called()
+        self.mock_makedirs.assert_not_called()
 
         ## Should NOT run ffmpeg
-        mock_run_command_async.assert_not_called()
+        self.mock_run_command_async.assert_not_called()
 
         ## Should log dry-run operation
-        mock_log_dry_run.assert_called_once()
-        self.assertIn('encode', mock_log_dry_run.call_args[0][0])
+        self.mock_log_dry_run.assert_called_once()
+        self.assertIn('encode', self.mock_log_dry_run.call_args[0][0])
 
         ## Should return list of mappings
         self.assertIsInstance(result, list)
@@ -502,14 +330,15 @@ class TestEncodeLossy(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(result[0][0], SOURCE_FILE)
         self.assertEqual(result[0][1], DEST_FILE)
 
+
 class TestMain(unittest.TestCase):
     def setUp(self) -> None:
         patch('sys.stdout', new=io.StringIO()).start()
+        self.mock_configure_log = patch('djmgmt.common.configure_log_module').start()
         self.addCleanup(patch.stopall)
 
-    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.encode.encode_lossless', new_callable=AsyncMock)
-    def test_lossless(self, mock_encode: AsyncMock, mock_configure_log: MagicMock) -> None:
+    def test_lossless(self, mock_encode: AsyncMock) -> None:
         '''Tests that main() dispatches to encode_lossless with the correct arguments.'''
         encode.main(['encode', Namespace.FUNCTION_LOSSLESS,
                      '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
@@ -522,15 +351,13 @@ class TestMain(unittest.TestCase):
                                             store_skipped=True,
                                             dry_run=True)
 
-    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.encode.encode_lossy', new_callable=AsyncMock)
     @patch('djmgmt.common.add_output_path')
     @patch('djmgmt.common.collect_paths')
     def test_lossy(self,
                    mock_collect_paths: MagicMock,
                    mock_add_output_path: MagicMock,
-                   mock_encode: AsyncMock,
-                   mock_configure_log: MagicMock) -> None:
+                   mock_encode: AsyncMock) -> None:
         '''Tests that main() dispatches to encode_lossy with the correct arguments.'''
         encode.main(['encode', Namespace.FUNCTION_LOSSY,
                      '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
@@ -540,13 +367,11 @@ class TestMain(unittest.TestCase):
         mock_add_output_path.assert_called_once_with(MOCK_OUTPUT, mock_collect_paths.return_value, MOCK_INPUT)
         mock_encode.assert_called_once_with(mock_add_output_path.return_value, '.mp3', dry_run=False)
 
-    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.common.write_paths')
     @patch('djmgmt.encode.find_missing_art_xml', new_callable=AsyncMock)
     def test_missing_art_xml(self,
                              mock_find_xml: AsyncMock,
-                             mock_write_paths: MagicMock,
-                             mock_configure_log: MagicMock) -> None:
+                             mock_write_paths: MagicMock) -> None:
         '''Tests that main() dispatches to find_missing_art_xml and writes results.'''
         encode.main(['encode', Namespace.FUNCTION_MISSING_ART,
                      '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
@@ -555,13 +380,11 @@ class TestMain(unittest.TestCase):
         mock_find_xml.assert_called_once_with(MOCK_INPUT, constants.XPATH_COLLECTION, constants.XPATH_PRUNED, threads=72)
         mock_write_paths.assert_called_once_with(mock_find_xml.return_value, MOCK_OUTPUT)
 
-    @patch('djmgmt.common.configure_log_module')
     @patch('djmgmt.common.write_paths')
     @patch('djmgmt.encode.find_missing_art_os', new_callable=AsyncMock)
     def test_missing_art_os(self,
                             mock_find_os: AsyncMock,
-                            mock_write_paths: MagicMock,
-                            mock_configure_log: MagicMock) -> None:
+                            mock_write_paths: MagicMock) -> None:
         '''Tests that main() dispatches to find_missing_art_os and writes results.'''
         encode.main(['encode', Namespace.FUNCTION_MISSING_ART,
                      '--input', MOCK_INPUT, '--output', MOCK_OUTPUT,
