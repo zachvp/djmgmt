@@ -10,7 +10,8 @@ from djmgmt.ui.components.recent_file_input import RecentFileInput
 # Constants
 MODULE = 'genre'
 FUNCTIONS = [
-    genre.Namespace.MODE_LONG
+    genre.Namespace.MODE_LONG,
+    genre.Namespace.MODE_SHORT
 ]
 
 # Function mapping
@@ -55,7 +56,7 @@ page.render_section_separator()
 # Handle Run button
 run_clicked = page.render_run_button()
 if run_clicked:
-    if function == genre.Namespace.MODE_LONG:
+    if function == genre.Namespace.MODE_LONG or function == genre.Namespace.MODE_SHORT:
         try:
             tree = ET.parse(collection_path).getroot()
             collection = tree.find(constants.XPATH_COLLECTION)
@@ -67,8 +68,11 @@ if run_clicked:
             # Run the function
             center = page.create_center_context()
             with center:
-                with st.spinner('Computing genre report...', show_time=True):
-                    lines = genre.output_genres_long(playlist_ids, collection)
+                with st.spinner('Generating genre report...', show_time=True):
+                    if function == genre.Namespace.MODE_LONG:
+                        lines = genre.output_genres_long(playlist_ids, collection)
+                    else:
+                        lines = genre.output_genres_short(playlist_ids, collection)
 
             # Render results
             page.render_results_header()
@@ -89,3 +93,4 @@ if run_clicked:
             AppConfig.save(app_config)
         except Exception as e:
             st.error(f"Error computing genre report:\n{e}")
+            
