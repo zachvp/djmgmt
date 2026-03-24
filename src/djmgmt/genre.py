@@ -44,12 +44,6 @@ class Namespace(argparse.Namespace):
 
     ## sources
     SOURCE_COLLECTION = 'collection'
-    SOURCE_PRUNED = 'pruned'
-
-    SOURCES: set[str] = {
-        SOURCE_COLLECTION,
-        SOURCE_PRUNED
-    }
 
 # endregion
 
@@ -279,13 +273,13 @@ def output_collection_filter(root: ET.Element) -> list[str]:
 
 # region CLI
 
-def parse_args(valid_modes: set[str], valid_sources: set[str], argv: list[str]) -> type[Namespace]:
+def parse_args(valid_modes: set[str], argv: list[str]) -> type[Namespace]:
     parser = argparse.ArgumentParser(description=__doc__)
 
     # required
     parser.add_argument('input', type=str, help="The input path to the XML collection.")
     parser.add_argument('mode', type=str, help=f"The script output mode. One of '{valid_modes}'.")
-    parser.add_argument('source', type=str, help=f"The Rekordbox source. One of '{valid_sources}'")
+    parser.add_argument('source', type=str, help=f"The Rekordbox source. Either '{Namespace.SOURCE_COLLECTION}' or a dot-separated playlist path (e.g., 'dynamic.unplayed').")
 
     args = parser.parse_args(argv, namespace=Namespace)
     args.input = os.path.normpath(args.input)
@@ -302,10 +296,10 @@ def script(args: type[Namespace]) -> None:
     assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
     source = collection
 
-    if args.source == Namespace.SOURCE_PRUNED:
-        pruned = tree.find(constants.XPATH_PRUNED)
-        assert pruned is not None, f"invalid node search for '{constants.XPATH_PRUNED}'"
-        source = pruned
+    if args.source != Namespace.SOURCE_COLLECTION:
+        node = library.find_playlist_node(tree, args.source)
+        assert node is not None, f"playlist node not found for source '{args.source}'"
+        source = node
 
     # collect the playlist IDs
     playlist_ids : set[str] = set()
@@ -331,7 +325,7 @@ def script(args: type[Namespace]) -> None:
         output_collection_filter(collection)
 
 def main(argv: list[str]) -> None:
-    script(parse_args(Namespace.MODES, Namespace.SOURCES, argv[1:]))
+    script(parse_args(Namespace.MODES, argv[1:]))
 
 if __name__ == '__main__':
     main(sys.argv)
