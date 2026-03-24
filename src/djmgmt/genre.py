@@ -248,6 +248,54 @@ def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set
         print(g)
     return genres
 
+def resolve_source(tree: ET.Element, source: str) -> ET.Element:
+    '''Resolves the genre source node from the XML tree.
+
+    Args:
+        tree: The XML root element of the Rekordbox collection file
+        source: Either Namespace.SOURCE_COLLECTION for the full COLLECTION node, or a
+                dot-separated playlist path passed to library.find_playlist_node
+                (e.g., 'dynamic.unplayed')
+
+    Returns:
+        The resolved XML source element (COLLECTION node or a playlist NODE element)
+
+    Example:
+        >>> resolve_source(tree, 'collection')   # returns COLLECTION element
+        >>> resolve_source(tree, 'dynamic.unplayed')  # returns playlist NODE element
+    '''
+    if source == Namespace.SOURCE_COLLECTION:
+        node = tree.find(constants.XPATH_COLLECTION)
+        assert node is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
+        return node
+    resolved = library.find_playlist_node(tree, source)
+    assert resolved is not None, f"playlist node not found for source '{source}'"
+    return resolved
+
+def collect_playlist_ids(source: ET.Element) -> set[str]:
+    '''Collects all track IDs from the given source node.
+
+    Checks for both TrackID and Key attributes to handle both collection tracks
+    and playlist track references.
+
+    Args:
+        source: XML element whose children are track or playlist-entry nodes
+
+    Returns:
+        Set of track ID strings found in the source node
+
+    Example:
+        >>> collect_playlist_ids(source_node)
+        {'1', '42', '107'}
+    '''
+    playlist_ids: set[str] = set()
+    for track in source:
+        if constants.ATTR_TRACK_ID in track.attrib:
+            playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
+        elif constants.ATTR_TRACK_KEY in track.attrib:
+            playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
+    return playlist_ids
+
 def output_collection_filter(root: ET.Element) -> list[str]:
     '''Prints the genre and filesystem path for every track in the given collection element.
 
@@ -289,29 +337,14 @@ def parse_args(valid_modes: set[str], argv: list[str]) -> Namespace:
 
     return args
 
-def main(argv: list[str]) -> None:
-    args = parse_args(Namespace.MODES, argv[1:])
-    
-    # read data from the collection and determine source
+def script(args: Namespace) -> None:
     tree = ET.parse(args.input).getroot()
     collection = tree.find(constants.XPATH_COLLECTION)
     assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
-    source = collection
 
-    if args.source != Namespace.SOURCE_COLLECTION:
-        node = library.find_playlist_node(tree, args.source)
-        assert node is not None, f"playlist node not found for source '{args.source}'"
-        source = node
+    source = resolve_source(tree, args.source)
+    playlist_ids = collect_playlist_ids(source)
 
-    # collect the playlist IDs
-    playlist_ids : set[str] = set()
-    for track in source:
-        if constants.ATTR_TRACK_ID in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
-        elif constants.ATTR_TRACK_KEY in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
-
-    # call requested script mode
     if args.mode == Namespace.MODE_SHORT:
         output_genres_short(playlist_ids, collection)
     elif args.mode == Namespace.MODE_LONG:
@@ -324,6 +357,9 @@ def main(argv: list[str]) -> None:
         output_renamed_genres(playlist_ids, collection)
     elif args.mode == Namespace.MODE_PATHS:
         output_collection_filter(collection)
+
+def main(argv: list[str]) -> None:
+    script(parse_args(Namespace.MODES, argv[1:]))
 
 if __name__ == '__main__':
     main(sys.argv)
