@@ -47,6 +47,94 @@ class Namespace(argparse.Namespace):
 
 # endregion
 
+# Region Utilities
+
+def create_genre_map(path: str) -> dict[str, str]:
+    '''Parses a tab-separated genre shorthand mapping file into a dictionary.
+
+    Each line must contain exactly two tab-separated fields: the full genre component and its shorthand.
+    Warns to stdout if duplicate full genres or duplicate shorthands are encountered.
+
+    Args:
+        path: Path to the tab-separated mapping file (e.g., 'data/read/genre-shorthand-mapping.txt')
+
+    Returns:
+        Dictionary mapping full genre component strings to their shorthand equivalents
+        (e.g., {'Techno': 'tec', 'Minimal': 'min'})
+
+    Example:
+        >>> create_genre_map('data/read/genre-shorthand-mapping.txt')
+        { 'Deep': 'DP', 'Minimal': 'MN', 'Techno': 'TN'}
+    '''
+    map_data: dict[str, str] = {}
+    validation: set[str] = set()
+
+    with open(path, 'r', encoding='utf-8') as genre_map:
+        lines = genre_map.readlines()
+        for line in lines:
+            components = line.strip().split('\t')
+            if components[0] in map_data:
+                print(f'warn: duplicate genre element: {components[0]}')
+            assert len(components) == 2, f"Invalid components: {components}"
+            map_data[components[0]] = components[1]
+    for _, item in map_data.items():
+        if item in validation:
+            print(f'warn: duplicate shorthand: {item}')
+        validation.add(item)
+
+    return map_data
+
+
+def resolve_source(tree: ET.Element, source: str) -> ET.Element:
+    '''Resolves the genre source node from the XML tree.
+
+    Args:
+        tree: The XML root element of the Rekordbox collection file
+        source: Either Namespace.SOURCE_COLLECTION for the full COLLECTION node, or a
+                dot-separated playlist path passed to library.find_playlist_node
+                (e.g., 'dynamic.unplayed')
+
+    Returns:
+        The resolved XML source element (COLLECTION node or a playlist NODE element)
+
+    Example:
+        >>> resolve_source(tree, 'collection')   # returns COLLECTION element
+        >>> resolve_source(tree, 'dynamic.unplayed')  # returns playlist NODE element
+    '''
+    if source == Namespace.SOURCE_COLLECTION:
+        node = tree.find(constants.XPATH_COLLECTION)
+        assert node is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
+        return node
+    resolved = library.find_playlist_node(tree, source)
+    assert resolved is not None, f"playlist node not found for source '{source}'"
+    return resolved
+
+def collect_container_ids(source: ET.Element) -> set[str]:
+    '''Collects all track IDs from the given source node.
+
+    Checks for both TrackID and Key attributes to handle both collection tracks
+    and playlist track references.
+
+    Args:
+        source: XML element whose children are track or playlist-entry nodes
+
+    Returns:
+        Set of track ID strings found in the source node
+
+    Example:
+        >>> collect_playlist_ids(source_node)
+        {'1', '42', '107'}
+    '''
+    playlist_ids: set[str] = set()
+    for track in source:
+        if constants.ATTR_TRACK_ID in track.attrib:
+            playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
+        elif constants.ATTR_TRACK_KEY in track.attrib:
+            playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
+    return playlist_ids
+
+# endregion
+
 # region Features
 
 def output_missing_tracks(playlist_ids: set[str], collection: ET.Element) -> list[str]:
@@ -178,41 +266,6 @@ def output_genre_category(playlist_ids: set[str], collection: ET.Element) -> lis
         print(c)
     return categories
 
-def create_genre_map(path: str) -> dict[str, str]:
-    '''Parses a tab-separated genre shorthand mapping file into a dictionary.
-
-    Each line must contain exactly two tab-separated fields: the full genre component and its shorthand.
-    Warns to stdout if duplicate full genres or duplicate shorthands are encountered.
-
-    Args:
-        path: Path to the tab-separated mapping file (e.g., 'data/read/genre-shorthand-mapping.txt')
-
-    Returns:
-        Dictionary mapping full genre component strings to their shorthand equivalents
-        (e.g., {'Techno': 'tec', 'Minimal': 'min'})
-
-    Example:
-        >>> create_genre_map('data/read/genre-shorthand-mapping.txt')
-        { 'Deep': 'DP', 'Minimal': 'MN', 'Techno': 'TN'}
-    '''
-    map_data: dict[str, str] = {}
-    validation: set[str] = set()
-
-    with open(path, 'r', encoding='utf-8') as genre_map:
-        lines = genre_map.readlines()
-        for line in lines:
-            components = line.strip().split('\t')
-            if components[0] in map_data:
-                print(f'warn: duplicate genre element: {components[0]}')
-            assert len(components) == 2, f"Invalid components: {components}"
-            map_data[components[0]] = components[1]
-    for _, item in map_data.items():
-        if item in validation:
-            print(f'warn: duplicate shorthand: {item}')
-        validation.add(item)
-
-    return map_data
-
 def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set[str]:
     '''Prints each unique genre string with all components replaced by their shorthands.
 
@@ -247,54 +300,6 @@ def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set
     for g in genres:
         print(g)
     return genres
-
-def resolve_source(tree: ET.Element, source: str) -> ET.Element:
-    '''Resolves the genre source node from the XML tree.
-
-    Args:
-        tree: The XML root element of the Rekordbox collection file
-        source: Either Namespace.SOURCE_COLLECTION for the full COLLECTION node, or a
-                dot-separated playlist path passed to library.find_playlist_node
-                (e.g., 'dynamic.unplayed')
-
-    Returns:
-        The resolved XML source element (COLLECTION node or a playlist NODE element)
-
-    Example:
-        >>> resolve_source(tree, 'collection')   # returns COLLECTION element
-        >>> resolve_source(tree, 'dynamic.unplayed')  # returns playlist NODE element
-    '''
-    if source == Namespace.SOURCE_COLLECTION:
-        node = tree.find(constants.XPATH_COLLECTION)
-        assert node is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
-        return node
-    resolved = library.find_playlist_node(tree, source)
-    assert resolved is not None, f"playlist node not found for source '{source}'"
-    return resolved
-
-def collect_playlist_ids(source: ET.Element) -> set[str]:
-    '''Collects all track IDs from the given source node.
-
-    Checks for both TrackID and Key attributes to handle both collection tracks
-    and playlist track references.
-
-    Args:
-        source: XML element whose children are track or playlist-entry nodes
-
-    Returns:
-        Set of track ID strings found in the source node
-
-    Example:
-        >>> collect_playlist_ids(source_node)
-        {'1', '42', '107'}
-    '''
-    playlist_ids: set[str] = set()
-    for track in source:
-        if constants.ATTR_TRACK_ID in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
-        elif constants.ATTR_TRACK_KEY in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
-    return playlist_ids
 
 def output_collection_filter(root: ET.Element) -> list[str]:
     '''Prints the genre and filesystem path for every track in the given collection element.
@@ -337,13 +342,14 @@ def parse_args(valid_modes: set[str], argv: list[str]) -> Namespace:
 
     return args
 
-def script(args: Namespace) -> None:
+def main(argv: list[str]) -> None:
+    args = parse_args(Namespace.MODES, argv[1:])
     tree = ET.parse(args.input).getroot()
     collection = tree.find(constants.XPATH_COLLECTION)
     assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
 
     source = resolve_source(tree, args.source)
-    playlist_ids = collect_playlist_ids(source)
+    playlist_ids = collect_container_ids(source)
 
     if args.mode == Namespace.MODE_SHORT:
         output_genres_short(playlist_ids, collection)
@@ -357,9 +363,6 @@ def script(args: Namespace) -> None:
         output_renamed_genres(playlist_ids, collection)
     elif args.mode == Namespace.MODE_PATHS:
         output_collection_filter(collection)
-
-def main(argv: list[str]) -> None:
-    script(parse_args(Namespace.MODES, argv[1:]))
 
 if __name__ == '__main__':
     main(sys.argv)

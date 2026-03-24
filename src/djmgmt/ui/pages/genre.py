@@ -63,7 +63,7 @@ if run_clicked:
             assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
 
             source = genre.resolve_source(tree, source_input)
-            playlist_ids = genre.collect_playlist_ids(source)
+            playlist_ids = genre.collect_container_ids(source)
 
             # Run the function
             center = page.create_center_context()
