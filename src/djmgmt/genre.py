@@ -273,7 +273,7 @@ def output_collection_filter(root: ET.Element) -> list[str]:
 
 # region CLI
 
-def parse_args(valid_modes: set[str], argv: list[str]) -> type[Namespace]:
+def parse_args(valid_modes: set[str], argv: list[str]) -> Namespace:
     parser = argparse.ArgumentParser(description=__doc__)
 
     # required
@@ -281,7 +281,7 @@ def parse_args(valid_modes: set[str], argv: list[str]) -> type[Namespace]:
     parser.add_argument('mode', type=str, help=f"The script output mode. One of '{valid_modes}'.")
     parser.add_argument('source', type=str, help=f"The Rekordbox source. Either '{Namespace.SOURCE_COLLECTION}' or a dot-separated playlist path (e.g., 'dynamic.unplayed').")
 
-    args = parser.parse_args(argv, namespace=Namespace)
+    args = parser.parse_args(argv, namespace=Namespace())
     args.input = os.path.normpath(args.input)
 
     if args.mode not in valid_modes:
@@ -289,7 +289,9 @@ def parse_args(valid_modes: set[str], argv: list[str]) -> type[Namespace]:
 
     return args
 
-def script(args: type[Namespace]) -> None:
+def main(argv: list[str]) -> None:
+    args = parse_args(Namespace.MODES, argv[1:])
+    
     # read data from the collection and determine source
     tree = ET.parse(args.input).getroot()
     collection = tree.find(constants.XPATH_COLLECTION)
@@ -309,7 +311,6 @@ def script(args: type[Namespace]) -> None:
         elif constants.ATTR_TRACK_KEY in track.attrib:
             playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
 
-
     # call requested script mode
     if args.mode == Namespace.MODE_SHORT:
         output_genres_short(playlist_ids, collection)
@@ -323,9 +324,6 @@ def script(args: type[Namespace]) -> None:
         output_renamed_genres(playlist_ids, collection)
     elif args.mode == Namespace.MODE_PATHS:
         output_collection_filter(collection)
-
-def main(argv: list[str]) -> None:
-    script(parse_args(Namespace.MODES, argv[1:]))
 
 if __name__ == '__main__':
     main(sys.argv)
