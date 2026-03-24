@@ -393,7 +393,7 @@ def generate_m3u8(
         if playlist_node is None:
             return []
 
-        track_ids = library.get_playlist_track_ids(playlist_node)
+        track_ids = library.get_track_ids(playlist_node)
         logging.info(f"Found {len(track_ids)} tracks in playlist '{playlist_dot_path}'")
 
         # transform each track

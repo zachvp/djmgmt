@@ -335,7 +335,7 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.get_track_ids')
     @patch('djmgmt.library.find_playlist_node')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
@@ -401,7 +401,7 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.get_track_ids')
     @patch('djmgmt.library.find_playlist_node')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
@@ -433,7 +433,7 @@ class TestGenerateM3U8(unittest.TestCase):
 
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.get_track_ids')
     @patch('djmgmt.library.find_playlist_node')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')
@@ -465,7 +465,7 @@ class TestGenerateM3U8(unittest.TestCase):
     @patch('builtins.open', new_callable=mock_open)
     @patch('djmgmt.playlist._build_navidrome_path')
     @patch('djmgmt.library.extract_track_metadata_by_id')
-    @patch('djmgmt.library.get_playlist_track_ids')
+    @patch('djmgmt.library.get_track_ids')
     @patch('djmgmt.library.find_playlist_node')
     @patch('djmgmt.library.find_node')
     @patch('djmgmt.library.load_collection')

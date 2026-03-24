@@ -1547,7 +1547,7 @@ class TestGetPlaylistTrackIds(unittest.TestCase):
         node = library.find_playlist_node(self.root, 'dynamic.unplayed')
         assert node is not None
 
-        result = library.get_playlist_track_ids(node)
+        result = library.get_track_ids(node)
 
         self.assertListEqual(result, ['1', '2'])
 
@@ -1556,7 +1556,7 @@ class TestGetPlaylistTrackIds(unittest.TestCase):
         node = library.find_playlist_node(self.root, 'flat_playlist')
         assert node is not None
 
-        result = library.get_playlist_track_ids(node)
+        result = library.get_track_ids(node)
 
         self.assertListEqual(result, ['1'])
 
@@ -1564,7 +1564,7 @@ class TestGetPlaylistTrackIds(unittest.TestCase):
         '''Tests extraction from a playlist with no tracks.'''
         node = ET.fromstring('<NODE Name="empty" Type="1" KeyType="0" Entries="0"/>')
 
-        result = library.get_playlist_track_ids(node)
+        result = library.get_track_ids(node)
 
         self.assertListEqual(result, [])
 

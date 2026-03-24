@@ -1,7 +1,7 @@
 import streamlit as st
 import xml.etree.ElementTree as ET
 
-from djmgmt import genre, constants, common
+from djmgmt import genre, constants, common, library
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -63,7 +63,7 @@ if run_clicked:
             assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
 
             source = genre.resolve_source(tree, source_input)
-            playlist_ids = genre.collect_container_ids(source)
+            playlist_ids = set(library.get_track_ids(source))
 
             # Run the function
             center = page.create_center_context()

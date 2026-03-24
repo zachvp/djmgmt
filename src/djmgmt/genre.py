@@ -109,30 +109,6 @@ def resolve_source(tree: ET.Element, source: str) -> ET.Element:
     assert resolved is not None, f"playlist node not found for source '{source}'"
     return resolved
 
-def collect_container_ids(source: ET.Element) -> set[str]:
-    '''Collects all track IDs from the given source node.
-
-    Checks for both TrackID and Key attributes to handle both collection tracks
-    and playlist track references.
-
-    Args:
-        source: XML element whose children are track or playlist-entry nodes
-
-    Returns:
-        Set of track ID strings found in the source node
-
-    Example:
-        >>> collect_playlist_ids(source_node)
-        {'1', '42', '107'}
-    '''
-    playlist_ids: set[str] = set()
-    for track in source:
-        if constants.ATTR_TRACK_ID in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_ID])
-        elif constants.ATTR_TRACK_KEY in track.attrib:
-            playlist_ids.add(track.attrib[constants.ATTR_TRACK_KEY])
-    return playlist_ids
-
 # endregion
 
 # region Features
@@ -349,7 +325,7 @@ def main(argv: list[str]) -> None:
     assert collection is not None, f"invalid node search for '{constants.XPATH_COLLECTION}'"
 
     source = resolve_source(tree, args.source)
-    playlist_ids = collect_container_ids(source)
+    playlist_ids = set(library.get_track_ids(source))
 
     if args.mode == Namespace.MODE_SHORT:
         output_genres_short(playlist_ids, collection)

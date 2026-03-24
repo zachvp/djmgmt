@@ -164,23 +164,29 @@ def get_pipe_output(structure: list[FileMapping]) -> str:
         output.append(f"{item[0].strip()}{constants.FILE_OPERATION_DELIMITER}{item[1].strip()}\n")
     return ''.join(output).strip()
 
-def get_playlist_track_ids(playlist_node: ET.Element) -> list[str]:
-    '''Extract ordered track IDs (Key attribute) from a playlist node.
+def get_track_ids(source: ET.Element) -> list[str]:
+    '''Collects all track IDs from the given source node.
+
+    Checks for both TrackID and Key attributes to handle both collection tracks
+    and playlist track references.
 
     Args:
-        playlist_node: The playlist NODE element containing TRACK children
+        source: XML element whose children are track or playlist-entry nodes
 
     Returns:
-        Ordered list of track Key values
+        Set of track ID strings found in the source node
+
+    Example:
+        >>> collect_playlist_ids(source_node)
+        {'1', '42', '107'}
     '''
-    track_ids: list[str] = []
-    for track in playlist_node.findall(constants.TAG_TRACK):
-        track_id = track.get(constants.ATTR_TRACK_KEY)
-        if track_id is None:
-            logging.error(f"No track ID exists for playlist '{playlist_node.get(constants.ATTR_TITLE)}'. Track metadata: {_create_track_metadata(track)}")
-        if track_id is not None:
-            track_ids.append(track_id)
-    return track_ids
+    playlist_ids: list[str] = []
+    for track in source:
+        if constants.ATTR_TRACK_ID in track.attrib:
+            playlist_ids.append(track.attrib[constants.ATTR_TRACK_ID])
+        elif constants.ATTR_TRACK_KEY in track.attrib:
+            playlist_ids.append(track.attrib[constants.ATTR_TRACK_KEY])
+    return playlist_ids
 
 def get_played_tracks(root: ET.Element) -> list[str]:
     '''Returns a list of TRACK.Key/ID strings for all playlist tracks in the 'mixtapes' folder.'''
@@ -503,13 +509,7 @@ def _get_playlist_track_keys(root: ET.Element, playlist_xpath: str) -> set[str]:
         playlist = find_node(root, playlist_xpath)
     except ValueError:
         return set()
-
-    keys: set[str] = set()
-    for track in playlist.findall(constants.TAG_TRACK):
-        key = track.get(constants.ATTR_TRACK_KEY)
-        if key:
-            keys.add(key)
-    return keys
+    return set(get_track_ids(playlist))
 
 def _merge_playlist_references(
     primary_root: ET.Element,
@@ -667,7 +667,7 @@ def _add_pruned_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET
         The modified root element
     '''
     pruned_node = find_node(collection_root, constants.XPATH_PRUNED)
-    pruned_ids = get_playlist_track_ids(pruned_node)
+    pruned_ids = get_track_ids(pruned_node)
     return _add_playlist_tracks(base_root, pruned_ids, constants.XPATH_PRUNED)
 
 def _add_played_tracks(collection_root: ET.Element, base_root: ET.Element) -> ET.Element:
