@@ -55,8 +55,20 @@ class Namespace(argparse.Namespace):
 
 # region Features
 
-# print the tracks present in collection, but not the given playlist
 def output_missing_tracks(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+    '''Prints tracks present in collection but absent from the given playlist.
+
+    Args:
+        playlist_ids: Set of track IDs present in the target playlist (e.g., {'1', '2', '42'})
+        collection: XML element representing the full Rekordbox COLLECTION node
+
+    Returns:
+        List of tab-separated strings with title, artist, genre, and date added for each missing track
+
+    Example:
+        >>> output_missing_tracks({'1', '2'}, collection)
+        ['Song Title    Artist Name    Genre/Example    2023-04-27']
+    '''
     readout = []
 
     for track in collection:
@@ -69,8 +81,20 @@ def output_missing_tracks(playlist_ids: set[str], collection: ET.Element) -> lis
         print(f"{item}")
     return readout
 
-# print the genre and count for all tracks in the given file
 def output_genres_long(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+    '''Prints the full genre string and track count for each genre in the playlist.
+
+    Args:
+        playlist_ids: Set of track IDs present in the target playlist (e.g., {'1', '2', '42'})
+        collection: XML element representing the full Rekordbox COLLECTION node
+
+    Returns:
+        List of tab-separated "genre    count" strings, one per unique genre
+
+    Example:
+        >>> output_genres_long({'1', '2'}, collection)
+        ['Genre/Example/Long    3', 'Genre/Example    5']
+    '''
     readout: dict[str, int] = defaultdict(int)
     lines: list[str] = []
 
@@ -88,6 +112,22 @@ def output_genres_long(playlist_ids: set[str], collection: ET.Element) -> list[s
     return lines
 
 def output_genres_short(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+    '''Prints a truncated genre string and track count, keeping at most the top two genre levels.
+
+    For genres with more than two slash-separated components (e.g., 'Genre/Example/Long'),
+    trims to the first two (e.g., 'Genre/Example').
+
+    Args:
+        playlist_ids: Set of track IDs present in the target playlist (e.g., {'1', '2', '42'})
+        collection: XML element representing the full Rekordbox COLLECTION node
+
+    Returns:
+        List of tab-separated "shortened_genre    count" strings, one per unique shortened genre
+
+    Example:
+        >>> output_genres_short({'1', '2'}, collection)
+        ['Genre/Example_1    3', 'Genre/Example_2    5']
+    '''
     readout : dict[str, int] = defaultdict(int)
     lines : list[str] = []
 
@@ -113,6 +153,22 @@ def output_genres_short(playlist_ids: set[str], collection: ET.Element) -> list[
     return lines
 
 def output_genre_category(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+    '''Prints each unique genre component across all tracks in the playlist, sorted alphabetically.
+
+    Splits each track's genre string on '/' and collects individual elements as distinct categories
+    (e.g., 'House/Tech' contributes 'House' and 'Tech' as separate entries).
+
+    Args:
+        playlist_ids: Set of track IDs present in the target playlist (e.g., {'1', '2', '42'})
+        collection: XML element representing the full Rekordbox COLLECTION node
+
+    Returns:
+        Sorted list of unique genre component strings
+
+    Example:
+        >>> output_genre_category({'1', '2'}, collection)
+        ['Deep', 'Indie', 'House', 'Tech']
+    '''
     categories: Collection[str] = set()
 
     for track in collection:
@@ -129,6 +185,22 @@ def output_genre_category(playlist_ids: set[str], collection: ET.Element) -> lis
     return categories
 
 def create_genre_map(path: str) -> dict[str, str]:
+    '''Parses a tab-separated genre shorthand mapping file into a dictionary.
+
+    Each line must contain exactly two tab-separated fields: the full genre component and its shorthand.
+    Warns to stdout if duplicate full genres or duplicate shorthands are encountered.
+
+    Args:
+        path: Path to the tab-separated mapping file (e.g., 'data/read/genre-shorthand-mapping.txt')
+
+    Returns:
+        Dictionary mapping full genre component strings to their shorthand equivalents
+        (e.g., {'Techno': 'tec', 'Minimal': 'min'})
+
+    Example:
+        >>> create_genre_map('data/read/genre-shorthand-mapping.txt')
+        { 'Deep': 'DP', 'Minimal': 'MN', 'Techno': 'TN'}
+    '''
     map_data: dict[str, str] = {}
     validation: set[str] = set()
 
@@ -148,6 +220,22 @@ def create_genre_map(path: str) -> dict[str, str]:
     return map_data
 
 def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set[str]:
+    '''Prints each unique genre string with all components replaced by their shorthands.
+
+    Loads the genre shorthand mapping from the default path, splits each track's genre on '/',
+    maps each component to its shorthand, and joins with '.'.
+
+    Args:
+        playlist_ids: Set of track IDs present in the target playlist (e.g., {'1', '2', '42'})
+        collection: XML element representing the full Rekordbox COLLECTION node
+
+    Returns:
+        Set of dot-joined shorthand genre strings, one per unique renamed genre
+
+    Example:
+        >>> output_renamed_genres({'1', '2'}, collection)
+        {'HS.DP', 'LN.RC'}
+    '''
     map_data = create_genre_map('data/read/genre-shorthand-mapping.txt')
     genres: set[str] = set()
 
@@ -167,6 +255,18 @@ def output_renamed_genres(playlist_ids: set[str], collection: ET.Element) -> set
     return genres
 
 def output_collection_filter(root: ET.Element) -> list[str]:
+    '''Prints the genre and filesystem path for every track in the given collection element.
+
+    Args:
+        root: XML element whose children are track nodes (e.g., the COLLECTION element)
+
+    Returns:
+        List of tab-separated "genre    path" strings, one per track
+
+    Example:
+        >>> output_collection_filter(collection)
+        ['House/Tech    /music/2023/04 april/27/Artist/Album/track.aiff']
+    '''
     output : list[str] = []
     for track in root:
         path = library.collection_path_to_syspath(track.attrib[constants.ATTR_LOCATION])
