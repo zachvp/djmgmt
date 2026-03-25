@@ -139,7 +139,7 @@ def output_missing_tracks(playlist_ids: set[str], collection: ET.Element) -> lis
         print(f"{item}")
     return readout
 
-def output_genres_long(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+def output_genres_long(playlist_ids: set[str], collection: ET.Element) -> dict[str, int]:
     '''Prints the full genre string and track count for each genre in the playlist.
 
     Args:
@@ -167,9 +167,9 @@ def output_genres_long(playlist_ids: set[str], collection: ET.Element) -> list[s
         line = f"{genre}\t{count}"
         lines.append(line)
         print(line)
-    return lines
+    return readout
 
-def output_genres_short(playlist_ids: set[str], collection: ET.Element) -> list[str]:
+def output_genres_short(playlist_ids: set[str], collection: ET.Element) -> dict[str, int]:
     '''Prints a truncated genre string and track count, keeping at most the top two genre levels.
 
     For genres with more than two slash-separated components (e.g., 'Genre/Example/Long'),
@@ -186,29 +186,26 @@ def output_genres_short(playlist_ids: set[str], collection: ET.Element) -> list[
         >>> output_genres_short({'1', '2'}, collection)
         ['Genre/Example_1    3', 'Genre/Example_2    5']
     '''
-    readout : dict[str, int] = defaultdict(int)
-    lines : list[str] = []
+    readout: dict[str, int] = defaultdict(int)
+    lines: list[str] = []
 
-    # search collection for the file tracks,
-    # and gather the relevant data
+    # search collection for the file tracks and gather the relevant data
     for track in collection:
         if track.attrib[constants.ATTR_TRACK_ID] in playlist_ids:
+            # shorten to a max of two levels
             shortened = track.attrib[constants.ATTR_GENRE].split('/')
-
-            # for longer genres, remove the last 2 subgenres
             if len(shortened) > 2:
                 difference = len(shortened) - 2
                 shortened = shortened[:-difference]
             shortened = '/'.join(shortened)
+            readout[shortened] += 1
 
-            key = shortened
-            readout[key] += 1
-
+    # print and collect the readout items
     for genre, count in readout.items():
         line = f"{genre}\t{count}"
         lines.append(line)
         print(line)
-    return lines
+    return readout
 
 def output_genre_category(playlist_ids: set[str], collection: ET.Element) -> list[str]:
     '''Prints each unique genre component across all tracks in the playlist, sorted alphabetically.

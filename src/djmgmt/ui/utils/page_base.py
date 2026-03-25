@@ -154,3 +154,8 @@ class PageBuilder:
     def create_center_context() -> DeltaGenerator:
         _, center, _ = st.columns([1, 1, 1])
         return center
+    
+    @staticmethod
+    def create_right_context() -> DeltaGenerator:
+        _, _, right = st.columns([1, 1, 1])
+        return right

@@ -66,18 +66,18 @@ if run_clicked:
             playlist_ids = set(library.get_track_ids(source))
 
             # Run the function
-            center = page.create_center_context()
-            with center:
+            with page.create_center_context():
                 with st.spinner('Generating genre report...', show_time=True):
                     if function == genre.Namespace.MODE_LONG:
-                        lines = genre.output_genres_long(playlist_ids, collection)
+                        genres = genre.output_genres_long(playlist_ids, collection)
                     else:
-                        lines = genre.output_genres_short(playlist_ids, collection)
+                        genres = genre.output_genres_short(playlist_ids, collection)
 
             # Render results
             page.render_results_header()
-            rows = [{'Genre': g, 'Count': int(c)} for g, c in (line.split('\t') for line in lines)]
+            rows = [{'Genre': g, 'Count': count} for g, count in genres.items()]
             rows.sort(key=lambda r: r['Count'], reverse=True)
+            rows.append({'Genre': 'Total', 'Count': sum(r['Count'] for r in rows)})
             st.dataframe(
                 rows,
                 hide_index=True,
