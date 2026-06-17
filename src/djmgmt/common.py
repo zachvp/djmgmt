@@ -87,6 +87,7 @@ def filename_no_ext(file_path: str) -> str:
 def collect_paths(root: str, filter: set[str] = set()) -> list[str]:
     '''Returns the paths of all files for the given root.
     If `filter` is provided, only files with a matching extension will be returned.'''
+    root = os.path.expanduser(root)
     paths: list[str] = []
     for working_dir, _, names in os.walk(root):
         for name in names:
@@ -171,7 +172,7 @@ def normalize_arg_paths(args: Namespace, paths: list[str]) -> None:
     for attr in paths:
         value = getattr(args, attr, None)
         if value:
-            setattr(args, attr, os.path.normpath(value))
+            setattr(args, attr, os.path.normpath(os.path.expanduser(value)))
 
 def write_paths(paths: list[str], output_path: str) -> None:
     '''Sorts and writes the given list of full file paths to the specified output file.'''

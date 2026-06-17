@@ -138,11 +138,11 @@ class PageBuilder:
         return st.checkbox(label, value=default_value)
 
     @staticmethod
-    def render_run_button() -> bool:
+    def render_run_button(key: str = 'run') -> bool:
         '''Render the standard 'Run' button prominently centered.'''
         center = PageBuilder.create_center_context()
         with center:
-            return st.button('Run', width='stretch')
+            return st.button('Run', key=key, width='stretch')
 
     @staticmethod
     def render_results_header() -> None:
