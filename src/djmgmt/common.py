@@ -160,6 +160,7 @@ def remove_substring(source: str, start_inclusive: int, end_exclusive: int) -> s
 
 def find_latest_file(search_dir: str, filter: set[str] = set()) -> str:
     '''Recursively finds the path for the most recently modified collection.xml file.'''
+    search_dir = os.path.expanduser(search_dir)
     if not os.path.isdir(search_dir):
         raise ValueError(f"Path '{search_dir}' is not a directory.")
 

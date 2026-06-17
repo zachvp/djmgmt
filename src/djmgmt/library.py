@@ -581,15 +581,16 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     Returns:
         Merged ET.Element root with combined COLLECTION tracks and _pruned playlist
     '''
-    # load both XML files
+    # load both XML files; fall back to template if secondary doesn't exist yet (first run)
     primary_root = load_collection(primary_path)
-    secondary_root = load_collection(secondary_path)
+    resolved_secondary = secondary_path if os.path.exists(secondary_path) else config.COLLECTION_PATH_TEMPLATE
+    secondary_root = load_collection(resolved_secondary)
     primary_collection = find_node(primary_root, constants.XPATH_COLLECTION)
     secondary_collection = find_node(secondary_root, constants.XPATH_COLLECTION)
 
     # determine which file is newer (source of truth for conflicts)
     primary_mtime = os.path.getmtime(primary_path)
-    secondary_mtime = os.path.getmtime(secondary_path)
+    secondary_mtime = os.path.getmtime(resolved_secondary)
 
     if primary_mtime >= secondary_mtime:
         newer_collection = primary_collection

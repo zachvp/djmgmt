@@ -215,9 +215,10 @@ def transfer_files(source_path: str, dest_address: str, rsync_module: str, dry_r
     #   -i: output a change-summary for all updates
     #   -t: preserve modification times
     #   -R: use relative path names
+    #   --no-g: skip group preservation (avoids setgroups() call blocked on macOS)
     #   --progess: show progress during transfer
     #   --dry-run: perform a trial run with no changes made
-    options = ' -avzitR --progress --exclude \'.*\''
+    options = ' -avzitR --no-g --progress --exclude \'.*\''
     if dry_run:
         options += ' --dry-run'
     command = shlex.split(f'rsync {shlex.quote(source_path)} {dest_address}/{rsync_module} {options}')
