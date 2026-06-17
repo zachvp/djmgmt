@@ -27,6 +27,7 @@ RSYNC_MODULE = os.getenv('RSYNC_MODULE', 'navidrome')
 RSYNC_URL    = f"rsync://{RSYNC_USER}@{RSYNC_HOST}:{RSYNC_PORT}"
 
 # Server: Navidrome
+NAVIDROME_SCHEME    = os.getenv('NAVIDROME_SCHEME', 'http')
 NAVIDROME_HOST      = os.getenv('NAVIDROME_HOST', 'corevega.local')
 NAVIDROME_PORT      = os.getenv('NAVIDROME_PORT', '4533')
 NAVIDROME_USERNAME  = os.getenv('NAVIDROME_USERNAME', 'api_client')

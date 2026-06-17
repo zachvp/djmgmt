@@ -68,7 +68,7 @@ def create_query(params: dict[str, str] = {}) -> str:
 def call_endpoint(endpoint: str, params: dict[str, str] = {}) -> Response | None:
     # call the endpoint
     query_string = create_query(params)
-    base_url = f"http://{config.NAVIDROME_HOST}:{config.NAVIDROME_PORT}/rest"
+    base_url = f"{config.NAVIDROME_SCHEME}://{config.NAVIDROME_HOST}:{config.NAVIDROME_PORT}/rest"
     url = f"{base_url}/{endpoint}.view?{query_string}"
     logging.debug(f'send request: {url}')
     try:

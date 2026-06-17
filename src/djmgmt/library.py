@@ -424,7 +424,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
                 for attr_name, attr_value in track_attrs.items():
                     existing_track.set(attr_name, attr_value)
                 updated_tracks += 1
-                logging.debug(f"Updated existing track: '{file_path}'")
+                logging.debug(f"refreshed metadata: '{file_path}'")
             else:
                 # create new track
                 track_id = str(uuid.uuid4().int)[:9]
