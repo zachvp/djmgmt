@@ -65,13 +65,17 @@ def create_query(params: dict[str, str] = {}) -> str:
         base_params[key] = value
     return urlencode(base_params)
 
-def call_endpoint(endpoint: str, params: dict[str, str] = {}) -> Response:
+def call_endpoint(endpoint: str, params: dict[str, str] = {}) -> Response | None:
     # call the endpoint
     query_string = create_query(params)
     base_url = f"http://{config.NAVIDROME_HOST}:{config.NAVIDROME_PORT}/rest"
     url = f"{base_url}/{endpoint}.view?{query_string}"
     logging.debug(f'send request: {url}')
-    return requests.get(url)
+    try:
+        return requests.get(url)
+    except requests.exceptions.ConnectionError as e:
+        logging.warning(f"unable to reach Navidrome at '{base_url}': {e}")
+        return None
 
 def get_response_content(response: Response) -> dict[str, str]:
     content = ET.fromstring(response.text)
@@ -80,7 +84,9 @@ def get_response_content(response: Response) -> dict[str, str]:
     else:
         return content.attrib
 
-def handle_response(response: Response, endpoint: str) -> dict[str, str] | None: # todo: determine endpoint from response
+def handle_response(response: Response | None, endpoint: str) -> dict[str, str] | None: # todo: determine endpoint from response
+    if response is None:
+        return None
     if response.status_code == 200:
         content = get_response_content(response)
         logging.debug(f"successful call to '{endpoint}'\n{json.dumps(content, indent=2)}")

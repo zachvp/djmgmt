@@ -321,27 +321,30 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
                 return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=True)
 
             logging.info('file transfer succeeded, initiating remote scan')
-            # tell the media server new files are available
+            # tell the media server new files are available; scan failure is non-fatal
             scan_param = 'false'
             if full_scan:
                 scan_param = 'true'
-            response = subsonic_client.call_endpoint(subsonic_client.API.START_SCAN, {'fullScan': scan_param})
-            success = response.ok
-            if success:
+            scan_response = subsonic_client.call_endpoint(subsonic_client.API.START_SCAN, {'fullScan': scan_param})
+            if scan_response is None:
+                logging.warning('unable to reach Navidrome, skipping scan')
+            elif scan_response.ok:
                 # wait until the server has stopped scanning
                 while True:
                     # TODO: add error handling
                     response = subsonic_client.call_endpoint(subsonic_client.API.GET_SCAN_STATUS)
                     content = subsonic_client.handle_response(response, subsonic_client.API.GET_SCAN_STATUS)
                     if not content:
-                      success = False
-                      logging.error('unable to get scan status')
+                        logging.error('unable to get scan status')
+                        break
                     elif content['scanning'] == 'false':
                         logging.info('remote scan complete')
                         break
                     logging.debug("remote scan in progress, waiting...")
                     sleep_time = 5 if full_scan else 1
                     time.sleep(sleep_time)
+            else:
+                logging.warning('remote scan skipped')
 
     return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=success)
 
@@ -403,16 +406,16 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
             result = sync_batch(batch, date_context_previous, os.path.dirname(dest_previous), full_scan, sync_mode, dry_run=dry_run)
             batch_results.append(result)
             if not result.success:
-                raise RuntimeError(f"Batch sync failed for date context '{date_context_previous}'")
+                logging.error(f"Batch sync failed for date context '{date_context_previous}', continuing")
+            else:
+                # persist the latest processed context (skip in dry-run mode)
+                if not dry_run and not SavedDateContext.is_processed(date_context_previous):
+                    SavedDateContext.save(date_context_previous)
+                logging.info(f"processed batch in date context '{date_context_previous}'")
+                logging.info(f"sync progress: {progressFormat(index + 1)}")
             batch.clear()
             batch.append(mapping) # add the first mapping of the new context
             logging.debug(f"add new context mapping: {mapping}")
-
-            # persist the latest processed context (skip in dry-run mode)
-            if not dry_run and not SavedDateContext.is_processed(date_context_previous):
-                SavedDateContext.save(date_context_previous)
-            logging.info(f"processed batch in date context '{date_context_previous}'")
-            logging.info(f"sync progress: {progressFormat(index + 1)}")
         else:
             batch.append(mapping) # add the first mapping of the new context
             logging.debug(f"add new context mapping: {mapping}")
@@ -427,13 +430,13 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
         result = sync_batch(batch, date_context, os.path.dirname(dest), full_scan, sync_mode, dry_run=dry_run)
         batch_results.append(result)
         if not result.success:
-            raise RuntimeError(f"Batch sync failed for date context '{date_context}'")
-
-        # persist the latest processed context (skip in dry-run mode)
-        if not dry_run and not SavedDateContext.is_processed(date_context):
-            SavedDateContext.save(date_context)
-        logging.info(f"processed batch in date context '{date_context}'")
-        logging.info(f"sync progress: {progressFormat(index + 1)}")
+            logging.error(f"Batch sync failed for date context '{date_context}', continuing")
+        else:
+            # persist the latest processed context (skip in dry-run mode)
+            if not dry_run and not SavedDateContext.is_processed(date_context):
+                SavedDateContext.save(date_context)
+            logging.info(f"processed batch in date context '{date_context}'")
+            logging.info(f"sync progress: {progressFormat(index + 1)}")
 
     return batch_results
 
