@@ -59,6 +59,9 @@ with tab_music:
                 st.error('Source and output paths are required')
             else:
                 try:
+                    app_config.download_directory = source_path
+                    app_config.library_directory = output_path
+                    AppConfig.save(app_config)
                     center = PageBuilder.create_center_context()
                     with center:
                         with st.spinner(f"Processing files from `{source_path}` to `{output_path}`", show_time=True):
@@ -95,9 +98,6 @@ with tab_music:
                             'Status': st.column_config.TextColumn('Status', width='small')
                         }
                     )
-                    app_config.download_directory = source_path
-                    app_config.library_directory = output_path
-                    AppConfig.save(app_config)
                 except Exception as e:
                     st.error(f"Error processing files:\n{e}")
                     logging.error(f"Error in {music.Namespace.FUNCTION_PROCESS}:\n{e}", exc_info=True)
@@ -107,6 +107,11 @@ with tab_music:
                 st.error('Source path, library path, client mirror path, and collection export path are required')
             else:
                 try:
+                    app_config.download_directory = source_path
+                    app_config.library_directory = output_path
+                    app_config.client_mirror_directory = client_mirror_path
+                    app_config.collection_directory = collection_export_dir_path
+                    AppConfig.save(app_config)
                     center = PageBuilder.create_center_context()
                     with center:
                         with st.spinner(f"Updating library from `{source_path}` to `{output_path}`"):
@@ -131,11 +136,6 @@ with tab_music:
                         f"- Full scan: `{full_scan}`"
                     ]
                     st.success('\n'.join(message))
-                    app_config.download_directory = source_path
-                    app_config.library_directory = output_path
-                    app_config.client_mirror_directory = client_mirror_path
-                    app_config.collection_directory = collection_export_dir_path
-                    AppConfig.save(app_config)
                 except Exception as e:
                     st.error(f"Error updating library:\n{e}")
                     logging.error(f"Error in {music.Namespace.FUNCTION_UPDATE_LIBRARY}:\n{e}", exc_info=True)
@@ -164,15 +164,18 @@ with tab_tags:
 
     if PageBuilder.render_run_button('run_tags'):
         if tags_fn == tags_info.Namespace.FUNCTION_LOG_DUPLICATES:
+            app_config.library_directory = tags_input_path
+            AppConfig.save(app_config)
             center = PageBuilder.create_center_context()
             with center:
                 with st.spinner('Finding duplicate tracks...', show_time=True):
                     duplicates = tags_info.log_duplicates(tags_input_path)
             PageBuilder.render_results_header()
             st.dataframe(sorted(duplicates), width='stretch', column_config={'value': 'Duplicate Track Paths'})
-            app_config.library_directory = tags_input_path
-            AppConfig.save(app_config)
         elif tags_fn == tags_info.Namespace.FUNCTION_COMPARE and comparison:
+            app_config.library_directory = tags_input_path
+            app_config.client_mirror_directory = comparison
+            AppConfig.save(app_config)
             center = PageBuilder.create_center_context()
             with center:
                 with st.spinner('Comparing track metadata...', show_time=True):
@@ -193,9 +196,6 @@ with tab_tags:
                     'Differences':     st.column_config.TextColumn('Differences', width='medium')
                 }
             )
-            app_config.library_directory = tags_input_path
-            app_config.client_mirror_directory = comparison
-            AppConfig.save(app_config)
 
 # ── Playlist tab ───────────────────────────────────────────────────────────
 with tab_playlist:
@@ -271,6 +271,8 @@ with tab_playlist:
                     st.error(f'Unsupported file extension: {ext}. Expected .tsv, .txt, or .csv')
                 else:
                     try:
+                        app_config.playlist_directory = os.path.dirname(playlist_input_path)
+                        AppConfig.save(app_config)
                         results = playlist.extract(playlist_input_path, include_number, include_title, include_artist, include_genre)
                         column_names = []
                         if include_number:
@@ -288,8 +290,6 @@ with tab_playlist:
                         PageBuilder.render_results_header()
                         st.success(f'Extracted {len(results)} tracks')
                         st.dataframe(df, hide_index=True, width='stretch', height=min((len(df) + 1) * 35, 800))
-                        app_config.playlist_directory = os.path.dirname(playlist_input_path)
-                        AppConfig.save(app_config)
                     except Exception as e:
                         st.error(f'Error extracting playlist data: {e}')
 
@@ -311,6 +311,11 @@ with tab_playlist:
                     st.error(f'Unsupported playlist file extension: {playlist_ext}. Expected .tsv, .txt, or .csv')
                 else:
                     try:
+                        app_config.playlist_directory = os.path.dirname(playlist_input_path)
+                        app_config.mix_recording_directory = os.path.dirname(music_file_path)
+                        if csv_file_path:
+                            app_config.pressed_mix_directory = os.path.dirname(csv_file_path)
+                        AppConfig.save(app_config)
                         mix = playlist.press_mix(
                             music_file_path=music_file_path,
                             playlist_file_path=playlist_input_path,
@@ -322,9 +327,5 @@ with tab_playlist:
                         st.write(f'Date Recorded: {mix.date_recorded}')
                         st.write(f'Music Path: {mix.original_file_path}')
                         st.write(f'Playlist Path: {mix.playlist_file_path}')
-                        app_config.playlist_directory = os.path.dirname(playlist_input_path)
-                        if csv_file_path:
-                            app_config.pressed_mix_directory = os.path.dirname(csv_file_path)
-                        AppConfig.save(app_config)
                     except Exception as e:
                         st.error(f'Error pressing mix: {e}')
