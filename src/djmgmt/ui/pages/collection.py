@@ -92,7 +92,7 @@ with tab_sync:
 
     if sync_fn == FUNC_PREVIEW:
         library_path       = PageBuilder.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
-        client_mirror_path = PageBuilder.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
+        client_mirror_path = PageBuilder.render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
     elif sync_fn == FUNC_PLAYLIST:
         playlist_dot_path = PageBuilder.render_path_input('Playlist Dot Path', 'dynamic.unplayed', 'Unable to load playlist path')
 
@@ -142,7 +142,7 @@ with tab_sync:
                         st.info(f'**Summary:** {new_count} new tracks, {changed_count} changed tracks')
                     app_config.collection_path         = collection_path
                     app_config.library_directory       = library_path
-                    app_config.client_mirror_directory = client_mirror_path
+                    app_config.client_mirror_path = client_mirror_path
                     AppConfig.save(app_config)
                 except Exception as e:
                     st.error(f'Error previewing sync: {e}')

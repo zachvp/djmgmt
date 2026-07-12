@@ -47,7 +47,7 @@ with tab_music:
     elif music_fn == music.Namespace.FUNCTION_UPDATE_LIBRARY:
         source_path = PageBuilder.render_path_input('Source Path', app_config.download_directory, 'Unable to load source path')
         output_path = PageBuilder.render_path_input('Library Path', app_config.library_directory, 'Unable to load library path')
-        client_mirror_path = PageBuilder.render_path_input('Client Mirror Path', app_config.client_mirror_directory, 'Unable to load client mirror path')
+        client_mirror_path = PageBuilder.render_path_input('Client Mirror Path', app_config.client_mirror_path, 'Unable to load client mirror path')
         collection_export_dir_path = PageBuilder.render_path_input('Collection Export Directory Path', app_config.collection_directory, 'Unable to load collection directory path')
         full_scan = PageBuilder.render_checkbox_input('Full Scan', default_value=True)
 
@@ -109,7 +109,7 @@ with tab_music:
                 try:
                     app_config.download_directory = source_path
                     app_config.library_directory = output_path
-                    app_config.client_mirror_directory = client_mirror_path
+                    app_config.client_mirror_path = client_mirror_path
                     app_config.collection_directory = collection_export_dir_path
                     AppConfig.save(app_config)
                     center = PageBuilder.create_center_context()
@@ -158,7 +158,7 @@ with tab_tags:
     tags_input_path = PageBuilder.render_path_input('Input Path', app_config.library_directory, 'Unable to load input path')
     comparison = None
     if tags_fn == tags_info.Namespace.FUNCTION_COMPARE:
-        comparison = st.text_input('Comparison Path', value=app_config.client_mirror_directory or '')
+        comparison = st.text_input('Comparison Path', value=app_config.client_mirror_path or '')
 
     PageBuilder.render_section_separator()
 
@@ -174,7 +174,7 @@ with tab_tags:
             st.dataframe(sorted(duplicates), width='stretch', column_config={'value': 'Duplicate Track Paths'})
         elif tags_fn == tags_info.Namespace.FUNCTION_COMPARE and comparison:
             app_config.library_directory = tags_input_path
-            app_config.client_mirror_directory = comparison
+            app_config.client_mirror_path = comparison
             AppConfig.save(app_config)
             center = PageBuilder.create_center_context()
             with center:

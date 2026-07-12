@@ -56,7 +56,7 @@ class AppKey(StrEnum):
     COLLECTION_PATH          = 'collection_path'
     DOWNLOAD_DIRECTORY       = 'download_directory'
     LIBRARY_DIRECTORY        = 'library_directory'
-    CLIENT_MIRROR_PATH       = 'client_mirror_directory'
+    CLIENT_MIRROR_PATH       = 'client_mirror_path'
     PLAYLIST_DIRECTORY       = 'playlist_directory'
     MIX_RECORDING_DIRECTORY  = 'mix_recording_directory'
     PRESSED_MIX_DIRECTORY    = 'pressed_mix_directory'
@@ -70,7 +70,7 @@ class AppConfig(BaseConfig):
     collection_path           : Optional[str]
     download_directory        : Optional[str]
     library_directory         : Optional[str]
-    client_mirror_directory   : Optional[str]
+    client_mirror_path        : Optional[str]
     playlist_directory        : Optional[str]
     mix_recording_directory   : Optional[str]
     pressed_mix_directory     : Optional[str]
