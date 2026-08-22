@@ -204,8 +204,8 @@ class TestSyncBatch(unittest.TestCase):
         self.mock_call_endpoint.assert_not_called()
         self.mock_handle_response.assert_not_called()
 
-    def test_error_api(self) -> None:
-        '''Tests that no exception is thrown and that the correct functions are invoked if the API call fails.'''
+    def test_error_scan_rejected(self) -> None:
+        '''Tests that a rejected scan request keeps the batch successful, since the files already transferred.'''
         # Setup
         batch = [('/source/path1.aiff', '/dest/2023/01 january/01/path1.aiff')]
         date_context = '2023/01 january/01'
@@ -221,13 +221,12 @@ class TestSyncBatch(unittest.TestCase):
         # Return scanning=false immediately
         self.mock_handle_response.return_value = {'scanning': 'false'}
 
-        # Call the function, expecting no exception
-        try:
-            actual = sync.sync_batch(batch, date_context, dest, False, sync.Namespace.SYNC_MODE_REMOTE)
-            self.assertIsInstance(actual, sync.SyncBatchResult)
-            self.assertFalse(actual.success, 'Expect call to fail')
-        except:
-            self.fail('No exception expected')
+        # Call the function
+        actual = sync.sync_batch(batch, date_context, dest, False, sync.Namespace.SYNC_MODE_REMOTE)
+
+        # The transfer determines the result, so the batch succeeds
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertTrue(actual.success, 'Expect the transferred batch to succeed')
 
         # Assert that only the start scan API was called
         self.mock_call_endpoint.assert_has_calls([
@@ -238,6 +237,31 @@ class TestSyncBatch(unittest.TestCase):
         self.mock_encode.assert_called_once()
         self.mock_transform.assert_called_once()
         self.mock_transfer.assert_called_once()
+        self.mock_handle_response.assert_not_called()
+
+    def test_error_server_unreachable(self) -> None:
+        '''Tests that an unreachable media server keeps the batch successful, since the files already transferred.'''
+        # Setup
+        batch = [('/source/path1.aiff', '/dest/2023/01 january/01/path1.aiff')]
+        date_context = '2023/01 january/01'
+        dest = '/dest/2023/01 january/01/path1.aiff'
+
+        # Configure mocks
+        self.mock_transform.return_value = '/dest/./2023/01 january/01/'
+        self.mock_transfer.return_value = (0, 'success')
+
+        # The client reports an unreachable server by returning None
+        self.mock_call_endpoint.return_value = None
+
+        # Call the function
+        actual = sync.sync_batch(batch, date_context, dest, True, sync.Namespace.SYNC_MODE_REMOTE)
+
+        # The transfer determines the result, so the batch succeeds
+        self.assertIsInstance(actual, sync.SyncBatchResult)
+        self.assertTrue(actual.success, 'Expect the transferred batch to succeed')
+
+        # The scan request is attempted once, and the status poll is left alone
+        self.mock_call_endpoint.assert_called_once_with(subsonic_client.API.START_SCAN, {'fullScan': 'true'})
         self.mock_handle_response.assert_not_called()
 
     def test_local_mode(self) -> None:
@@ -429,20 +453,45 @@ class TestSyncMappings(unittest.TestCase):
         self.mock_save.assert_not_called()
 
     def test_error_sync_batch(self) -> None:
-        '''Tests that an error is raised when a batch sync call fails'''
-        self.mock_sync_batch.return_value = False
+        '''Tests that a failed batch is reported in the results and leaves the saved date context untouched.'''
+        self.mock_sync_batch.return_value = sync.SyncBatchResult('2025/05 may/20', 2, False)
         mappings = [
             # Date context: 2025/05 may/20
             ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
             ('input/path/track_1.mp3', '/output/2025/05 may/20/artist/album/track_1.mp3'),
         ]
 
-        with self.assertRaises(Exception):
-            sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+        results = sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+
+        # The failed batch is carried in the results for the caller to inspect
+        self.assertEqual(len(results), 1)
+        self.assertFalse(results[0].success)
 
         self.mock_sync_batch.assert_called_once()
         # Expect no calls to open sync state file, because no batches completed
         self.mock_save.assert_not_called()
+
+    def test_error_sync_batch_continues(self) -> None:
+        '''Tests that a failed batch leaves the following date context to sync and save on its own terms.'''
+        self.mock_sync_batch.side_effect = [
+            sync.SyncBatchResult('2025/05 may/20', 2, False),
+            sync.SyncBatchResult('2025/05 may/21', 2, True),
+        ]
+        mappings = [
+            ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
+            ('input/path/track_1.mp3', '/output/2025/05 may/20/artist/album/track_1.mp3'),
+            ('input/path/track_2.mp3', '/output/2025/05 may/21/artist/album/track_2.mp3'),
+            ('input/path/track_3.mp3', '/output/2025/05 may/21/artist/album/track_3.mp3'),
+        ]
+
+        results = sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE)
+
+        # Both contexts are attempted, and both outcomes reach the caller
+        self.assertEqual(self.mock_sync_batch.call_count, 2)
+        self.assertListEqual([r.success for r in results], [False, True])
+
+        # Only the successful context advances the saved state
+        self.mock_save.assert_called_once_with('2025/05 may/21')
 
     def test_success_outdated_context_single(self) -> None:
         '''Tests that a mapping with a date context older than the saved date context does not save any date context.'''
