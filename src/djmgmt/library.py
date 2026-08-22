@@ -12,6 +12,7 @@ import os
 import xml.etree.ElementTree as ET
 import argparse
 import logging
+import unicodedata
 import uuid
 from datetime import datetime
 from dataclasses import dataclass
@@ -108,8 +109,36 @@ def collection_path_to_syspath(path: str) -> str:
     return syspath
 
 def syspath_to_collection_path(file_path: str) -> str:
-    '''Transforms the given system path to an XML file path'''
+    '''Transforms the given system path to an XML file path.
+
+    The path's own Unicode spelling is preserved, so a Location round-trips back to the
+    exact filename on disk. Use canonical_location to compare two Locations for identity.
+    '''
     return f"{config.REKORDBOX_ROOT}{quote(file_path, safe=constants.URL_SAFE_CHARS)}"
+
+def canonical_syspath(file_path: str) -> str:
+    '''Returns the canonical Unicode form of a system path, for identity comparison.
+
+    macOS reports filenames in NFD while Rekordbox stores them in NFC, so the same
+    file reaches this project under two spellings. Normalizing to NFC gives both a
+    single representation. This form identifies a path; the original spelling remains
+    the one to read, write, and transfer with.
+    '''
+    return unicodedata.normalize('NFC', file_path)
+
+def canonical_location(location: str) -> str:
+    '''Returns the canonical form of an XML collection Location, for identity comparison.
+
+    Rekordbox and this project spell the same path differently: Rekordbox emits
+    lowercase percent escapes ('%e2%80%99', '%5b') where urllib emits uppercase
+    ('%E2%80%99', '%5B'), and macOS supplies NFD filenames where Rekordbox stores NFC.
+    Decoding, normalizing, and re-encoding gives every spelling of a file one key, so
+    track identity holds across collections from either source.
+
+    This form is for comparison. Destination paths keep the original spelling, which
+    holds already-synced files at the names they were transferred under.
+    '''
+    return syspath_to_collection_path(canonical_syspath(collection_path_to_syspath(location)))
 
 def load_collection(path: str) -> ET.Element:
     '''Returns the root node of the XML collection at `path`.'''
@@ -247,10 +276,11 @@ def filter_path_mappings(mappings: list[FileMapping], collection: ET.Element, pl
         track_id = track.get(constants.ATTR_TRACK_ID)
         path = track.get(constants.ATTR_LOCATION)
         if track_id and path and track_id in track_keys:
-            track_paths.add(collection_path_to_syspath(path))
+            track_paths.add(canonical_syspath(collection_path_to_syspath(path)))
 
-    # filter the mappings according to the track paths
-    filtered = [mapping for mapping in mappings if mapping[0] in track_paths]
+    # filter the mappings according to the track paths, comparing canonical spellings
+    # so filesystem-supplied (NFD) paths match collection-supplied (NFC) paths
+    filtered = [mapping for mapping in mappings if canonical_syspath(mapping[0]) in track_paths]
     return filtered
 
 def extract_track_metadata_by_path(collection: ET.Element, syspath: str) -> TrackMetadata | None:
@@ -267,8 +297,9 @@ def extract_track_metadata_by_path(collection: ET.Element, syspath: str) -> Trac
     # Convert system path to URL format for XML lookup (pattern from music.py:254)
     file_url = syspath_to_collection_path(syspath)
 
-    # Find track in collection
-    track_node = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
+    # Find track in collection, matching on canonical Location so the lookup holds
+    # across the encoding spellings used by Rekordbox and this project
+    track_node = _build_track_index(collection).get(canonical_location(file_url))
 
     if track_node is None:
         logging.warning(f'Track not found in collection: {syspath}')
@@ -381,6 +412,10 @@ def record_collection(source: str, base_collection_path: str, output_collection_
     new_tracks = 0
     updated_tracks = 0
 
+    # index the collection by canonical Location so tracks are matched across the
+    # percent-encoding and Unicode spellings used by Rekordbox and this project
+    track_index = _build_track_index(collection)
+
     # process all music files in the source directory
     paths = common.collect_paths(source)
     for file_path in paths:
@@ -391,7 +426,7 @@ def record_collection(source: str, base_collection_path: str, output_collection_
             file_url = syspath_to_collection_path(file_path)
 
             # check if track already exists
-            existing_track = collection.find(f'./{constants.TAG_TRACK}[@{constants.ATTR_LOCATION}="{file_url}"]')
+            existing_track = track_index.get(canonical_location(file_url))
 
             # load metadata Tags
             tags = Tags.load(file_path)
@@ -431,7 +466,8 @@ def record_collection(source: str, base_collection_path: str, output_collection_
                 track_attrs[constants.ATTR_TRACK_ID] = track_id
                 track_attrs[constants.ATTR_DATE_ADDED] = today
 
-                ET.SubElement(collection, constants.TAG_TRACK, track_attrs)
+                track = ET.SubElement(collection, constants.TAG_TRACK, track_attrs)
+                track_index[canonical_location(file_url)] = track
                 new_tracks += 1
                 logging.debug(f"Added new track: '{file_path}'")
 
@@ -461,38 +497,38 @@ def record_collection(source: str, base_collection_path: str, output_collection_
     )
 
 def _build_track_index(collection: ET.Element) -> dict[str, ET.Element]:
-    '''Builds a mapping from Location attribute to TRACK element.
+    '''Builds a mapping from canonical Location to TRACK element.
 
     Args:
         collection: The COLLECTION node containing TRACK elements
 
     Returns:
-        Dict mapping Location URL to TRACK element
+        Dict mapping canonical Location URL to TRACK element
     '''
     index: dict[str, ET.Element] = {}
     for track in collection:
         location = track.get(constants.ATTR_LOCATION)
         if location:
-            index[location] = track
+            index[canonical_location(location)] = track
         else:
             logging.warning(f"No location exists for track {track.get(constants.ATTR_TRACK_ID)}")
     return index
 
 def _build_track_id_to_location(collection: ET.Element) -> dict[str, str]:
-    '''Builds a mapping from TrackID to Location for playlist reference resolution.
+    '''Builds a mapping from TrackID to canonical Location for playlist reference resolution.
 
     Args:
         collection: The COLLECTION node containing TRACK elements
 
     Returns:
-        Dict mapping TrackID to Location URL
+        Dict mapping TrackID to canonical Location URL
     '''
     mapping: dict[str, str] = {}
     for track in collection:
         track_id = track.get(constants.ATTR_TRACK_ID)
         location = track.get(constants.ATTR_LOCATION)
         if track_id and location:
-            mapping[track_id] = location
+            mapping[track_id] = canonical_location(location)
     return mapping
 
 def _get_playlist_track_keys(root: ET.Element, playlist_xpath: str) -> set[str]:
@@ -567,6 +603,17 @@ def _merge_playlist_references(
 
     return merged_keys
 
+def _earliest_date_added(*dates: str | None) -> str:
+    '''Returns the earliest of the given 'YYYY-MM-DD' DateAdded values.
+
+    Rekordbox restamps DateAdded when a track is re-imported, which would move the
+    track's date-structured sync destination and leave the previously synced copy in
+    place. Preferring the earliest date keeps a track anchored to the folder it
+    already occupies. Returns an empty string when no date is available.
+    '''
+    valid = sorted(date for date in dates if date)
+    return valid[0] if valid else ''
+
 def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     '''Merges two Rekordbox XML collections into a single root element.
 
@@ -610,7 +657,16 @@ def merge_collections(primary_path: str, secondary_path: str) -> ET.Element:
     for track in newer_collection:
         location = track.get(constants.ATTR_LOCATION)
         if location:
-            track_index[location] = track
+            key = canonical_location(location)
+            existing = track_index.get(key)
+            if existing is not None:
+                # the sync destination path is derived from DateAdded, so keeping the
+                # earliest date holds already-synced tracks in the folder they occupy
+                earliest = _earliest_date_added(existing.get(constants.ATTR_DATE_ADDED),
+                                                track.get(constants.ATTR_DATE_ADDED))
+                if earliest:
+                    track.set(constants.ATTR_DATE_ADDED, earliest)
+            track_index[key] = track
 
     # copy all tracks to output collection
     for track in track_index.values():

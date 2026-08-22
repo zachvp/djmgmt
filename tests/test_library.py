@@ -1,5 +1,6 @@
 import unittest
 import os
+import unicodedata
 import xml.etree.ElementTree as ET
 from unittest.mock import patch, MagicMock, call, mock_open
 from typing import cast
@@ -1649,3 +1650,168 @@ class TestMain(unittest.TestCase):
                       '--output', MOCK_XML_OUTPUT_PATH])
 
         mock_record.assert_called_once_with(MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
+
+class TestCanonicalLocation(unittest.TestCase):
+    '''Tests for library.canonical_location and library.canonical_syspath.
+
+    Rekordbox and this project spell the same path differently. These tests pin the
+    canonical form that makes both spellings compare equal.
+    '''
+
+    def test_lowercase_escapes_match_uppercase(self) -> None:
+        '''Tests that Rekordbox's lowercase percent escapes canonicalize to uppercase.'''
+        rekordbox = 'file://localhost/music/Baikal%20-%20Why%20Don%e2%80%99t%20Ya.aiff'
+        project   = 'file://localhost/music/Baikal%20-%20Why%20Don%E2%80%99t%20Ya.aiff'
+        self.assertEqual(library.canonical_location(rekordbox), library.canonical_location(project))
+
+    def test_bracket_escapes_match(self) -> None:
+        '''Tests that lowercase '%5b' and uppercase '%5B' bracket escapes canonicalize alike.'''
+        rekordbox = 'file://localhost/music/07%20Seedy%20Films%20%5bRichard%20X%5d.aiff'
+        project   = 'file://localhost/music/07%20Seedy%20Films%20%5BRichard%20X%5D.aiff'
+        self.assertEqual(library.canonical_location(rekordbox), library.canonical_location(project))
+
+    def test_nfd_matches_nfc(self) -> None:
+        '''Tests that an NFD filename canonicalizes to its NFC spelling.'''
+        nfd = library.syspath_to_collection_path('/music/Noir - Lumière Brillante.aiff')
+        nfc = library.syspath_to_collection_path('/music/Noir - Lumière Brillante.aiff')
+        self.assertEqual(library.canonical_location(nfd), library.canonical_location(nfc))
+
+    def test_canonical_syspath_normalizes_nfd(self) -> None:
+        '''Tests that canonical_syspath converts an NFD path to NFC.'''
+        self.assertEqual(library.canonical_syspath('/music/Lumière.aiff'),
+                         '/music/Lumière.aiff')
+
+    def test_idempotent(self) -> None:
+        '''Tests that canonicalizing an already-canonical location is a no-op.'''
+        once = library.canonical_location('file://localhost/music/Don%e2%80%99t.aiff')
+        self.assertEqual(library.canonical_location(once), once)
+
+    def test_syspath_round_trip_preserves_spelling(self) -> None:
+        '''Tests that a Location round-trips to the exact on-disk filename.
+
+        Sync destinations derive from Location, so preserving the original Unicode
+        spelling holds already-transferred files at the names they carry on the server.
+        '''
+        nfd_syspath = unicodedata.normalize('NFD', '/music/Thomas Ragsdale - Blüdhaven.aiff')
+        self.assertFalse(unicodedata.is_normalized('NFC', nfd_syspath))
+        self.assertEqual(
+            library.collection_path_to_syspath(library.syspath_to_collection_path(nfd_syspath)),
+            nfd_syspath)
+
+
+class TestEarliestDateAdded(unittest.TestCase):
+    '''Tests for library._earliest_date_added.'''
+
+    def test_returns_earliest(self) -> None:
+        '''Tests that the earlier of two dates is returned.'''
+        self.assertEqual(library._earliest_date_added('2026-08-07', '2026-07-12'), '2026-07-12')
+        self.assertEqual(library._earliest_date_added('2026-07-12', '2026-08-07'), '2026-07-12')
+
+    def test_ignores_missing_dates(self) -> None:
+        '''Tests that absent dates are passed over in favor of an available one.'''
+        self.assertEqual(library._earliest_date_added(None, '2026-08-07'), '2026-08-07')
+        self.assertEqual(library._earliest_date_added('', '2026-08-07'), '2026-08-07')
+
+    def test_returns_empty_without_dates(self) -> None:
+        '''Tests that an empty string results when no date is available.'''
+        self.assertEqual(library._earliest_date_added(None, ''), '')
+
+
+class TestDuplicateSyncRegression(unittest.TestCase):
+    '''Regression tests for the sync duplication caused by unstable track identity.
+
+    A track's sync destination folder derives from its DateAdded, so a track recorded
+    twice, or restamped with a later date, is transferred to a second folder and appears
+    on the media server alongside the copy already there.
+    '''
+
+    # the same file, spelled by Rekordbox (lowercase escapes) and by this project
+    LOCATION_REKORDBOX = 'file://localhost/music/Baikal%20-%20Why%20Don%e2%80%99t%20Ya.aiff'
+    SYSPATH            = '/music/Baikal - Why Don’t Ya.aiff'
+
+    def test_record_collection_matches_rekordbox_encoding(self) -> None:
+        '''Tests that a library file already present under Rekordbox's encoding is updated
+        in place, keeping its original DateAdded rather than being recorded as a new track.
+        '''
+        existing = (f'<TRACK TrackID="1" Name="{MOCK_TITLE}" Artist="{MOCK_ARTIST}"'
+                    f' DateAdded="2022-03-31" Location="{TestDuplicateSyncRegression.LOCATION_REKORDBOX}"/>')
+        tree = ET.ElementTree(ET.fromstring(_build_dj_playlists_xml([existing], ['1'])))
+
+        with patch('os.path.exists', return_value=True), \
+             patch('djmgmt.common.collect_paths', return_value=[TestDuplicateSyncRegression.SYSPATH]), \
+             patch('djmgmt.tags.Tags.load',
+                   return_value=Tags(MOCK_ARTIST, MOCK_ALBUM, MOCK_TITLE, MOCK_GENRE, MOCK_TONALITY)), \
+             patch.object(ET.ElementTree, 'write'), \
+             patch('djmgmt.library.ET.parse', return_value=tree):
+            result = library.record_collection(MOCK_INPUT_DIR, MOCK_XML_INPUT_PATH, MOCK_XML_OUTPUT_PATH)
+
+        # the track is matched, so no second entry and no new date context
+        self.assertEqual(result.tracks_added, 0)
+        self.assertEqual(result.tracks_updated, 1)
+
+        collection = result.collection_root.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0].get(constants.ATTR_DATE_ADDED), '2022-03-31')
+
+    def test_merge_collections_holds_earliest_date_added(self) -> None:
+        '''Tests that a Rekordbox re-import date does not displace the date a track was
+        first recorded, which would relocate its already-synced copy.
+        '''
+        # primary (Rekordbox, newer file) restamps the track with a later DateAdded
+        primary = _build_dj_playlists_xml(
+            ['<TRACK TrackID="9" Name="Wait" DateAdded="2026-08-07"'
+             ' Location="file://localhost/music/Various%20Artists%20-%2011.%20Wait.aiff"/>'], [])
+        secondary = _build_dj_playlists_xml(
+            ['<TRACK TrackID="1" Name="Wait" DateAdded="2026-07-12"'
+             ' Location="file://localhost/music/Various%20Artists%20-%2011.%20Wait.aiff"/>'], [])
+
+        with patch('djmgmt.library.load_collection') as mock_load, \
+             patch('os.path.getmtime') as mock_getmtime:
+            mock_load.side_effect = [ET.fromstring(primary), ET.fromstring(secondary),
+                                     ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()]
+            mock_getmtime.side_effect = [1000.0, 500.0]  # primary is newer
+            result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0].get(constants.ATTR_DATE_ADDED), '2026-07-12')
+
+    def test_merge_collections_unifies_encoding_spellings(self) -> None:
+        '''Tests that the two encodings of one file merge into a single track.'''
+        primary = _build_dj_playlists_xml(
+            [f'<TRACK TrackID="9" Name="Baikal" DateAdded="2022-03-31"'
+             f' Location="{TestDuplicateSyncRegression.LOCATION_REKORDBOX}"/>'], [])
+        secondary = _build_dj_playlists_xml(
+            [f'<TRACK TrackID="1" Name="Baikal" DateAdded="2026-06-17"'
+             f' Location="{library.syspath_to_collection_path(TestDuplicateSyncRegression.SYSPATH)}"/>'], [])
+
+        with patch('djmgmt.library.load_collection') as mock_load, \
+             patch('os.path.getmtime') as mock_getmtime:
+            mock_load.side_effect = [ET.fromstring(primary), ET.fromstring(secondary),
+                                     ET.parse(config.COLLECTION_PATH_TEMPLATE).getroot()]
+            mock_getmtime.side_effect = [1000.0, 500.0]
+            result = library.merge_collections('/mock/primary.xml', '/mock/secondary.xml')
+
+        collection = result.find(constants.XPATH_COLLECTION)
+        assert collection is not None
+        tracks = collection.findall('TRACK')
+        self.assertEqual(len(tracks), 1)
+        self.assertEqual(tracks[0].get(constants.ATTR_DATE_ADDED), '2022-03-31')
+
+    def test_filter_path_mappings_matches_across_normalization(self) -> None:
+        '''Tests that a filesystem-supplied NFD path matches its NFC collection entry.'''
+        nfc_syspath = '/music/Noir - Lumière Brillante.aiff'
+        nfd_syspath = '/music/Noir - Lumière Brillante.aiff'
+        collection = ET.fromstring(_build_dj_playlists_xml(
+            [f'<TRACK TrackID="1" Name="Lumiere"'
+             f' Location="{library.syspath_to_collection_path(nfc_syspath)}"/>'],
+            ['1']))
+
+        filtered = library.filter_path_mappings([(nfd_syspath, '/mirror/out.mp3')],
+                                                collection, constants.XPATH_PRUNED)
+
+        self.assertEqual(filtered, [(nfd_syspath, '/mirror/out.mp3')])

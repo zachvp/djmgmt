@@ -5,6 +5,8 @@ Uses a combination of audio file metadata to determine duplicates
 import os
 import argparse
 import logging
+import unicodedata
+from collections import defaultdict
 from typing import Callable, Iterator
 
 from .tags import Tags, Diff
@@ -42,24 +44,30 @@ def _generate_tag_pairs(source: str, comparison: str) -> Iterator[tuple[str, str
         Tuples of (source_path, compare_path, source_tags, compare_tags) for files
         with matching names (excluding extension)
     '''
-    # use to compare files based on filename, excluding extension
-    normalize_filename: Callable[[str], str] = lambda path: os.path.splitext(os.path.basename(path))[0]
+    # use to compare files based on filename, excluding extension. Unicode is normalized
+    # so an NFD filename from one tree matches its NFC spelling in the other
+    normalize_filename: Callable[[str], str] = \
+        lambda path: unicodedata.normalize('NFC', os.path.splitext(os.path.basename(path))[0])
 
-    # collect paths and build a mapping for comparison files by normalized filename
+    # collect paths and group comparison files by normalized filename. A filename can
+    # appear more than once across the comparison tree's date-structured folders, so
+    # every copy is retained and compared
     source_paths = common.collect_paths(source)
-    comparison_files = {}
+    comparison_files: dict[str, list[str]] = defaultdict(list)
     for compare_path in common.collect_paths(comparison):
-        base_name = normalize_filename(compare_path)
-        comparison_files[base_name] = compare_path
+        comparison_files[normalize_filename(compare_path)].append(compare_path)
 
     # yield matching source/comparison tag pairs
     for source_path in source_paths:
         base_name = normalize_filename(source_path)
-        if base_name in comparison_files:
-            compare_path = comparison_files[base_name]
+        compare_paths = comparison_files.get(base_name, [])
+        if len(compare_paths) > 1:
+            logging.warning(f"'{base_name}' has {len(compare_paths)} copies in '{comparison}', comparing each")
 
-            # read tags from both files
-            source_tags = Tags.load(source_path)
+        # read source tags once for all of its comparison copies
+        source_tags = Tags.load(source_path) if compare_paths else None
+
+        for compare_path in compare_paths:
             compare_tags = Tags.load(compare_path)
 
             # skip if tags can't be read from either file

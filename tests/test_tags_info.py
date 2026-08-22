@@ -1,6 +1,6 @@
 import io
 import unittest
-from unittest.mock import patch, MagicMock, mock_open
+from unittest.mock import patch, MagicMock, mock_open, call
 
 # Test target imports
 from djmgmt import tags_info
@@ -171,6 +171,77 @@ class TestPromptCompareTags(unittest.TestCase):
         self.assertEqual(actual, [])
         self.assertEqual(mock_collect_paths.call_count, 2)
         self.assertEqual(mock_load_tags.call_count, 2)
+
+class TestCompareTagsDuplicateCopies(unittest.TestCase):
+    '''Tests that compare_tags reaches every copy of a filename in the comparison tree.
+
+    The comparison tree is date-structured, so one filename can occur in several folders.
+    Each copy is compared, keeping tag updates from landing on an arbitrary single copy.
+    '''
+
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
+    def test_all_duplicate_copies_compared(self, mock_collect_paths: MagicMock, mock_load_tags: MagicMock) -> None:
+        '''Tests that a filename present in two comparison folders yields both copies.'''
+        mock_collect_paths.side_effect = [
+            ['/mock/source/file_0.mp3'],
+            ['/mock/compare/2022/03 march/31/file_0.mp3',
+             '/mock/compare/2026/06 june/17/file_0.mp3']
+        ]
+        mock_load_tags.side_effect = [MagicMock(), MagicMock(), MagicMock()]
+
+        actual = tags_info.compare_tags('/mock/source', '/mock/compare')
+
+        self.assertEqual(actual, [
+            ('/mock/source/file_0.mp3', '/mock/compare/2022/03 march/31/file_0.mp3'),
+            ('/mock/source/file_0.mp3', '/mock/compare/2026/06 june/17/file_0.mp3'),
+        ])
+
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
+    def test_source_tags_loaded_once_per_source(self, mock_collect_paths: MagicMock,
+                                                mock_load_tags: MagicMock) -> None:
+        '''Tests that the source file's tags are read once across all of its copies.'''
+        mock_collect_paths.side_effect = [
+            ['/mock/source/file_0.mp3'],
+            ['/mock/compare/a/file_0.mp3', '/mock/compare/b/file_0.mp3']
+        ]
+        mock_load_tags.side_effect = [MagicMock(), MagicMock(), MagicMock()]
+
+        tags_info.compare_tags('/mock/source', '/mock/compare')
+
+        # one source read plus one read per comparison copy
+        self.assertEqual(mock_load_tags.call_count, 3)
+        self.assertEqual(mock_load_tags.call_args_list[0], call('/mock/source/file_0.mp3'))
+
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
+    def test_nfd_filename_matches_nfc(self, mock_collect_paths: MagicMock, mock_load_tags: MagicMock) -> None:
+        '''Tests that a filename spelled NFD matches its NFC spelling in the other tree.'''
+        mock_collect_paths.side_effect = [
+            ['/mock/source/Lumi\u00e8re.aiff'],       # NFC
+            ['/mock/compare/Lumie\u0300re.mp3'],      # NFD
+        ]
+        mock_load_tags.side_effect = [MagicMock(), MagicMock()]
+
+        actual = tags_info.compare_tags('/mock/source', '/mock/compare')
+
+        self.assertEqual(actual, [('/mock/source/Lumi\u00e8re.aiff', '/mock/compare/Lumie\u0300re.mp3')])
+
+    @patch('djmgmt.tags.Tags.load')
+    @patch('djmgmt.common.collect_paths')
+    def test_unmatched_source_skips_tag_load(self, mock_collect_paths: MagicMock,
+                                             mock_load_tags: MagicMock) -> None:
+        '''Tests that a source file with no comparison copy reads no tags.'''
+        mock_collect_paths.side_effect = [
+            ['/mock/source/file_0.mp3'],
+            ['/mock/compare/other.mp3']
+        ]
+
+        actual = tags_info.compare_tags('/mock/source', '/mock/compare')
+
+        self.assertEqual(actual, [])
+        mock_load_tags.assert_not_called()
 
 class TestParseArgs(unittest.TestCase):
     '''Tests for tags_info.parse_args and argument validation.'''
