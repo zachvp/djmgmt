@@ -20,8 +20,10 @@ from typing import Callable
 from . import common
 from . import config
 from . import constants
+from . import events
 from .library import TrackMetadata
 from .common import FileMapping
+from .events import EventBus, ItemProgress, Phase
 
 # region Data
 
@@ -348,7 +350,8 @@ def sync_batch(batch: list[FileMapping], date_context: str, source: str, full_sc
 
     return SyncBatchResult(date_context=date_context, files_processed=len(batch), success=success)
 
-def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, dry_run: bool = False) -> list[SyncBatchResult]:
+def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, dry_run: bool = False,
+                  bus: EventBus | None = None) -> list[SyncBatchResult]:
     '''Syncs file mappings by batching them by date context.
 
     Args:
@@ -356,6 +359,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
         full_scan: Whether to perform full scan on server
         sync_mode: Sync mode (local or remote)
         dry_run: If True, skip state file writes
+        bus: Optional event bus receiving item progress events as each batch completes
 
     Returns:
         list[SyncBatchResult] containing results from each batch, or an empty list if no mappings were synced
@@ -374,6 +378,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
     # helper
     progressFormat: Callable[[int], str] = lambda i: f"{(i / len(mappings) * 100):.2f}%"
     logging.info(f"sync progress: {progressFormat(index)}")
+    events.emit(bus, ItemProgress(Phase.SYNC, index, len(mappings)))
 
     # process the file mappings
     logging.debug(f"sync '{len(mappings)}' mappings:\n{mappings}")
@@ -413,6 +418,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
                     SavedDateContext.save(date_context_previous)
                 logging.info(f"processed batch in date context '{date_context_previous}'")
                 logging.info(f"sync progress: {progressFormat(index + 1)}")
+                events.emit(bus, ItemProgress(Phase.SYNC, index + 1, len(mappings), date_context_previous))
             batch.clear()
             batch.append(mapping) # add the first mapping of the new context
             logging.debug(f"add new context mapping: {mapping}")
@@ -437,6 +443,7 @@ def sync_mappings(mappings:list[FileMapping], full_scan: bool, sync_mode: str, d
                 SavedDateContext.save(date_context)
             logging.info(f"processed batch in date context '{date_context}'")
             logging.info(f"sync progress: {progressFormat(index + 1)}")
+            events.emit(bus, ItemProgress(Phase.SYNC, index + 1, len(mappings), date_context))
 
     return batch_results
 
@@ -483,7 +490,8 @@ def run_music(mappings: list[FileMapping],
               full_scan: bool = True,
               sync_mode: str = Namespace.SYNC_MODE_REMOTE,
               end_date: str | None = None,
-              dry_run: bool = False) -> SyncResult:
+              dry_run: bool = False,
+              bus: EventBus | None = None) -> SyncResult:
     '''Runs the music sync process with the given file mappings, returning the result. Sorts mappings according to date context,
     and filters mappings according to the current date context state.
     '''
@@ -513,7 +521,7 @@ def run_music(mappings: list[FileMapping],
 
     # initialize timing and run the sync
     try:
-        batch_results = sync_mappings(mappings, full_scan, sync_mode, dry_run=dry_run)
+        batch_results = sync_mappings(mappings, full_scan, sync_mode, dry_run=dry_run, bus=bus)
     except Exception as e:
         logging.error(e)
         raise

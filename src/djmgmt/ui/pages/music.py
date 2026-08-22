@@ -9,6 +9,7 @@ from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
 from djmgmt.ui.components.recent_file_input import RecentFileInput
+from djmgmt.ui.components.progress_panel import ProgressPanel
 
 # Page setup
 PageBuilder.set_page_layout('wide')
@@ -112,20 +113,24 @@ with tab_music:
                     app_config.client_mirror_path = client_mirror_path
                     app_config.collection_directory = collection_export_dir_path
                     AppConfig.save(app_config)
-                    center = PageBuilder.create_center_context()
-                    with center:
-                        with st.spinner(f"Updating library from `{source_path}` to `{output_path}`"):
-                            music.update_library(
-                                new_music_dir_path=source_path,
-                                library_path=output_path,
-                                client_mirror_path=client_mirror_path,
-                                collection_export_dir_path=collection_export_dir_path,
-                                processed_collection_path=config.COLLECTION_PATH_PROCESSED,
-                                merged_collection_path=config.COLLECTION_PATH_MERGED,
-                                valid_extensions=constants.EXTENSIONS,
-                                prefix_hints=music.PREFIX_HINTS,
-                                full_scan=full_scan
-                            )
+                    panel = ProgressPanel(f"Updating library from `{source_path}` to `{output_path}`")
+                    try:
+                        music.update_library(
+                            new_music_dir_path=source_path,
+                            library_path=output_path,
+                            client_mirror_path=client_mirror_path,
+                            collection_export_dir_path=collection_export_dir_path,
+                            processed_collection_path=config.COLLECTION_PATH_PROCESSED,
+                            merged_collection_path=config.COLLECTION_PATH_MERGED,
+                            valid_extensions=constants.EXTENSIONS,
+                            prefix_hints=music.PREFIX_HINTS,
+                            full_scan=full_scan,
+                            bus=panel.bus
+                        )
+                    except Exception:
+                        panel.fail('Library update failed')
+                        raise
+                    panel.complete(f"Updated library at `{output_path}`")
                     PageBuilder.render_results_header()
                     message = [
                         '**Success!**',

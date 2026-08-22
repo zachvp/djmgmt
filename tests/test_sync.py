@@ -9,7 +9,8 @@ from unittest.mock import patch, MagicMock, call
 from typing import cast
 
 from djmgmt import sync, config, constants, subsonic_client
-from tests.fixtures import MOCK_INPUT_DIR, MOCK_OUTPUT_DIR
+from djmgmt.events import Phase
+from tests.fixtures import MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, EventRecorder
 
 # Constants
 DATE_PROCESSED_PAST     = '2025/05 may/19'
@@ -391,6 +392,34 @@ class TestSyncMappings(unittest.TestCase):
         self.assertEqual(self.mock_sync_batch.call_count, 2)
         self.assertEqual(self.mock_save.call_count, 2)
 
+    def test_events_item_progress(self) -> None:
+        '''Tests that item progress advances to completion as each date context batch is synced.'''
+        self.mock_sync_batch.side_effect = [
+            sync.SyncBatchResult('2025/05 may/20', 2, True),
+            sync.SyncBatchResult('2025/05 may/21', 2, True),
+        ]
+        mappings = [
+            ('input/path/track_0.mp3', '/output/2025/05 may/20/artist/album/track_0.mp3'),
+            ('input/path/track_1.mp3', '/output/2025/05 may/20/artist/album/track_1.mp3'),
+            ('input/path/track_2.mp3', '/output/2025/05 may/21/artist/album/track_2.mp3'),
+            ('input/path/track_3.mp3', '/output/2025/05 may/21/artist/album/track_3.mp3'),
+        ]
+
+        recorder = EventRecorder()
+
+        sync.sync_mappings(mappings, False, sync.Namespace.SYNC_MODE_REMOTE, bus=recorder.bus)
+
+        progress = recorder.progress(Phase.SYNC)
+        self.assertEqual(len(progress), len(recorder.progress()))
+        self.assertTrue(all(e.total == len(mappings) for e in progress))
+
+        # Progress opens at zero, advances monotonically, and closes at the full count
+        indices = [e.index for e in progress]
+        self.assertEqual(indices[0], 0)
+        self.assertEqual(indices[-1], len(mappings))
+        self.assertListEqual(indices, sorted(indices))
+        self.assertEqual(progress[-1].fraction, 1.0)
+
     def test_error_empty_mappings(self) -> None:
         '''Tests that nothing is synced for an empty mappings list and no error is raised.'''
         sync.sync_mappings([], False, sync.Namespace.SYNC_MODE_REMOTE)
@@ -483,8 +512,18 @@ class TestRunSyncMappings(unittest.TestCase):
         sync.run_music(mock_mappings, mock_full_scan)
 
         # Assert expectations
-        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
+        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False, bus=None)
         self.mock_rsync_healthcheck.assert_called_once()
+
+    def test_bus_forwarded_to_sync_mappings(self) -> None:
+        '''Tests that a caller's bus reaches sync_mappings, where item progress is emitted.'''
+        mock_mappings = [('/mock/mapping/1', '/mock/mapping/2')]
+        recorder = EventRecorder()
+
+        sync.run_music(mock_mappings, True, bus=recorder.bus)
+
+        self.mock_sync_from_mappings.assert_called_once_with(
+            mock_mappings, True, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False, bus=recorder.bus)
 
     def test_exception_sync_from_mappings(self) -> None:
         # Set up mocks
@@ -499,7 +538,7 @@ class TestRunSyncMappings(unittest.TestCase):
             self.assertEqual(e.msg, mock_error)
 
         # Assert expectations
-        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
+        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False, bus=None)
         self.mock_rsync_healthcheck.assert_called_once()
 
     def test_rsync_healthcheck_fail(self) -> None:
@@ -547,7 +586,7 @@ class TestRunSyncMappings(unittest.TestCase):
             ('/input/track1.aiff', '/output/2025/05 may/19/artist/album/track1.aiff'),
             ('/input/track2.aiff', '/output/2025/05 may/20/artist/album/track2.aiff'),
         ]
-        self.mock_sync_from_mappings.assert_called_once_with(expected_filtered_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
+        self.mock_sync_from_mappings.assert_called_once_with(expected_filtered_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False, bus=None)
         self.mock_rsync_healthcheck.assert_called_once()
         self.assertEqual(mock_find_date_context.call_count, 6)
 
@@ -566,7 +605,7 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_full_scan = True
         result = sync.run_music(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
 
-        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True)
+        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=True, bus=None)
         self.mock_rsync_healthcheck.assert_called_once()
 
         self.assertIsInstance(result, sync.SyncResult)
@@ -588,7 +627,7 @@ class TestRunSyncMappings(unittest.TestCase):
         mock_full_scan = False
         result = sync.run_music(mock_mappings, mock_full_scan)
 
-        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False)
+        self.mock_sync_from_mappings.assert_called_once_with(mock_mappings, mock_full_scan, sync.Namespace.SYNC_MODE_REMOTE, dry_run=False, bus=None)
 
         self.assertIsInstance(result, sync.SyncResult)
         self.assertEqual(result.mappings, mock_mappings)

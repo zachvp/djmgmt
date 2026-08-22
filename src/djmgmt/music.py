@@ -25,8 +25,10 @@ from . import config
 from . import constants
 from . import common
 from . import encode
+from . import events
 from . import library
 from .common import FileMapping
+from .events import EventBus, Phase, PhaseCompleted, PhaseStarted
 from .sync import SyncResult
 from .library import RecordResult
 
@@ -627,7 +629,8 @@ def update_library(new_music_dir_path: str,
                    valid_extensions: set[str],
                    prefix_hints: set[str],
                    full_scan: bool = True,
-                   dry_run: bool = False) -> UpdateLibraryResult:
+                   dry_run: bool = False,
+                   bus: EventBus | None = None) -> UpdateLibraryResult:
     '''Processes music files into library and syncs to media server.
 
     Performs the following sequence:
@@ -646,6 +649,7 @@ def update_library(new_music_dir_path: str,
         prefix_hints: Set of archive name prefixes to auto-validate (e.g., {'beatport_tracks', 'juno_download'})
         dry_run: If True, skips all destructive operations, logging and returning what *would* be done.
         full_scan: If True, triggers full media server scan after sync
+        bus: Optional event bus receiving phase and item progress events as the update advances
 
     Example:
         >>> update_library(
@@ -666,23 +670,35 @@ def update_library(new_music_dir_path: str,
     from . import tags_info
 
     # process all of the source files into the library dir
+    events.emit(bus, PhaseStarted(Phase.PROCESS, new_music_dir_path))
     process_result = process(new_music_dir_path, library_path, valid_extensions, prefix_hints, dry_run=dry_run)
+    events.emit(bus, PhaseCompleted(Phase.PROCESS,
+                                    f"processed {len(process_result.processed_files)} files, "
+                                    f"extracted {process_result.archives_extracted} archives, "
+                                    f"encoded {process_result.files_encoded} files"))
 
     # update the processed collection according to any new files
+    events.emit(bus, PhaseStarted(Phase.RECORD_COLLECTION, collection_export_dir_path))
     latest_collection = common.find_latest_file(collection_export_dir_path)
     merged_collection = library.merge_collections(latest_collection, processed_collection_path)
     library.write_root(merged_collection, merged_collection_path)
     record_result = library.record_collection(library_path, merged_collection_path, processed_collection_path, dry_run=dry_run)
+    events.emit(bus, PhaseCompleted(Phase.RECORD_COLLECTION, f"recorded collection to '{processed_collection_path}'"))
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
+    events.emit(bus, PhaseStarted(Phase.BUILD_MAPPINGS, library_path))
     changed = tags_info.compare_tags(library_path, client_mirror_path)
     changed = library.filter_path_mappings(changed, record_result.collection_root, constants.XPATH_PRUNED)
     mappings = sync.create_sync_mappings(record_result.collection_root, client_mirror_path)
     if changed:
         mappings += changed
+    events.emit(bus, PhaseCompleted(Phase.BUILD_MAPPINGS,
+                                    f"built {len(mappings)} mappings, including {len(changed)} changed by metadata"))
 
     # run the sync
-    sync_result = sync.run_music(mappings, full_scan=full_scan, dry_run=dry_run)
+    events.emit(bus, PhaseStarted(Phase.SYNC, f"{len(mappings)} mappings"))
+    sync_result = sync.run_music(mappings, full_scan=full_scan, dry_run=dry_run, bus=bus)
+    events.emit(bus, PhaseCompleted(Phase.SYNC, f"synced {len(sync_result.batches)} batches"))
 
     return UpdateLibraryResult(process_result=process_result,
                                record_result=record_result,

@@ -17,6 +17,7 @@ import unittest
 import fixture_generator
 from djmgmt import common, config, constants, encode, library, music, subsonic_client, sync
 from djmgmt.common import FileMapping
+from djmgmt.events import Event, EventBus, ItemProgress, Phase, PhaseCompleted, PhaseStarted
 
 _MANIFEST_PATH = os.path.join(os.path.dirname(__file__), 'fixtures/manifests/dummy-files.json')
 
@@ -432,6 +433,11 @@ class TestUpdateLibrary(unittest.TestCase):
             # provide an export XML so find_latest_file returns a valid path for merge_collections
             shutil.copy(config.COLLECTION_PATH_TEMPLATE, os.path.join(collection_export_dir, 'export.xml'))
 
+            # record progress events directly: the e2e image carries the package rather than the unit test fixtures
+            received: list[Event] = []
+            bus = EventBus()
+            bus.subscribe(received.append)
+
             result = music.update_library(
                 new_music_dir_path=new_music_dir,
                 library_path=library_dir,
@@ -441,7 +447,21 @@ class TestUpdateLibrary(unittest.TestCase):
                 merged_collection_path=config.COLLECTION_PATH_MERGED,
                 valid_extensions=constants.EXTENSIONS,
                 prefix_hints=music.PREFIX_HINTS,
+                bus=bus,
             )
+
+            # every phase reports through the real pipeline, in operation order
+            expected_phases = [Phase.PROCESS, Phase.RECORD_COLLECTION, Phase.BUILD_MAPPINGS, Phase.SYNC]
+            self.assertListEqual([e.phase for e in received if isinstance(e, PhaseStarted)], expected_phases)
+            self.assertListEqual([e.phase for e in received if isinstance(e, PhaseCompleted)], expected_phases)
+
+            # the sync stage reports item progress through to the full mapping count
+            sync_progress = [e for e in received if isinstance(e, ItemProgress) and e.phase == Phase.SYNC]
+            self.assertTrue(sync_progress, 'sync reported no item progress')
+            self.assertEqual(sync_progress[0].index, 0)
+            self.assertEqual(sync_progress[-1].index, sync_progress[-1].total)
+            self.assertEqual(sync_progress[-1].fraction, 1.0)
+            self.assertEqual(sync_progress[-1].total, len(result.sync_result.mappings))
 
             # only music tracks (individual + accepted archive contents) reach the collection
             self.assertEqual(result.record_result.tracks_added, gen.expected_music_count)

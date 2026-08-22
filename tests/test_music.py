@@ -12,7 +12,8 @@ from djmgmt import config, constants
 from djmgmt.common import FileMapping
 from djmgmt.music import RecordResult, ProcessResult
 from djmgmt.sync import SyncResult, SyncBatchResult
-from tests.fixtures import MOCK_INPUT_DIR, MOCK_OUTPUT_DIR
+from djmgmt.events import Phase, PhaseCompleted, PhaseStarted
+from tests.fixtures import MOCK_INPUT_DIR, MOCK_OUTPUT_DIR, EventRecorder
 
 # Primary test classes
 class TestCompressDir(unittest.TestCase):
@@ -965,13 +966,72 @@ class TestUpdateLibrary(unittest.TestCase):
 
         ## Call parameters: run_sync_mappings
         expected_mappings = self.mock_mappings_created + self.mock_mappings_filtered
-        self.mock_run_music.assert_called_once_with(expected_mappings, full_scan=True, dry_run=False)
+        self.mock_run_music.assert_called_once_with(expected_mappings, full_scan=True, dry_run=False, bus=None)
 
         ## Result
         self.assertEqual(actual.process_result, self.mock_process_result)
         self.assertEqual(actual.record_result, mock_record_result)
         self.assertEqual(actual.sync_result, self.mock_sync_result)
         self.assertListEqual(actual.changed_mappings, self.mock_mappings_filtered)
+
+    def test_events(self) -> None:
+        '''Tests that each phase emits a start and completion event, in operation order.'''
+        self.mock_record_collection.return_value = RecordResult(
+            collection_root=ET.Element('collection'), tracks_added=2, tracks_updated=1)
+
+        recorder = EventRecorder()
+
+        music.update_library(MOCK_INPUT_DIR,
+                             self.MOCK_LIBRARY,
+                             self.MOCK_CLIENT_MIRROR,
+                             self.MOCK_COLLECTION_EXPORT_DIR,
+                             self.MOCK_PROCESSED_COLLECTION,
+                             self.MOCK_MERGED_COLLECTION,
+                             self.MOCK_EXTENSIONS,
+                             self.MOCK_HINTS,
+                             bus=recorder.bus)
+
+        # Phases start and complete in order, wrapping each stage of the update
+        expected_phases = [
+            (PhaseStarted,   Phase.PROCESS),
+            (PhaseCompleted, Phase.PROCESS),
+            (PhaseStarted,   Phase.RECORD_COLLECTION),
+            (PhaseCompleted, Phase.RECORD_COLLECTION),
+            (PhaseStarted,   Phase.BUILD_MAPPINGS),
+            (PhaseCompleted, Phase.BUILD_MAPPINGS),
+            (PhaseStarted,   Phase.SYNC),
+            (PhaseCompleted, Phase.SYNC),
+        ]
+        self.assertListEqual(recorder.sequence(), expected_phases)
+
+        # Each completion carries a summary for display
+        self.assertTrue(all(e.summary for e in recorder.completed()))
+
+        # The bus reaches the sync stage, which emits its own item progress
+        self.mock_run_music.assert_called_once()
+        self.assertEqual(self.mock_run_music.call_args.kwargs['bus'], recorder.bus)
+
+    def test_events_error(self) -> None:
+        '''Tests that phases completed before a failure are still reported.'''
+        self.mock_run_music.side_effect = Exception('Mock error')
+
+        recorder = EventRecorder()
+
+        with self.assertRaisesRegex(Exception, 'Mock error'):
+            music.update_library(MOCK_INPUT_DIR,
+                                 self.MOCK_LIBRARY,
+                                 self.MOCK_CLIENT_MIRROR,
+                                 self.MOCK_COLLECTION_EXPORT_DIR,
+                                 self.MOCK_PROCESSED_COLLECTION,
+                                 self.MOCK_MERGED_COLLECTION,
+                                 self.MOCK_EXTENSIONS,
+                                 self.MOCK_HINTS,
+                                 bus=recorder.bus)
+
+        # The three phases preceding the sync complete, and the sync reports its start
+        self.assertListEqual(recorder.completed_phases(), [Phase.PROCESS, Phase.RECORD_COLLECTION, Phase.BUILD_MAPPINGS])
+        expected_mappings = len(self.mock_mappings_created + self.mock_mappings_filtered)
+        self.assertEqual(recorder.events[-1], PhaseStarted(Phase.SYNC, f"{expected_mappings} mappings"))
 
     def test_error_sync(self) -> None:
         '''Test that if sync fails, the expected functions are still called and the exception is seen.'''
@@ -1038,7 +1098,7 @@ class TestUpdateLibrary(unittest.TestCase):
 
         ## Call parameters: run_sync_mappings
         expected_mappings = self.mock_mappings_created + self.mock_mappings_filtered
-        self.mock_run_music.assert_called_once_with(expected_mappings, full_scan=True, dry_run=True)
+        self.mock_run_music.assert_called_once_with(expected_mappings, full_scan=True, dry_run=True, bus=None)
 
         ## Result
         self.assertEqual(actual.process_result, self.mock_process_result)

@@ -4,9 +4,56 @@ Shared test fixtures for the djmgmt test suite.
 Import specific names into each test file rather than using wildcard imports.
 '''
 
+from djmgmt.events import Event, EventBus, ItemProgress, PhaseCompleted, PhaseStarted
+
 # Common mock paths shared across multiple test files
 MOCK_INPUT_DIR  = '/mock/input'
 MOCK_OUTPUT_DIR = '/mock/output'
+
+
+class EventRecorder:
+    '''Collects the events an operation emits, for assertions on progress reporting.
+
+    Subscribes to its own bus, so a test passes `recorder.bus` to the operation under test
+    and then queries the recorded events by kind.
+
+    Example:
+        recorder = EventRecorder()
+        music.update_library(..., bus=recorder.bus)
+        assert recorder.completed_phases() == [Phase.PROCESS, Phase.SYNC]
+    '''
+
+    def __init__(self) -> None:
+        self.events: list[Event] = []
+        self.bus = EventBus()
+        self.bus.subscribe(self.events.append)
+
+    def started(self) -> list[PhaseStarted]:
+        '''Returns the phase start events, in emission order.'''
+        return [e for e in self.events if isinstance(e, PhaseStarted)]
+
+    def completed(self) -> list[PhaseCompleted]:
+        '''Returns the phase completion events, in emission order.'''
+        return [e for e in self.events if isinstance(e, PhaseCompleted)]
+
+    def progress(self, phase: str | None = None) -> list[ItemProgress]:
+        '''Returns the item progress events, limited to the given phase when one is supplied.'''
+        items = [e for e in self.events if isinstance(e, ItemProgress)]
+        if phase is not None:
+            items = [e for e in items if e.phase == phase]
+        return items
+
+    def sequence(self) -> list[tuple[type, str]]:
+        '''Returns each event as an (event type, phase) pair, for asserting the full emission order.'''
+        return [(type(e), e.phase) for e in self.events]
+
+    def started_phases(self) -> list[str]:
+        '''Returns the phases that reported a start, in order.'''
+        return [e.phase for e in self.started()]
+
+    def completed_phases(self) -> list[str]:
+        '''Returns the phases that reported completion, in order.'''
+        return [e.phase for e in self.completed()]
 
 def _create_track_xml(index: int) -> str:
     '''Creates a TRACK XML element string with indexed attributes.'''
