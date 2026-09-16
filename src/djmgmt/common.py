@@ -1,4 +1,5 @@
 import logging
+import logging.handlers
 import os
 import sys
 import types
@@ -13,6 +14,10 @@ FileMapping = tuple[str, str]
 '''A tuple of (source_path, destination_path) representing a file mapping.'''
 
 BASE_LOGS_PATH = str(config.LOG_DIR)
+
+# Log rotation bounds: a full library update writes a few MB, so each file holds several runs.
+LOG_MAX_BYTES = 10 * 1024 * 1024
+LOG_BACKUP_COUNT = 5
 
 # endregion
 
@@ -36,11 +41,16 @@ def configure_log(module: str, level: int=logging.DEBUG) -> str:
         root_logger.removeHandler(handler)
 
     log_file_path = os.path.join(BASE_LOGS_PATH, f"{module}.log")
-    logging.basicConfig(filename=log_file_path,
+    # Append and rotate by size: Streamlit pages reconfigure logging on every script rerun and
+    # the service restarts on deploy, so each configure call preserves what earlier ones wrote.
+    handler = logging.handlers.RotatingFileHandler(log_file_path,
+                                                   maxBytes=LOG_MAX_BYTES,
+                                                   backupCount=LOG_BACKUP_COUNT,
+                                                   encoding='utf-8')
+    logging.basicConfig(handlers=[handler],
                         level=level,
                         format="%(asctime)s [%(levelname)s] %(message)s",
                         datefmt="%D %H:%M:%S",
-                        filemode='w',
                         force=True)
 
     # install global hook to log uncaught exceptions + full stack trace to file

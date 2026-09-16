@@ -1,6 +1,8 @@
 import unittest
 import logging
+import logging.handlers
 import os
+import tempfile
 from unittest.mock import MagicMock, patch, mock_open
 from typing import cast
 
@@ -28,44 +30,81 @@ class TestConfigureLog(unittest.TestCase):
         # store the existing log handlers before the configure log function manipulates them
         root = logging.getLogger()
         self._saved_handlers = root.handlers[:]
+        self._saved_level = root.level
+
+        self._tmp = tempfile.TemporaryDirectory()
+        patch('djmgmt.common.BASE_LOGS_PATH', self._tmp.name).start()
 
     def tearDown(self) -> None:
-        # restore the orignal log handlers
+        patch.stopall()
+        # close the handlers under test, then restore the original log handlers
         root = logging.getLogger()
+        for handler in root.handlers:
+            handler.close()
         root.handlers = self._saved_handlers
+        root.setLevel(self._saved_level)
+        self._tmp.cleanup()
 
-    @patch('logging.basicConfig')
-    @patch('os.path.exists')
-    @patch('os.makedirs')
-    def test_configure_log_default(self,
-                                   mock_makedirs: MagicMock,
-                                   mock_path_exists: MagicMock,
-                                   mock_basic_config: MagicMock) -> None:
-        '''Tests that a default log configuration is created for common.log'''
+    def _log_path(self, module: str) -> str:
+        return os.path.join(self._tmp.name, f"{module}.log")
+
+    def test_configure_log_default(self) -> None:
+        '''Tests that a default configuration writes DEBUG records to <module>.log through a rotating handler.'''
         # call test target
-        common.configure_log('test')
-        
+        actual = common.configure_log('test')
+
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/logs/test.log"
-        self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
-        self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.DEBUG)
-        
-    @patch('logging.basicConfig')
-    @patch('os.path.exists')
-    @patch('os.makedirs')
-    def test_configure_log_custom_args(self,
-                                       mock_makedirs: MagicMock,
-                                       mock_path_exists: MagicMock,
-                                       mock_basic_config: MagicMock) -> None:
-        '''Tests that a custom log configuration is respected.'''
+        root = logging.getLogger()
+        self.assertEqual(root.level, logging.DEBUG)
+        self.assertEqual(len(root.handlers), 1)
+        handler = root.handlers[0]
+        self.assertIsInstance(handler, logging.handlers.RotatingFileHandler)
+        handler = cast(logging.handlers.RotatingFileHandler, handler)
+        self.assertEqual(handler.baseFilename, self._log_path('test'))
+        self.assertEqual(handler.maxBytes, common.LOG_MAX_BYTES)
+        self.assertEqual(handler.backupCount, common.LOG_BACKUP_COUNT)
+        self.assertEqual(actual, self._log_path('test'))
+
+    def test_configure_log_custom_args(self) -> None:
+        '''Tests that a custom log level is respected.'''
         # call test target
         common.configure_log('test', level=logging.INFO)
-        
+
         # assert expectation
-        LOG_PATH = f"{PROJECT_ROOT}/logs/test.log"
-        self.assertEqual(mock_basic_config.call_args.kwargs['filename'], LOG_PATH)
-        self.assertEqual(mock_basic_config.call_args.kwargs['level'], logging.INFO)
-        
+        self.assertEqual(logging.getLogger().level, logging.INFO)
+
+    def test_reconfigure_preserves_existing_log(self) -> None:
+        '''Tests that configuring the same module again appends, as a Streamlit rerun or service restart does.'''
+        common.configure_log('test')
+        logging.info('first run')
+
+        # call test target
+        common.configure_log('test')
+        logging.info('second run')
+
+        # assert expectation
+        with open(self._log_path('test'), encoding='utf-8') as log_file:
+            content = log_file.read()
+        self.assertIn('first run', content)
+        self.assertIn('second run', content)
+
+    def test_rotates_when_size_limit_reached(self) -> None:
+        '''Tests that the log rolls over to numbered backups once it reaches the size limit.'''
+        with patch('djmgmt.common.LOG_MAX_BYTES', 200), patch('djmgmt.common.LOG_BACKUP_COUNT', 2):
+            common.configure_log('test')
+
+        # call test target
+        for i in range(20):
+            logging.info(f'record {i:02d} ' + 'x' * 40)
+
+        # assert expectation
+        path = self._log_path('test')
+        self.assertTrue(os.path.exists(f'{path}.1'))
+        self.assertTrue(os.path.exists(f'{path}.2'))
+        self.assertFalse(os.path.exists(f'{path}.3'))
+        with open(path, encoding='utf-8') as log_file:
+            self.assertIn('record 19', log_file.read())
+
 class TestFindDateContext(unittest.TestCase):
     def test_success_basic(self) -> None:
         path = '/data/tracks-output/2022/04 april/24/1-Gloria_Jones_-_Tainted_Love_(single_version).mp3'
