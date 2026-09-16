@@ -392,3 +392,70 @@ class TestMain(unittest.TestCase):
 
         mock_find_os.assert_called_once_with(MOCK_INPUT, threads=72)
         mock_write_paths.assert_called_once_with(mock_find_os.return_value, MOCK_OUTPUT)
+
+
+class TestEncodeLossyTagRoundTrip(unittest.IsolatedAsyncioTestCase):
+    '''Covers the tag values an encoded file carries, using a real ffmpeg run.
+
+    An AIFF can hold a title in both its IFF NAME chunk and an ID3 TIT2 frame. ffmpeg's muxer
+    prefers the NAME chunk while Tags.load reads TIT2, so an encode that leaves tag-writing to
+    ffmpeg produces a destination that compares unequal to its own source on every later run.
+    '''
+
+    SOURCE_TITLE = 'Track (Parens)'
+    '''The ID3 TIT2 value, which Tags.load reads.'''
+
+    NAME_CHUNK_TITLE = 'Track [Brackets]'
+    '''The IFF NAME chunk value, which ffmpeg's muxer prefers.'''
+
+    def setUp(self) -> None:
+        import shutil
+        import tempfile
+
+        if not shutil.which('ffmpeg'):
+            self.skipTest('ffmpeg is available for this test')
+
+        self.working_dir = tempfile.mkdtemp()
+        self.addCleanup(shutil.rmtree, self.working_dir, True)
+
+    def create_source(self) -> str:
+        '''Builds an AIFF whose NAME chunk and TIT2 frame hold different titles.'''
+        import subprocess
+        import mutagen.aiff, mutagen.id3
+
+        source = os.path.join(self.working_dir, 'source.aiff')
+
+        # the NAME chunk carries its title through ffmpeg's -metadata option
+        subprocess.run(['ffmpeg', '-v', 'quiet', '-f', 'lavfi', '-i', 'sine=frequency=440:duration=1',
+                        '-metadata', f'title={self.NAME_CHUNK_TITLE}', '-y', source], check=True)
+
+        # the ID3 frames are added separately so the two titles disagree
+        track = mutagen.aiff.AIFF(source)
+        track.add_tags()
+        track.tags.setall('TIT2', [mutagen.id3.TIT2(encoding=3, text=[self.SOURCE_TITLE])]) # type: ignore
+        track.tags.setall('TPE1', [mutagen.id3.TPE1(encoding=3, text=['Artist'])]) # type: ignore
+        track.save()
+
+        return source
+
+    async def test_success_destination_matches_source(self) -> None:
+        '''Tests that an encoded file compares equal to the source it came from.'''
+        from djmgmt.tags import Tags
+
+        source = self.create_source()
+        dest = os.path.join(self.working_dir, 'dest.mp3')
+
+        # Call target function
+        await encode.encode_lossy([(source, dest)], '.mp3')
+
+        # Assert expectations
+        source_tags = Tags.load(source)
+        dest_tags = Tags.load(dest)
+        self.assertIsNotNone(source_tags)
+        self.assertIsNotNone(dest_tags)
+
+        ## the destination holds the title that Tags.load reads from the source
+        self.assertEqual(dest_tags.title, self.SOURCE_TITLE) # type: ignore
+
+        ## a full comparison matches, so a later sync treats the pair as unchanged
+        self.assertEqual(source_tags, dest_tags)

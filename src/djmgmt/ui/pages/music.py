@@ -4,7 +4,7 @@ import logging
 import pandas as pd
 import streamlit as st
 
-from djmgmt import music, tags_info, playlist, constants, config, common
+from djmgmt import music, tags_info, playlist, constants, config, common, events
 from djmgmt.ui.utils.config import AppConfig
 from djmgmt.ui.utils.page_base import PageBuilder
 from djmgmt.ui.components.function_selector import FunctionMapper
@@ -113,9 +113,10 @@ with tab_music:
                     app_config.client_mirror_path = client_mirror_path
                     app_config.collection_directory = collection_export_dir_path
                     AppConfig.save(app_config)
-                    panel = ProgressPanel(f"Updating library from `{source_path}` to `{output_path}`")
+                    panel = ProgressPanel(f"Updating library from `{source_path}` to `{output_path}`",
+                                          stages=events.UPDATE_LIBRARY_PHASES)
                     try:
-                        music.update_library(
+                        result = music.update_library(
                             new_music_dir_path=source_path,
                             library_path=output_path,
                             client_mirror_path=client_mirror_path,
@@ -134,8 +135,14 @@ with tab_music:
                     PageBuilder.render_results_header()
                     message = [
                         '**Success!**',
-                        f"- Updated library at `{output_path}`",
-                        f"- Synced to client mirror at `{client_mirror_path}`",
+                        f"- Updated library at `{output_path}`: "
+                        f"{len(result.process_result.processed_files)} new files processed",
+                        f"- Collection: {result.record_result.tracks_added} new tracks, "
+                        f"{result.record_result.tracks_updated} updated tracks",
+                        f"- Synced to client mirror at `{client_mirror_path}`: "
+                        f"{len(result.sync_result.mappings)} mappings, "
+                        f"including {len(result.changed_mappings)} changed by metadata; "
+                        f"{music.sync_summary(result.sync_result)}",
                         f"- Used `{collection_export_dir_path}` as collection export directory.",
                         f"- Collection saved to: `{config.COLLECTION_PATH_PROCESSED}`",
                         f"- Full scan: `{full_scan}`"

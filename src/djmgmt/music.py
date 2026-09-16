@@ -620,6 +620,15 @@ def process(source: str, output: str, valid_extensions: set[str], prefix_hints: 
         files_encoded=len(encoded)
     )
 
+def sync_summary(result: SyncResult) -> str:
+    '''Describes a sync outcome in files and batches, calling out any failed batches.'''
+    files = sum(batch.files_processed for batch in result.batches)
+    summary = f"synced {files} files in {len(result.batches)} batches"
+    failed = sum(1 for batch in result.batches if not batch.success)
+    if failed:
+        summary = f"{summary}, {failed} failed"
+    return summary
+
 def update_library(new_music_dir_path: str,
                    library_path: str,
                    client_mirror_path: str,
@@ -683,7 +692,9 @@ def update_library(new_music_dir_path: str,
     merged_collection = library.merge_collections(latest_collection, processed_collection_path)
     library.write_root(merged_collection, merged_collection_path)
     record_result = library.record_collection(library_path, merged_collection_path, processed_collection_path, dry_run=dry_run)
-    events.emit(bus, PhaseCompleted(Phase.RECORD_COLLECTION, f"recorded collection to '{processed_collection_path}'"))
+    events.emit(bus, PhaseCompleted(Phase.RECORD_COLLECTION,
+                                    f"{record_result.tracks_added} new tracks, "
+                                    f"{record_result.tracks_updated} updated tracks"))
 
     # combine any changed mappings in _pruned with the standard filtered collection mappings
     events.emit(bus, PhaseStarted(Phase.BUILD_MAPPINGS, library_path))
@@ -698,7 +709,7 @@ def update_library(new_music_dir_path: str,
     # run the sync
     events.emit(bus, PhaseStarted(Phase.SYNC, f"{len(mappings)} mappings"))
     sync_result = sync.run_music(mappings, full_scan=full_scan, dry_run=dry_run, bus=bus)
-    events.emit(bus, PhaseCompleted(Phase.SYNC, f"synced {len(sync_result.batches)} batches"))
+    events.emit(bus, PhaseCompleted(Phase.SYNC, sync_summary(sync_result)))
 
     return UpdateLibraryResult(process_result=process_result,
                                record_result=record_result,

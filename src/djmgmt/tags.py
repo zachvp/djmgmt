@@ -271,6 +271,52 @@ class Tags:
 
         return cls(artist, album, title, genre, key, cover_image)
 
+    def write(self, path: str) -> bool:
+        '''Writes this instance's text tags onto the file at `path`, leaving its audio and cover art intact.
+        Returns True once the tags are stored.
+
+        A source may carry a title in both an IFF NAME chunk and an ID3 TIT2 frame. ffmpeg's muxer and
+        `load` resolve that pair differently, so an encoded file keeps whichever title ffmpeg preferred
+        while a later comparison reads the ID3 one, and the two never agree. Writing the tags here routes
+        both sides of that comparison through this class, so an encoded file reads back the values its
+        source holds.
+        '''
+        # load the destination file
+        try:
+            track = mutagen.File(path)
+        except mutagen.MutagenError as e:
+            logging.error(f"mutagen.MutagenError:\n{e}\npath: '{path}'")
+            return False
+        if track is None:
+            logging.error(f"unable to read '{path}'")
+            return False
+
+        # a freshly encoded file may carry no tag block yet
+        if track.tags is None:
+            track.add_tags()
+
+        # the frame each field occupies, matching the ID3 keys that `load` reads
+        frames = {
+            'TPE1' : self.artist,
+            'TALB' : self.album,
+            'TIT2' : self.title,
+            'TCON' : self.genre,
+            'TKEY' : self.key,
+        }
+
+        for frame_id, value in frames.items():
+            # an absent value clears the frame so the destination mirrors the source
+            if value is None:
+                track.tags.delall(frame_id) # type: ignore
+                continue
+
+            frame_class = getattr(mutagen.id3, frame_id)
+            track.tags.setall(frame_id, [frame_class(encoding=3, text=[value])]) # type: ignore
+
+        track.save()
+        logging.debug(f"wrote tags to '{path}'")
+        return True
+
 # endregion
 
 # region Development

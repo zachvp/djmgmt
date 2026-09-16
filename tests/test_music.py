@@ -8,7 +8,7 @@ from zipfile import ZipInfo
 from typing import Callable
 
 from djmgmt import music
-from djmgmt import config, constants
+from djmgmt import config, constants, events
 from djmgmt.common import FileMapping
 from djmgmt.music import RecordResult, ProcessResult
 from djmgmt.sync import SyncResult, SyncBatchResult
@@ -974,6 +974,14 @@ class TestUpdateLibrary(unittest.TestCase):
         self.assertEqual(actual.sync_result, self.mock_sync_result)
         self.assertListEqual(actual.changed_mappings, self.mock_mappings_filtered)
 
+    def test_sync_summary_failed_batches(self) -> None:
+        '''Tests that the sync summary totals files across batches and counts failed batches.'''
+        result = SyncResult(mappings=[], batches=[
+            SyncBatchResult(date_context='2025/01', files_processed=4, success=True),
+            SyncBatchResult(date_context='2025/02', files_processed=2, success=False),
+        ])
+        self.assertEqual(music.sync_summary(result), 'synced 6 files in 2 batches, 1 failed')
+
     def test_events(self) -> None:
         '''Tests that each phase emits a start and completion event, in operation order.'''
         self.mock_record_collection.return_value = RecordResult(
@@ -1006,6 +1014,14 @@ class TestUpdateLibrary(unittest.TestCase):
 
         # Each completion carries a summary for display
         self.assertTrue(all(e.summary for e in recorder.completed()))
+
+        # The phase order matches the stage list the UI renders up front
+        self.assertListEqual([phase for _, phase in expected_phases[::2]], events.UPDATE_LIBRARY_PHASES)
+
+        # Collection and sync summaries report their counts
+        summaries = {e.phase: e.summary for e in recorder.completed()}
+        self.assertEqual(summaries[Phase.RECORD_COLLECTION], '2 new tracks, 1 updated tracks')
+        self.assertEqual(summaries[Phase.SYNC], 'synced 3 files in 1 batches')
 
         # The bus reaches the sync stage, which emits its own item progress
         self.mock_run_music.assert_called_once()

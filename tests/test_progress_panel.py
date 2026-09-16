@@ -16,6 +16,8 @@ from djmgmt.events import Event, ItemProgress, Phase, PhaseCompleted, PhaseStart
 
 HAS_STREAMLIT = find_spec('streamlit') is not None
 
+ICONS = {'pending': '○', 'active': '⏳', 'complete': '✓', 'failed': '✗'}
+
 TITLE = 'Updating library'
 LABEL_COMPLETE = 'Updated library'
 LABEL_FAIL     = 'Library update failed'
@@ -23,7 +25,7 @@ FINISH_COMPLETE = 'complete'
 FINISH_FAIL     = 'fail'
 
 
-def _panel_script(title: 'str', events_to_emit: 'list[Event]', finish: 'str',
+def _panel_script(title: 'str', stages: 'list[str]', events_to_emit: 'list[Event]', finish: 'str',
                   complete_label: 'str', fail_label: 'str') -> None:
     '''Renders a panel, emits the given events, and optionally closes it out.
 
@@ -31,7 +33,7 @@ def _panel_script(title: 'str', events_to_emit: 'list[Event]', finish: 'str',
     '''
     from djmgmt.ui.components.progress_panel import ProgressPanel
 
-    panel = ProgressPanel(title)
+    panel = ProgressPanel(title, stages=stages)
     for event in events_to_emit:
         panel.bus.emit(event)
     if finish == 'complete':
@@ -54,7 +56,7 @@ def _raising_subscriber_script(title: 'str', event: 'Event') -> None:
 
 @unittest.skipUnless(HAS_STREAMLIT, 'streamlit is available for UI rendering tests')
 class TestProgressPanel(unittest.TestCase):
-    def render(self, events_to_emit: list[Event], finish: str = '') -> Any:
+    def render(self, events_to_emit: list[Event], finish: str = '', stages: list[str] | None = None) -> Any:
         '''Runs the panel script under the app test harness and returns the finished app.'''
         from streamlit.testing.v1 import AppTest
 
@@ -63,6 +65,7 @@ class TestProgressPanel(unittest.TestCase):
             default_timeout=30,
             kwargs={
                 'title': TITLE,
+                'stages': stages or [],
                 'events_to_emit': events_to_emit,
                 'finish': finish,
                 'complete_label': LABEL_COMPLETE,
@@ -100,6 +103,42 @@ class TestProgressPanel(unittest.TestCase):
         self.assertIn(events.label(Phase.RECORD_COLLECTION), feed)
         self.assertIn('recorded 12 tracks', feed)
         self.assertLess(feed.index('processed 12 files'), feed.index('recorded 12 tracks'))
+
+    def test_stages_listed_pending(self) -> None:
+        '''Tests that every stage appears as pending before any event arrives, in order.'''
+        app = self.render([], stages=events.UPDATE_LIBRARY_PHASES)
+
+        feed = app.markdown[0].value
+        positions = [feed.index(f"{ICONS['pending']} **{events.label(phase)}**") for phase in events.UPDATE_LIBRARY_PHASES]
+        self.assertListEqual(positions, sorted(positions))
+
+    def test_stage_statuses_track_events(self) -> None:
+        '''Tests that finished, active, and upcoming stages display side by side.'''
+        app = self.render([
+            PhaseStarted(Phase.PROCESS, '/downloads'),
+            PhaseCompleted(Phase.PROCESS, 'processed 0 files'),
+            PhaseStarted(Phase.RECORD_COLLECTION),
+            PhaseCompleted(Phase.RECORD_COLLECTION, '40 new tracks, 3521 updated tracks'),
+            PhaseStarted(Phase.BUILD_MAPPINGS),
+            PhaseCompleted(Phase.BUILD_MAPPINGS, 'built 121 mappings'),
+            PhaseStarted(Phase.SYNC, '121 mappings'),
+        ], stages=events.UPDATE_LIBRARY_PHASES)
+
+        feed = app.markdown[0].value
+        self.assertIn(f"{ICONS['complete']} **{events.label(Phase.PROCESS)}**: processed 0 files", feed)
+        self.assertIn(f"{ICONS['complete']} **{events.label(Phase.RECORD_COLLECTION)}**: 40 new tracks, 3521 updated tracks", feed)
+        self.assertIn(f"{ICONS['active']} **{events.label(Phase.SYNC)}**: 121 mappings", feed)
+
+    def test_fail_marks_active_stage(self) -> None:
+        '''Tests that a failure flags the running stage and leaves later stages pending.'''
+        app = self.render([
+            PhaseCompleted(Phase.PROCESS, 'processed 12 files'),
+            PhaseStarted(Phase.RECORD_COLLECTION),
+        ], finish=FINISH_FAIL, stages=events.UPDATE_LIBRARY_PHASES)
+
+        feed = app.markdown[0].value
+        self.assertIn(f"{ICONS['failed']} **{events.label(Phase.RECORD_COLLECTION)}**", feed)
+        self.assertIn(f"{ICONS['pending']} **{events.label(Phase.SYNC)}**", feed)
 
     def test_item_progress_renders_bar(self) -> None:
         '''Tests that item progress renders a bar at the completed portion of the phase.'''

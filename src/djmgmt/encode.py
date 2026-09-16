@@ -447,6 +447,15 @@ async def encode_lossy(path_mappings: list[FileMapping], extension: str, threads
     if dry_run:
         logging.info(f'[DRY-RUN] Would encode {len(result_mappings)} files')
     else:
+        # ffmpeg owns the audio stream and cover art; the text tags are restored through Tags so that a
+        # later comparison between source and destination reads both sides with the same library
+        from .tags import Tags
+
+        for source, dest in result_mappings:
+            source_tags = Tags.load(source)
+            if source_tags:
+                source_tags.write(dest)
+
         logging.info('finished lossy encoding')
 
     return result_mappings

@@ -853,3 +853,79 @@ class TestTagsDiff(unittest.TestCase):
         self.assertIn('album', actual.different_fields)
         self.assertTrue(actual.has_differences())
 
+class TestTagsWrite(unittest.TestCase):
+    '''Covers Tags.write, which stores the text tags that `load` reads back.'''
+
+    def setUp(self) -> None:
+        self.mock_file = patch('mutagen.File').start()
+        self.addCleanup(patch.stopall)
+
+        self.mock_track = MagicMock()
+        self.mock_file.return_value = self.mock_track
+
+    def test_success_writes_each_frame(self) -> None:
+        '''Tests that every populated field is stored in its ID3 frame.'''
+        tags = Tags(MOCK_ARTIST, MOCK_ALBUM, MOCK_TITLE, MOCK_GENRE, MOCK_MUSIC_KEY_KEY)
+
+        # Call target function
+        actual = tags.write(MOCK_INPUT_PATH)
+
+        # Assert expectations
+        self.assertTrue(actual)
+        written = {call.args[0] for call in self.mock_track.tags.setall.call_args_list}
+        self.assertSetEqual(written, {'TPE1', 'TALB', 'TIT2', 'TCON', 'TKEY'})
+        self.mock_track.save.assert_called_once()
+
+    def test_success_absent_value_clears_frame(self) -> None:
+        '''Tests that a field holding None clears its frame so the destination mirrors the source.'''
+        tags = Tags(MOCK_ARTIST, MOCK_ALBUM, MOCK_TITLE, MOCK_GENRE, key=None)
+
+        # Call target function
+        actual = tags.write(MOCK_INPUT_PATH)
+
+        # Assert expectations
+        self.assertTrue(actual)
+        self.mock_track.tags.delall.assert_called_once_with('TKEY')
+
+    def test_success_adds_missing_tag_block(self) -> None:
+        '''Tests that a file carrying no tag block receives one.'''
+        # mutagen populates `tags` as part of add_tags, so the mock mirrors that behavior
+        def add_tags() -> None:
+            self.mock_track.tags = MagicMock()
+        self.mock_track.tags = None
+        self.mock_track.add_tags.side_effect = add_tags
+
+        tags = Tags(MOCK_ARTIST, title=MOCK_TITLE)
+
+        # Call target function
+        tags.write(MOCK_INPUT_PATH)
+
+        # Assert expectations
+        self.mock_track.add_tags.assert_called_once()
+
+    @patch('logging.error')
+    def test_error_file_load(self, mock_log_error: MagicMock) -> None:
+        '''Tests that a mutagen load failure reports an unwritten result.'''
+        self.mock_file.side_effect = mutagen.MutagenError('mock error')
+        tags = Tags(MOCK_ARTIST, title=MOCK_TITLE)
+
+        # Call target function
+        actual = tags.write(MOCK_INPUT_PATH)
+
+        # Assert expectations
+        self.assertFalse(actual)
+        mock_log_error.assert_called_once()
+
+    @patch('logging.error')
+    def test_error_file_empty(self, mock_log_error: MagicMock) -> None:
+        '''Tests that an unreadable file reports an unwritten result.'''
+        self.mock_file.return_value = None
+        tags = Tags(MOCK_ARTIST, title=MOCK_TITLE)
+
+        # Call target function
+        actual = tags.write(MOCK_INPUT_PATH)
+
+        # Assert expectations
+        self.assertFalse(actual)
+        mock_log_error.assert_called_once()
+

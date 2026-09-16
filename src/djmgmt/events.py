@@ -32,6 +32,14 @@ LABELS: dict[str, str] = {
 }
 '''Human-readable label for each phase, suitable for display.'''
 
+UPDATE_LIBRARY_PHASES: list[str] = [
+    Phase.PROCESS,
+    Phase.RECORD_COLLECTION,
+    Phase.BUILD_MAPPINGS,
+    Phase.SYNC,
+]
+'''Phases of `music.update_library`, in execution order.'''
+
 def label(phase: str) -> str:
     '''Returns the display label for the given phase, defaulting to the phase name.'''
     return LABELS.get(phase, phase)
